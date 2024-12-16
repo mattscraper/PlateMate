@@ -14,7 +14,7 @@ def get_recipes():
         allergies = data.get('allergies')
 
         # Call the function to get recipes
-        recipes = get_recipe_ideas(meal_type, healthy, allergies)
+        recipes = get_recipe_ideas(meal_type, healthy, allergies,num_recipes = 5)
 
         return jsonify({'fetchRecipes': recipes})
     except Exception as e:
