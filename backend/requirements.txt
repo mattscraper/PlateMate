@@ -2,3 +2,8 @@ Flask
 flask-cors
 openai
 python-dotenv
+flask
+flask_sqlalchemy
+bcrypt
+jwt
+PyJWT
