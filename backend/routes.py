@@ -81,3 +81,7 @@ def init_recipe_routes(app):
     """Initialize recipe routes"""
     app.register_blueprint(recipe_routes)
     return app
+
+
+
+        
