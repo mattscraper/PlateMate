@@ -10,12 +10,15 @@ import {
   Platform,
   Animated,
   Dimensions,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { fetchRecipes } from "../utils/api";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import { authService, APIURL } from "../services/auth";
+import axios from "axios";
 
 const { width } = Dimensions.get("window");
 
@@ -31,7 +34,6 @@ export default function ResultsScreen({ route }) {
   const { mealType = "", healthy = false, allergies = [] } = route.params || {};
 
   useEffect(() => {
-    // Initialize animations for items
     itemAnimations.forEach((anim, index) => {
       Animated.timing(anim, {
         toValue: 1,
@@ -48,18 +50,55 @@ export default function ResultsScreen({ route }) {
     return anim;
   };
 
+  const handleRecipeSave = async (recipeText) => {
+    try {
+      const sections = recipeText.split("\n\n");
+      const title = sections[0];
+      const ingredients = sections.find((s) => s.includes("•"));
+      const instructions = sections.find((s) => s.match(/^\d\./m));
+      const nutrition = sections.find(
+        (s) =>
+          s.toLowerCase().includes("time") ||
+          s.toLowerCase().includes("servings")
+      );
+
+      const response = await axios.post(`${APIURL}/api/recipes/save`, {
+        title,
+        ingredients,
+        instructions,
+        nutrition,
+      });
+
+      Alert.alert(
+        "Success",
+        "Recipe saved successfully! You can view it in My Recipes.",
+        [
+          {
+            text: "View Now",
+            onPress: () => navigation.navigate("MyRecipes"),
+          },
+          {
+            text: "Keep Browsing",
+            style: "cancel",
+          },
+        ]
+      );
+    } catch (error) {
+      if (error.response?.status === 401) {
+        Alert.alert("Error", "Please log in to save recipes");
+      } else {
+        Alert.alert("Error", "Failed to save recipe. Please try again.");
+      }
+      console.error("Error saving recipe:", error);
+    }
+  };
+
   const regenerateRecipes = async () => {
     setLoading(true);
     try {
-      // Start a minimum loading time
       const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 800));
-
-      // Make the API call
       const recipesPromise = fetchRecipes(mealType, healthy, allergies);
-
-      // Wait for both the minimum time and the API response
       const [newRecipes] = await Promise.all([recipesPromise, minLoadingTime]);
-
       setRecipes(newRecipes);
       setSelectedRecipeIndex(0);
     } catch (error) {
@@ -121,7 +160,7 @@ export default function ResultsScreen({ route }) {
               style={[styles.ingredientItem, { opacity: fadeIn }]}
             >
               <View style={styles.ingredientIconContainer}>
-                <Ionicons name="checkmark-circle" size={20} color="#00b4d8" />
+                <Ionicons name="checkmark-circle" size={20} color="#008b8b" />
               </View>
               <Text style={styles.ingredientText}>
                 {ingredient.replace("•", "").trim()}
@@ -156,7 +195,7 @@ export default function ResultsScreen({ route }) {
               key={i}
               style={[styles.timeItem, { opacity: fadeIn }]}
             >
-              <Ionicons name="time" size={18} color="#00b4d8" />
+              <Ionicons name="time" size={18} color="#008b8b" />
               <Text style={styles.timeText}>{info}</Text>
             </Animated.View>
           );
@@ -169,10 +208,7 @@ export default function ResultsScreen({ route }) {
 
   const formatRecipeText = (recipeText) => {
     if (!recipeText) return null;
-
-    // Clear previous animations
     itemAnimations.length = 0;
-
     const sections = recipeText
       .split("\n\n")
       .map((section) => section.trim())
@@ -199,7 +235,7 @@ export default function ResultsScreen({ route }) {
             style={[styles.section, { opacity: fadeIn }]}
           >
             <View style={styles.sectionHeader}>
-              <Ionicons name="restaurant" size={24} color="#00b4d8" />
+              <Ionicons name="restaurant" size={24} color="#008b8b" />
               <Text style={styles.sectionTitle}>Ingredients</Text>
             </View>
             {formatRecipeSection(section, "ingredients")}
@@ -214,7 +250,7 @@ export default function ResultsScreen({ route }) {
             style={[styles.section, { opacity: fadeIn }]}
           >
             <View style={styles.sectionHeader}>
-              <Ionicons name="list" size={24} color="#00b4d8" />
+              <Ionicons name="list" size={24} color="#008b8b" />
               <Text style={styles.sectionTitle}>Instructions</Text>
             </View>
             {formatRecipeSection(section, "instructions")}
@@ -251,9 +287,7 @@ export default function ResultsScreen({ route }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyContainer}>
-          <View>
-            <Ionicons name="restaurant-outline" size={80} color="#00b4d8" />
-          </View>
+          <Ionicons name="restaurant-outline" size={80} color="#008b8b" />
           <Text style={styles.emptyText}>No recipes found</Text>
           <TouchableOpacity
             style={styles.backButton}
@@ -267,35 +301,48 @@ export default function ResultsScreen({ route }) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       <Modal transparent={true} visible={loading}>
         <BlurView intensity={80} style={styles.loadingOverlay}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#00b4d8" />
+            <ActivityIndicator size="large" color="#008b8b" />
             <Text style={styles.loadingText}>Finding new recipes...</Text>
           </View>
         </BlurView>
       </Modal>
 
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>
-            {selectedRecipeIndex + 1}/{recipes.length}
-          </Text>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>
+              Recipe {selectedRecipeIndex + 1}
+            </Text>
+            <Text style={styles.headerSubtitle}>of {recipes.length}</Text>
+          </View>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => handleRecipeSave(recipes[selectedRecipeIndex])}
+            >
+              <Ionicons name="bookmark-outline" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={regenerateRecipes}
+              disabled={loading}
+            >
+              <Ionicons name="refresh" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={regenerateRecipes}
-          disabled={loading}
-        >
-          <Ionicons name="refresh" size={24} color="#00b4d8" />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -321,13 +368,13 @@ export default function ResultsScreen({ route }) {
           style={styles.navButton}
           onPress={() => handleRecipeChange("prev")}
         >
-          <Ionicons name="chevron-back" size={24} color="#ffffff" />
+          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navButton}
           onPress={() => handleRecipeChange("next")}
         >
-          <Ionicons name="chevron-forward" size={24} color="#ffffff" />
+          <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -340,31 +387,58 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
   header: {
+    backgroundColor: "#008b8b",
+    paddingTop: Platform.OS === "ios" ? 50 : 40,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    marginTop: -50,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  headerContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
+    paddingVertical: 16,
+  },
+  headerButton: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,139,139,0.2)",
   },
   headerCenter: {
     alignItems: "center",
   },
-  headerButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,139,139,0.2)",
   },
   contentContainer: {
     paddingBottom: 100,
@@ -426,7 +500,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(0,180,216,0.1)",
+    backgroundColor: "rgba(0,139,139,0.1)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -445,7 +519,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#00b4d8",
+    backgroundColor: "#008b8b",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
@@ -470,14 +544,14 @@ const styles = StyleSheet.create({
   timeItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0,180,216,0.1)",
+    backgroundColor: "rgba(0,139,139,0.1)",
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 20,
   },
   timeText: {
     fontSize: 14,
-    color: "#00b4d8",
+    color: "#008b8b",
     marginLeft: 8,
     fontWeight: "500",
   },
@@ -498,7 +572,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#00b4d8",
+    backgroundColor: "#008b8b",
     justifyContent: "center",
     alignItems: "center",
     ...Platform.select({
@@ -526,7 +600,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   backButton: {
-    backgroundColor: "#00b4d8",
+    backgroundColor: "#008b8b",
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 16,
@@ -572,7 +646,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#00b4d8",
+    color: "#008b8b",
     fontWeight: "500",
   },
 });

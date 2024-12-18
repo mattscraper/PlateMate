@@ -25,7 +25,7 @@ class RecipeGenerator:
         3. Vary cooking methods, ingredients, and cuisine styles
         4. Format each recipe exactly as follows:
         - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not be "==="
-        - Ingredients with bullet points (•) BELOW TITLE
+        - Ingredients with bullet points (•) BELOW TITLE(make sure the ingredients are passed below the titile)
         - Numbered instructions(specific)
         - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
         - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
@@ -40,6 +40,8 @@ class RecipeGenerator:
             prompt += " Make them healthy and nutritious."
             
         if allergies:
+            if "vegan" in allergies:
+                prompt += f"Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
             prompt += f" Ensure they are completely free of these allergens or restrctions(example:vegan, vegitarian): {', '.join(allergies)}."
 
         try:

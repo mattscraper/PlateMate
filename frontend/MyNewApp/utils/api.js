@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 const getHost = () => {
-  const localIpAddress = "192.168.0.14"; // Update this to match your IP
+  const localIpAddress = "192.168.0.14";
 
   return Platform.select({
     android: `http://${localIpAddress}:5000`,

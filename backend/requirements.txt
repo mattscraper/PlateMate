@@ -6,7 +6,9 @@ flask
 flask_sqlalchemy
 bcrypt
 jwt
-PyJWTFlask
+PyJWT
 flask-cors
 openai
 python-dotenv
+flask-migrate
+flask-jwt-extended
