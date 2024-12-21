@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Dimensions,
   Keyboard,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -187,71 +188,79 @@ export default function LandingScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.logoText}>🍳</Text>
-          <Text style={styles.title}>PlateMate</Text>
-          <Text style={styles.subtitle}>Your Personal Recipe Assistant</Text>
-        </View>
+    <ScrollView>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.logoText}>🍳</Text>
+            <Text style={styles.title}>PlateMate</Text>
+            <Text style={styles.subtitle}>Your Personal Recipe Assistant</Text>
+          </View>
 
-        <View style={styles.menuContainer}>
-          <MenuCard
-            icon="search"
-            title="Find New Recipes"
-            description="Discover delicious recipes tailored to your preferences"
-            onPress={() => navigation.navigate("FindRecipes")}
-          />
+          <View style={styles.menuContainer}>
+            <MenuCard
+              icon="search"
+              title="Find New Recipes"
+              description="Discover delicious recipes tailored to your preferences"
+              onPress={() => navigation.navigate("FindRecipes")}
+            />
+            <MenuCard
+              icon="basket-outline"
+              title="What's in Your Kitchen?"
+              description="Find tasty recipes using the ingredients you already have."
+              onPress={() => navigation.navigate("FindByIngredients")}
+            />
 
-          <MenuCard
-            icon="bookmark"
-            title="My Recipes"
-            description="Access your saved recipes and cooking history"
+            <MenuCard
+              icon="bookmark"
+              title="My Recipes"
+              description="Access your saved recipes and cooking history"
+              onPress={() => {
+                if (isLoggedIn) {
+                  navigation.navigate("MyRecipes");
+                } else {
+                  setIsLoginModalVisible(true);
+                }
+              }}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.profileButton}
             onPress={() => {
               if (isLoggedIn) {
-                navigation.navigate("MyRecipes");
+                Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+                  {
+                    text: "Cancel",
+                    style: "cancel",
+                  },
+                  {
+                    text: "Sign Out",
+                    onPress: async () => {
+                      await authService.logout();
+                      setIsLoggedIn(false);
+                    },
+                  },
+                ]);
               } else {
                 setIsLoginModalVisible(true);
               }
             }}
-          />
+          >
+            <Ionicons
+              name={isLoggedIn ? "log-out-outline" : "person-circle-outline"}
+              size={24}
+              color="#008b8b"
+            />
+            <Text style={styles.profileButtonText}>
+              {isLoggedIn ? "Sign Out" : "Sign In"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.profileButton}
-          onPress={() => {
-            if (isLoggedIn) {
-              Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-                {
-                  text: "Cancel",
-                  style: "cancel",
-                },
-                {
-                  text: "Sign Out",
-                  onPress: async () => {
-                    await authService.logout();
-                    setIsLoggedIn(false);
-                  },
-                },
-              ]);
-            } else {
-              setIsLoginModalVisible(true);
-            }
-          }}
-        >
-          <Ionicons
-            name={isLoggedIn ? "log-out-outline" : "person-circle-outline"}
-            size={24}
-            color="#008b8b"
-          />
-          <Text style={styles.profileButtonText}>
-            {isLoggedIn ? "Sign Out" : "Sign In"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <LoginModal />
-    </SafeAreaView>
+        <LoginModal />
+      </SafeAreaView>
+    </ScrollView>
   );
 }
 
@@ -343,6 +352,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "#e6f3f3",
     gap: 8,
+    marginTop: 20,
   },
   profileButtonText: {
     fontSize: 16,

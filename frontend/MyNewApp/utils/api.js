@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
 
 const getHost = () => {
   const localIpAddress = "192.168.0.14";
@@ -44,5 +45,33 @@ export const fetchRecipes = async (mealType, healthy, allergies) => {
   } catch (error) {
     console.error("Error fetching recipes:", error);
     return [];
+  }
+};
+
+export const fetchRecipesByIngredients = async (ingredients, allergies) => {
+  try {
+    const host = getHost();
+    const response = await fetch(`${host}/api/recipes/ingredients`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ingredients,
+        allergies,
+        count: 10,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to fetch recipes");
+    }
+
+    const data = await response.json();
+    return data.recipes;
+  } catch (error) {
+    console.error("Error fetching recipes:", error);
+    throw error;
   }
 };

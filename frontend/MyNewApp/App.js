@@ -9,6 +9,7 @@ import ResultsScreen from "./screens/ResultsScreen";
 import FindRecipes from "./screens/FindRecipes";
 import LandingScreen from "./screens/Landing";
 import MyRecipes from "./screens/MyRecipes";
+import RecipeIngredients from "./screens/RecipeIngredient";
 
 const Stack = createStackNavigator();
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
         <Stack.Screen name="FindRecipes" component={FindRecipes} />
         <Stack.Screen name="Results" component={ResultsScreen} />
         <Stack.Screen name="MyRecipes" component={MyRecipes} />
+        <Stack.Screen name="FindByIngredients" component={RecipeIngredients} />
       </Stack.Navigator>
     </NavigationContainer>
   );
