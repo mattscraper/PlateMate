@@ -1,8 +1,13 @@
 {
   "expo": {
     "name": "MyNewApp",
-    "slug": "MyNewApp",
+    "android": {
+      "package": "com.platemate.recipemealplanner"
+    },
+
+    "slug": "platemate",
     "version": "1.0.0",
+    "baseUrl": "http:172.20.10.2:5000",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,20 +18,45 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "name": "PlateMate",
+      "bundleIdentifier": "com.platemate.recipemealplanner",
+      "buildNumber": "1.0.0",
+      "googleServicesFile": "./assets/GoogleService-Info.plist"
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.anonymous.MyNewApp"
+    "supportsTablet": true,
+    "infoPlist": {
+      "NSAllowsArbitraryLoads": true,
+      "NSExceptionDomains": {
+        "10.174.104.150": {
+          "NSExceptionAllowsInsecureHTTPLoads": true,
+          "NSIncludesSubdomains": true
+        }
+      }
+    }
+  },
+  "android": {
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/adaptive-icon.png",
+      "backgroundColor": "#ffffff"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-secure-store"
-    ]
-  }
+    "package": "com.platemate.recipemealplanner",
+    "usesCleartextTraffic": true,
+    "versionCode": 1,
+    "googleServicesFile": "./google-services.json"
+  },
+  "web": {
+    "favicon": "./assets/favicon.png"
+  },
+  "plugins": [
+    "expo-secure-store",
+    "@react-native-firebase/app",
+    "@react-native-firebase/auth",
+    "@react-native-firebase/firestore"
+  ],
+  "extra": {
+    "eas": {
+      "projectId": "1ca757aa-4cac-4f34-93e8-acbad2b8a4c0"
+    }
+  },
+  "owner": "mattnaples22"
 }

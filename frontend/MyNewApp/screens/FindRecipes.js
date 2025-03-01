@@ -151,6 +151,7 @@ export default function FindRecipes() {
         ])
       ).start();
 
+      // change this in production, will host backend to a server
       const recipes = await fetchRecipes(mealType, healthy, allergies);
 
       Animated.timing(loadingProgress, {

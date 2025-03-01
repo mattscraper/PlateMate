@@ -1,8 +1,13 @@
+// figure out a way to implement the auth and connect to backend using token refresh
+
 import * as SecureStore from "expo-secure-store";
 import axios from "axios";
 import * as Device from "expo-device";
 
-export const APIURL = "http://192.168.0.14"; // Update with your API URL
+// this url needs to be updated during production
+export const APIURL = "http://172.20.10.2::5000";
+
+//figure out if we are using apples device verification!
 
 export const authService = {
   async getToken() {
@@ -16,6 +21,7 @@ export const authService = {
 
   async login(email) {
     try {
+      // we will need to change this once we get our apple api routes
       const deviceId = `${Device.modelName}-${Device.deviceName}-${Device.deviceYearClass}`;
 
       const response = await axios.post(
@@ -39,7 +45,7 @@ export const authService = {
       throw error;
     }
   },
-
+  // do we need tokens or do we use keychain?
   async saveToken(token) {
     try {
       await SecureStore.setItemAsync("auth_token", token);
@@ -57,7 +63,7 @@ export const authService = {
       console.error("Error during logout:", error);
     }
   },
-
+  // if we use tokens do we need a refresh function?
   async initialize() {
     const token = await this.getToken();
     if (token) {

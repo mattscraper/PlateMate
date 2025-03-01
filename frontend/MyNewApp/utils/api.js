@@ -1,22 +1,10 @@
-import Constants from "expo-constants";
-import { Platform } from "react-native";
-import { get } from "react-native/Libraries/TurboModule/TurboModuleRegistry";
-
-const getHost = () => {
-  const localIpAddress = "192.168.0.14";
-
-  return Platform.select({
-    android: `http://${localIpAddress}:5000`,
-    ios: `http://${localIpAddress}:5000`,
-    default: `http://${localIpAddress}:5000`,
-  });
-};
+const API_URL = "http://172.20.10.2:5000"; // make sure this is changed during production to backends url
 
 export const fetchRecipes = async (mealType, healthy, allergies) => {
   try {
-    const host = getHost();
+    console.log("Fetching from:", API_URL); // Debug log
 
-    const response = await fetch(`${host}/api/recipes`, {
+    const response = await fetch(`${API_URL}/api/recipes`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -29,19 +17,14 @@ export const fetchRecipes = async (mealType, healthy, allergies) => {
       }),
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      console.error("Server error:", data.error);
+      const errorData = await response.json();
+      console.error("Server error:", errorData);
       return [];
     }
 
-    if (data.success && data.recipes && Array.isArray(data.recipes)) {
-      // Return the recipes array directly
-      return data.recipes;
-    }
-
-    return [];
+    const data = await response.json();
+    return data.recipes || [];
   } catch (error) {
     console.error("Error fetching recipes:", error);
     return [];
@@ -50,8 +33,9 @@ export const fetchRecipes = async (mealType, healthy, allergies) => {
 
 export const fetchRecipesByIngredients = async (ingredients, allergies) => {
   try {
-    const host = getHost();
-    const response = await fetch(`${host}/api/recipes/ingredients`, {
+    console.log("Fetching from:", API_URL); // Debug log
+
+    const response = await fetch(`${API_URL}/api/recipes/ingredients`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -64,14 +48,51 @@ export const fetchRecipesByIngredients = async (ingredients, allergies) => {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to fetch recipes");
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch recipes");
     }
 
     const data = await response.json();
-    return data.recipes;
+    return data.recipes || [];
   } catch (error) {
-    console.error("Error fetching recipes:", error);
+    console.error("Error fetching recipes by ingredients:", error);
+    throw error;
+  }
+};
+// function to fetch meal plans
+export const fetchMealPlans = async (
+  days,
+  mealsPerDay,
+  healthy,
+  allergies,
+  preferences,
+  caloriesPerDay
+) => {
+  try {
+    const response = await fetch(`${API_URL}/api/mealplans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        days,
+        meals_per_day: mealsPerDay,
+        healthy,
+        allergies: Array.isArray(allergies) ? allergies : [],
+        preferences: Array.isArray(preferences) ? preferences : [],
+        calories_per_day: caloriesPerDay,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to fetch meal plans");
+    }
+
+    const data = await response.json();
+    return data.meal_plan || {};
+  } catch (error) {
+    console.error("Error fetching meal plans:", error);
     throw error;
   }
 };

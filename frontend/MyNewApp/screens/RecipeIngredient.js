@@ -36,7 +36,23 @@ export default function FindByIngredients() {
     "Mixing and matching... 🥗",
     "Finding perfect recipes... 📖",
     "Almost ready to cook... 🍳",
-    // Add more cooking-related loading messages
+    "Preheating the oven... 🔥",
+    "Whisking up some ideas... 🍶",
+    "Chopping veggies... 🥕",
+    "Sautéing some inspiration... 🍴",
+    "Rolling the dough... 🥖",
+    "Seasoning to perfection... 🌿",
+    "Simmering the magic... 🍲",
+    "Tasting for quality... 👨‍🍳",
+    "Fetching the secret sauce... 🥫",
+    "Sprinkling some love... 💕",
+    "Turning up the heat... 🔥",
+    "Serving up deliciousness... 🍽️",
+    "Plating your masterpiece... 🍛",
+    "Finding the freshest produce... 🥬",
+    "Melting butter for flavor... 🧈",
+    "Whipping up something amazing... 🥄",
+    "Marinating the goodness... 🧄",
   ];
 
   useEffect(() => {
@@ -45,7 +61,7 @@ export default function FindByIngredients() {
       const textInterval = setInterval(() => {
         setLoadingText(loadingTexts[currentIndex]);
         currentIndex = (currentIndex + 1) % loadingTexts.length;
-      }, 1200);
+      }, 1300);
 
       return () => clearInterval(textInterval);
     }
@@ -73,6 +89,7 @@ export default function FindByIngredients() {
         ])
       ).start();
 
+      // change this in production.. will host backend to server
       const recipes = await fetchRecipesByIngredients(ingredients, allergies);
 
       Animated.timing(loadingProgress, {
@@ -82,7 +99,11 @@ export default function FindByIngredients() {
       }).start();
 
       await new Promise((resolve) => setTimeout(resolve, 200));
-      navigation.navigate("Results", { recipes, ingredients, allergies });
+      navigation.navigate("ResultsIngredients", {
+        recipes,
+        ingredients,
+        allergies,
+      });
     } catch (error) {
       console.error("Error fetching recipes:", error);
     } finally {

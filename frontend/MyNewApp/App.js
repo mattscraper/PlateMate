@@ -4,14 +4,24 @@ import { createStackNavigator } from "@react-navigation/stack";
 import { StyleSheet, Text, View } from "react-native";
 import React, { useEffect } from "react";
 import { authService } from "./services/auth";
+import { AuthProvider } from "./services/AuthContext.";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebaseConfig";
+import { initializeDatabase } from "./initDatabase";
 
 import ResultsScreen from "./screens/ResultsScreen";
 import FindRecipes from "./screens/FindRecipes";
 import LandingScreen from "./screens/Landing";
 import MyRecipes from "./screens/MyRecipes";
 import RecipeIngredients from "./screens/RecipeIngredient";
+import ResultsIngredientsScreen from "./screens/ResultsIngredients";
+import MealPlans from "./screens/MealPlans";
+import MealPlanResults from "./screens/MealPlanResults";
+
+//import MealPlanLanding from "./screens/MealPlanLanding";
 
 const Stack = createStackNavigator();
+
 export default function App() {
   useEffect(() => {
     const initAuth = async () => {
@@ -20,18 +30,43 @@ export default function App() {
     initAuth();
   }, []);
 
-  // Rest of your App component
+  useEffect(() => {
+    // Initialize sample data (only in development)
+    if (__DEV__) {
+      initializeDatabase();
+    }
+
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      if (initializing) setInitializing(false);
+    });
+
+    return unsubscribe; // Unsubscribe on unmount
+  }, [initializing]);
+
+  if (initializing) {
+    return null; // or a loading screen
+  }
 
   return (
+    //<AuthProvider>
     <NavigationContainer>
       <Stack.Navigator initialRouteName="LandingPage">
         <Stack.Screen name="LandingPage" component={LandingScreen} />
         <Stack.Screen name="FindRecipes" component={FindRecipes} />
         <Stack.Screen name="Results" component={ResultsScreen} />
+        <Stack.Screen
+          name="ResultsIngredients"
+          component={ResultsIngredientsScreen}
+        />
         <Stack.Screen name="MyRecipes" component={MyRecipes} />
         <Stack.Screen name="FindByIngredients" component={RecipeIngredients} />
+        <Stack.Screen name="MealPlans" component={MealPlans} />
+        <Stack.Screen name="MealPlanResults" component={MealPlanResults} />
       </Stack.Navigator>
     </NavigationContainer>
+    //</AuthProvider>
   );
 }
 

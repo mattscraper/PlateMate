@@ -2,9 +2,11 @@ from datetime import datetime, timedelta
 from functools import wraps
 from flask import jsonify, request, g
 import jwt
-from models import User, UsageLog
+#from models import User, UsageLog
 from app import db
 
+
+# we might not need this file if we atre handling the authentication with apple!!!
 def track_usage(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):

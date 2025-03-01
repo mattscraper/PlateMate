@@ -24,14 +24,15 @@ class RecipeGenerator:
         2. Never repeat recipe ideas or cuisines in the batch
         3. Vary cooking methods, ingredients, and cuisine styles
         4. Format each recipe exactly as follows:
-        - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "="
+        - title far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
+        - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "=" and should be far above everything
+        - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION....put far below title
         - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
-        - Numbered instructions(specific)
-        - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
-        - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
-        5. Separate each recipe with ===== on its own line
+        - Numbered instructions(specific) specify each step in detail and make sure to include all steps
+        - Nutritional information per serving (united states standards... example(calories,protein,fat,carbs)) in OWN BLOCK and make it look modern and seperate by line
+        5. Separate each recipe with ===== on its own line except for the title!
         6. No bold letters or asterisks
-        7. Make recipes completely distinct and unique from each other.... make them very appealing"""
+        7. Make recipes amazing and think outside the box."""
 
         # Create a single prompt for multiple recipes
         prompt = f"Create {count} unique {meal_type} recipes, each from different cuisines and cooking styles."
@@ -96,15 +97,15 @@ class RecipeGenerator:
         2. Never repeat recipe ideas or cuisines in the batch
         3. Vary cooking methods, ingredients, and cuisine styles
         4. Format each recipe exactly as follows:
+        - Make sure the title is far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
         - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "="
         - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
         - Numbered instructions(specific)
-        -sentence or two explaining the use of available ingredients
         - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
         - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
-        5. Separate each recipe with ===== on its own line
+        5. Separate each recipe with ===== on its own line except for the title!
         6. No bold letters or asterisks
-        7. Make recipes completely distinct and unique from each other.... make them very appealing
+        7. Make recipes amazing and creative
         8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this."""
         
 
@@ -157,6 +158,61 @@ class RecipeGenerator:
             print(f"Error generating recipes: {str(e)}")
             return []
 
-    def format_recipe_for_display(self, recipe):
-        """Format recipe text for display. Return as is since OpenAI already formats it well."""
-        return recipe
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
+
+        system_prompt = f"""You are a meal planning expert. Format requirements:
+        1. Generate a {days}-day meal plan with {meals_per_day} meals per day
+        2. Never repeat recipes in the plan
+        EACH DAY NEEDS TO HAVE {meals_per_day} no matter what. do not skip days.
+        3. Ensure daily calorie total is approximately {calories_per_day} calories
+        4. Format each day EXACTLY as follows:
+        -the days have to be correctly in order! the user can only choose meal plans for 1-14 days.
+            - MUST start each day with "Day X" where X is a sequential number from 1 to {days}
+            - Each meal MUST be labeled as one of: Breakfast, Lunch, Dinner, or Snack... only one of each per day unless meals per day is less than 3
+            - Recipe for each meal formatted exactly like:
+                - Title (do not include the word title)
+                - Preparation Time, Cooking Time, Servings
+                - Ingredients with bullet points (•)
+                - Numbered instructions
+                - Nutritional information (including calories per serving, protein, carbs, and fat)
+        5. Days MUST be numbered sequentially from 1 to {days} with no skipped or incorrect numbers
+        6. Separate each day with ===== on its own line expect for the title!
+        7. Ensure variety in cuisines and cooking methods
+        8. No bold letters or asterisks
+        9. Distribute the {calories_per_day} calories appropriately across the {meals_per_day} meals
+        10. do not leave any additional comments, just the meal plans"""
+
+        # Initialize prompt
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day."
+
+        # Handle optional parameters safely
+        if healthy:
+            prompt += " Make all meals healthy and nutritious."
+
+        if allergies:
+            allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
+            prompt += f" Ensure all recipes are free of: {allergies_list}."
+
+        if preferences:
+            preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
+            prompt += f" Consider these preferences: {preferences_list}."
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.9,
+                max_tokens=4000,
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            print(f"Error generating meal plan: {str(e)}")
+            return None
+def format_recipe_for_display(self, recipe):
+    """Format recipe text for display. Return as is since OpenAI already formats it well."""
+    return recipe

@@ -148,7 +148,6 @@ export default function ResultsScreen({ route }) {
       ]).start();
     });
   };
-
   const formatRecipeSection = (section, type) => {
     switch (type) {
       case "ingredients":
@@ -196,7 +195,9 @@ export default function ResultsScreen({ route }) {
               style={[styles.timeItem, { opacity: fadeIn }]}
             >
               <Ionicons name="time" size={18} color="#008b8b" />
-              <Text style={styles.timeText}>{info}</Text>
+              <Text style={styles.timeText}>
+                {info.replace("•", "").trim()}
+              </Text>
             </Animated.View>
           );
         });
@@ -221,24 +222,39 @@ export default function ResultsScreen({ route }) {
         return (
           <Animated.View
             key={index}
-            style={[styles.titleContainer, { opacity: fadeIn }]}
+            style={[styles.titleWrapper, { opacity: fadeIn }]}
           >
-            <Text style={styles.recipeTitle}>{section}</Text>
+            <View style={styles.titleContainer}>
+              <Text style={styles.recipeTitle}>{section}</Text>
+              <View style={styles.titleDecoration} />
+            </View>
           </Animated.View>
         );
       }
 
       if (section.includes("•")) {
+        const sectionTitle = section.toLowerCase().includes("time")
+          ? "Timing Details"
+          : "Ingredients";
+        const icon = section.toLowerCase().includes("time")
+          ? "time"
+          : "restaurant";
+
         return (
           <Animated.View
             key={index}
             style={[styles.section, { opacity: fadeIn }]}
           >
             <View style={styles.sectionHeader}>
-              <Ionicons name="restaurant" size={24} color="#008b8b" />
-              <Text style={styles.sectionTitle}>Ingredients</Text>
+              <View style={styles.sectionHeaderIcon}>
+                <Ionicons name={icon} size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.sectionTitle}>{sectionTitle}</Text>
             </View>
-            {formatRecipeSection(section, "ingredients")}
+            {formatRecipeSection(
+              section,
+              section.toLowerCase().includes("time") ? "time" : "ingredients"
+            )}
           </Animated.View>
         );
       }
@@ -250,24 +266,12 @@ export default function ResultsScreen({ route }) {
             style={[styles.section, { opacity: fadeIn }]}
           >
             <View style={styles.sectionHeader}>
-              <Ionicons name="list" size={24} color="#008b8b" />
+              <View style={styles.sectionHeaderIcon}>
+                <Ionicons name="list" size={20} color="#008b8b" />
+              </View>
               <Text style={styles.sectionTitle}>Instructions</Text>
             </View>
             {formatRecipeSection(section, "instructions")}
-          </Animated.View>
-        );
-      }
-
-      if (
-        section.toLowerCase().includes("time") ||
-        section.toLowerCase().includes("servings")
-      ) {
-        return (
-          <Animated.View
-            key={index}
-            style={[styles.timeSection, { opacity: fadeIn }]}
-          >
-            {formatRecipeSection(section, "time")}
           </Animated.View>
         );
       }
@@ -380,7 +384,6 @@ export default function ResultsScreen({ route }) {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -389,8 +392,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "#008b8b",
     paddingTop: Platform.OS === "ios" ? 50 : 40,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     marginTop: -50,
     ...Platform.select({
       ios: {
@@ -412,9 +415,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   headerButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: "rgba(0,139,139,0.2)",
+    padding: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
   headerCenter: {
     alignItems: "center",
@@ -436,29 +439,54 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: "rgba(0,139,139,0.2)",
-  },
-  contentContainer: {
-    paddingBottom: 100,
+    padding: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
   content: {
     flex: 1,
   },
+  contentContainer: {
+    paddingBottom: 100,
+  },
   recipeContainer: {
     padding: 16,
   },
-  titleContainer: {
+  titleWrapper: {
     marginBottom: 24,
-    paddingBottom: 16,
+    alignItems: "center",
+  },
+  titleContainer: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   recipeTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 26,
+    fontWeight: "800",
     color: "#2c3e50",
     textAlign: "center",
     lineHeight: 34,
+  },
+  titleDecoration: {
+    height: 3,
+    width: 40,
+    backgroundColor: "#008b8b",
+    borderRadius: 2,
+    marginTop: 16,
   },
   section: {
     backgroundColor: "white",
@@ -469,7 +497,7 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
         shadowRadius: 12,
       },
       android: {
@@ -483,23 +511,34 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
+    borderBottomColor: "rgba(0,0,0,0.06)",
+  },
+  sectionHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,139,139,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     color: "#2c3e50",
-    marginLeft: 10,
   },
   ingredientItem: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 14,
+    backgroundColor: "rgba(0,139,139,0.04)",
+    padding: 12,
+    borderRadius: 12,
   },
   ingredientIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "rgba(0,139,139,0.1)",
     justifyContent: "center",
     alignItems: "center",
@@ -514,11 +553,14 @@ const styles = StyleSheet.create({
   instructionItem: {
     flexDirection: "row",
     marginBottom: 20,
+    backgroundColor: "rgba(0,139,139,0.04)",
+    padding: 16,
+    borderRadius: 16,
   },
   instructionNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "#008b8b",
     justifyContent: "center",
     alignItems: "center",
@@ -526,8 +568,8 @@ const styles = StyleSheet.create({
   },
   instructionNumberText: {
     color: "white",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
   },
   instructionText: {
     fontSize: 16,
@@ -539,21 +581,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    marginBottom: 16,
+    marginVertical: 8,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   timeItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0,139,139,0.1)",
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    backgroundColor: "rgba(0,139,139,0.08)",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 20,
   },
   timeText: {
     fontSize: 14,
     color: "#008b8b",
     marginLeft: 8,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   regularText: {
     fontSize: 16,
@@ -577,9 +633,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: "#008b8b",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.3,
         shadowRadius: 8,
       },
       android: {
