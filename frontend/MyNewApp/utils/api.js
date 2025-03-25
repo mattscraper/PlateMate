@@ -1,4 +1,4 @@
-const API_URL = "http://172.20.10.2:5000"; // make sure this is changed during production to backends url
+const API_URL = "https://platemate-qtpe.onrender.com"; // make sure this is changed during production to backends url
 
 export const fetchRecipes = async (mealType, healthy, allergies) => {
   try {
