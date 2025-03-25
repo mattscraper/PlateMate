@@ -5,7 +5,6 @@ python-dotenv
 flask
 flask_sqlalchemy
 bcrypt
-jwt
 PyJWT
 flask-cors
 openai
