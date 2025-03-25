@@ -22,9 +22,9 @@ CORS(app, resources={
 })
 
 
-from backend.extensions import db, migrate
-db.init_app(app)
-migrate.init_app(app, db)
+#from backend.extensions import db, migrate
+#db.init_app(app)
+#migrate.init_app(app, db)
 
 
 
