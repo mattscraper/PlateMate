@@ -2,7 +2,7 @@ from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
 from typing import Optional, List
 from dataclasses import dataclass
-from openai_handler import RecipeGenerator
+from backend.openai_handler import RecipeGenerator
 
 # we need to make a seperate route for the meal plans/ different file?
 

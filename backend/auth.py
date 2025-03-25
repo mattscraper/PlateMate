@@ -10,8 +10,8 @@ from flask_jwt_extended import (
     jwt_required,
     get_jwt_identity
 )
-from models import User
-from extensions import db
+from backend.models import User
+from backend.extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta
 
