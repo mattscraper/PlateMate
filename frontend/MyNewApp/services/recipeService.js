@@ -1,5 +1,7 @@
 // recipeService.js
-import { db } from "./firebaseConfig";
+import { db } from "../firebaseConfig";
+import { saveRecipeToFirebase } from "../utils/recipeUtils";
+s;
 import {
   collection,
   doc,
@@ -10,13 +12,19 @@ import {
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { checkUserPremiumStatus } from "./authService";
+import {
+  getCurrentUser,
+  saveRecipe,
+  removeRecipe,
+  getSavedRecipes,
+  checkPremiumStatus,
+} from "../authService";
 
 // Get all recipes (filtering premium ones for non-premium users)
 export const getAllRecipes = async (userId) => {
   try {
     const recipesSnapshot = await getDocs(collection(db, "recipes"));
-    const isPremium = await checkUserPremiumStatus(userId);
+    const isPremium = await checkPremiumStatus(userId);
 
     const recipes = [];
     recipesSnapshot.forEach((doc) => {
@@ -51,7 +59,7 @@ export const getRecipeById = async (recipeId, userId) => {
 
     // Check if recipe is premium and user is not premium
     if (recipeData.isPremium) {
-      const isPremium = await checkUserPremiumStatus(userId);
+      const isPremium = await checkPremiumStatus(userId);
       if (!isPremium) {
         throw new Error("Premium subscription required");
       }
@@ -71,7 +79,7 @@ export const getRecipeById = async (recipeId, userId) => {
 export const saveRecipeForUser = async (userId, recipeId, notes = "") => {
   try {
     // Check if user is premium
-    const isPremium = await checkUserPremiumStatus(userId);
+    const isPremium = await checkPremiumStatus(userId);
     if (!isPremium) {
       throw new Error("Premium subscription required");
     }
@@ -113,7 +121,7 @@ export const saveRecipeForUser = async (userId, recipeId, notes = "") => {
 export const getUserSavedRecipes = async (userId) => {
   try {
     // Check if user is premium
-    const isPremium = await checkUserPremiumStatus(userId);
+    const isPremium = await checkPremiumStatus(userId);
     if (!isPremium) {
       throw new Error("Premium subscription required");
     }
@@ -131,7 +139,7 @@ export const getUserSavedRecipes = async (userId) => {
       const recipeDoc = await getDoc(
         doc(db, "recipes", savedRecipeData.recipeId)
       );
-
+      //check if the recipe exisits
       if (recipeDoc.exists()) {
         recipes.push({
           id: recipeDoc.id,

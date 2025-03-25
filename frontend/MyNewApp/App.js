@@ -3,11 +3,11 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { StyleSheet, Text, View } from "react-native";
 import React, { useEffect } from "react";
-import { authService } from "./services/auth";
-import { AuthProvider } from "./services/AuthContext.";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./firebaseConfig";
-import { initializeDatabase } from "./initDatabase";
+//import { authService } from "./services/auth";
+//import { AuthProvider } from "./services/AuthContext.";
+//import { onAuthStateChanged } from "firebase/auth";
+//import { auth } from "./firebaseConfig";
+//import { initializeDatabase } from "./initDatabase";
 
 import ResultsScreen from "./screens/ResultsScreen";
 import FindRecipes from "./screens/FindRecipes";
@@ -17,13 +17,17 @@ import RecipeIngredients from "./screens/RecipeIngredient";
 import ResultsIngredientsScreen from "./screens/ResultsIngredients";
 import MealPlans from "./screens/MealPlans";
 import MealPlanResults from "./screens/MealPlanResults";
+import PremiumPlansScreen from "./screens/PremiumPlansScreen";
+import RecipeDetailScreen from "./screens/recipeDetail";
+import { SavedMealPlansScreen } from "./screens/SavedMealPlansScreen";
+import MealPlanDetail from "./screens/MealPlanDetail";
 
 //import MealPlanLanding from "./screens/MealPlanLanding";
 
 const Stack = createStackNavigator();
 
 export default function App() {
-  useEffect(() => {
+  /*useEffect(() => {
     const initAuth = async () => {
       await authService.initialize();
     };
@@ -48,8 +52,9 @@ export default function App() {
   if (initializing) {
     return null; // or a loading screen
   }
-
+*/
   return (
+    // figure out if we need this auth provider
     //<AuthProvider>
     <NavigationContainer>
       <Stack.Navigator initialRouteName="LandingPage">
@@ -64,6 +69,14 @@ export default function App() {
         <Stack.Screen name="FindByIngredients" component={RecipeIngredients} />
         <Stack.Screen name="MealPlans" component={MealPlans} />
         <Stack.Screen name="MealPlanResults" component={MealPlanResults} />
+        <Stack.Screen name="PremiumPlans" component={PremiumPlansScreen} />
+        <Stack.Screen name="RecipeDetail" component={RecipeDetailScreen} />
+        <Stack.Screen name="MealPlanDetail" component={MealPlanDetail} />
+
+        <Stack.Screen
+          name="SavedMealPlansScreen"
+          component={SavedMealPlansScreen}
+        />
       </Stack.Navigator>
     </NavigationContainer>
     //</AuthProvider>

@@ -5,29 +5,30 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Share,
   Platform,
+  Share,
   Dimensions,
   StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import SaveMealPlanButton from "../components/SaveMealPlanButton";
-//import SaveFeedback from "../components/saveFeedback";
 
-export default function MealPlanResults() {
+export default function MealPlanDetail() {
   const navigation = useNavigation();
   const route = useRoute();
+  const mealPlanData = route.params?.mealPlan || {};
+
+  // Extract meal plan properties
   const {
-    mealPlan,
-    days,
-    mealsPerDay,
-    healthy,
+    mealPlan, // This is the actual plan content text
+    days = 7,
+    mealsPerDay = 3,
+    healthy = false,
     allergies = [],
-    dietType,
-    caloriesPerDay,
-  } = route.params;
+    dietType = "",
+    caloriesPerDay = 2000,
+  } = mealPlanData;
 
   // Parse meal plan data
   const [parsedDays, setParsedDays] = useState([]);
@@ -46,20 +47,35 @@ export default function MealPlanResults() {
 
   // Parse the meal plan text when component mounts
   useEffect(() => {
-    const days = parseMealPlan(mealPlan);
-    setParsedDays(days);
-  }, [mealPlan]);
+    console.log("MealPlanDetail props:", {
+      mealPlanType: typeof mealPlan,
+      mealPlanLength: mealPlan ? mealPlan.length : 0,
+      days,
+      mealsPerDay,
+      parsedDays,
+    });
+
+    if (mealPlan && typeof mealPlan === "string") {
+      const days = parseMealPlan(mealPlan);
+      setParsedDays(days);
+    } else {
+      console.warn("Invalid meal plan format:", mealPlanData);
+      setParsedDays([]);
+    }
+  }, [mealPlan, days, mealsPerDay]);
 
   // Parse the meal plan text into structured data
   const parseMealPlan = (mealPlanText) => {
-    // Check if mealPlanText is undefined or not a string
+    // Handle undefined or non-string mealPlanText
     if (!mealPlanText || typeof mealPlanText !== "string") {
       console.warn("Invalid meal plan text:", mealPlanText);
-      return []; // Return an empty array or some default structure
+      return [];
     }
 
     // Split by day separator
-    const dayTexts = mealPlanText.split("=====").filter((text) => text.trim());
+    const dayTexts = mealPlanText
+      .split("====================")
+      .filter((text) => text.trim());
     const days = [];
 
     dayTexts.forEach((dayText) => {
@@ -77,7 +93,6 @@ export default function MealPlanResults() {
       }
 
       // Process remaining lines
-      let currentSection = null;
       let mealContent = [];
 
       for (let i = 1; i < dayLines.length; i++) {
@@ -122,11 +137,22 @@ export default function MealPlanResults() {
 
   // Parse an individual meal into structured data
   const parseMeal = (mealContent) => {
+    if (!mealContent || typeof mealContent !== "string") {
+      return {
+        mealType: "",
+        title: "",
+        ingredients: [],
+        instructions: [],
+        nutrition: "",
+        timings: [],
+      };
+    }
+
     const lines = mealContent.split("\n").filter((line) => line.trim());
 
     // Extract meal type and title
     let mealType = "";
-    let title = "";
+    let title = "Untitled Meal";
     let ingredients = [];
     let instructions = [];
     let nutrition = "";
@@ -208,16 +234,22 @@ export default function MealPlanResults() {
 
     text += "\n\n";
 
-    // Add each day's content
-    parsedDays.forEach((day) => {
-      text += `${day.title}\n\n`;
+    // If we have parsed days, use them for sharing
+    if (parsedDays.length > 0) {
+      // Add each day's content
+      parsedDays.forEach((day) => {
+        text += `${day.title}\n\n`;
 
-      day.meals.forEach((meal) => {
-        text += meal.content + "\n\n";
+        day.meals.forEach((meal) => {
+          text += meal.content + "\n\n";
+        });
+
+        text += "====================\n\n";
       });
-
-      text += "=====\n\n";
-    });
+    } else if (typeof mealPlan === "string") {
+      // If we couldn't parse but have the original string, use that
+      text += mealPlan;
+    }
 
     return text;
   };
@@ -448,7 +480,9 @@ export default function MealPlanResults() {
           <Ionicons name="arrow-back" size={24} color="#2c3e50" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Your Meal Plan</Text>
+        <Text style={styles.headerTitle}>
+          {mealPlanData.name || "Saved Meal Plan"}
+        </Text>
 
         <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
           <Ionicons name="share-outline" size={24} color="#2c3e50" />
@@ -461,62 +495,55 @@ export default function MealPlanResults() {
       {/* Plan summary */}
       {renderPlanSummary()}
 
-      {/* Save Meal Plan Button - This was missing */}
-      <View style={styles.saveMealPlanContainer}>
-        <SaveMealPlanButton
-          mealPlan={mealPlan}
-          days={days}
-          mealsPerDay={mealsPerDay}
-          caloriesPerDay={caloriesPerDay}
-          allergies={allergies}
-          healthy={healthy}
-          dietType={dietType}
-          onSaved={(savedPlan) => {
-            console.log("Meal plan saved:", savedPlan.id);
-          }}
-          onLoginRequired={() => {
-            navigation.navigate("LandingPage");
-          }}
-        />
-      </View>
+      {parsedDays.length === 0 ? (
+        // Show a message if no meal plan data could be parsed
+        <View style={styles.emptyState}>
+          <Ionicons name="restaurant-outline" size={64} color="#ccc" />
+          <Text style={styles.emptyStateTitle}>No Meal Plan Data</Text>
+          <Text style={styles.emptyStateText}>
+            The meal plan data couldn't be loaded properly.
+          </Text>
+        </View>
+      ) : (
+        // Show the meal plan content
+        <ScrollView
+          ref={mainScrollRef}
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          onScroll={(event) => {
+            // Detect which day is currently in view based on scroll position
+            const y = event.nativeEvent.contentOffset.y;
 
-      <ScrollView
-        ref={mainScrollRef}
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        onScroll={(event) => {
-          // Detect which day is currently in view based on scroll position
-          const y = event.nativeEvent.contentOffset.y;
+            // Find the day that's currently most visible
+            let currentDay = 1;
+            let minDistance = Number.MAX_VALUE;
 
-          // Find the day that's currently most visible
-          let currentDay = 1;
-          let minDistance = Number.MAX_VALUE;
+            Object.entries(dayPositions).forEach(([day, position]) => {
+              const distance = Math.abs(y - position);
+              if (distance < minDistance) {
+                minDistance = distance;
+                currentDay = parseInt(day);
+              }
+            });
 
-          Object.entries(dayPositions).forEach(([day, position]) => {
-            const distance = Math.abs(y - position);
-            if (distance < minDistance) {
-              minDistance = distance;
-              currentDay = parseInt(day);
+            if (currentDay !== selectedDay) {
+              setSelectedDay(currentDay);
+
+              // Update the day tabs
+              if (dayTabsRef.current) {
+                const scrollX = Math.max(0, (currentDay - 2) * DAY_TAB_WIDTH);
+                dayTabsRef.current.scrollTo({ x: scrollX, animated: true });
+              }
             }
-          });
+          }}
+          scrollEventThrottle={16}
+        >
+          {parsedDays.map((day, index) => renderDay(day, index))}
 
-          if (currentDay !== selectedDay) {
-            setSelectedDay(currentDay);
-
-            // Update the day tabs
-            if (dayTabsRef.current) {
-              const scrollX = Math.max(0, (currentDay - 2) * DAY_TAB_WIDTH);
-              dayTabsRef.current.scrollTo({ x: scrollX, animated: true });
-            }
-          }
-        }}
-        scrollEventThrottle={16}
-      >
-        {parsedDays.map((day, index) => renderDay(day, index))}
-
-        {/* Add space at the bottom for better UX */}
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          {/* Add space at the bottom for better UX */}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
 
       {/* Quick scroll to top button */}
       <TouchableOpacity
@@ -533,14 +560,6 @@ export default function MealPlanResults() {
 }
 
 const styles = StyleSheet.create({
-  saveMealPlanContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eaeaea",
-    marginBottom: 8,
-  },
   safeArea: {
     flex: 1,
     backgroundColor: "#f8f9fa",
@@ -550,11 +569,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: "#eaeaea",
-    marginTop: -57,
+    marginTop: -58,
   },
   headerButton: {
     padding: 8,
@@ -806,5 +825,23 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#2c3e50",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: "#7f8c8d",
+    textAlign: "center",
   },
 });

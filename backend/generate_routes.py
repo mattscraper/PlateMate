@@ -15,7 +15,7 @@ class MealTypeRecipeRequest:
     meal_type: str
     healthy: bool = False
     allergies: Optional[List[str]] = None
-    count: int = 10
+    count: int = 5
 
     @classmethod
     def from_request(cls, data: dict) -> 'MealTypeRecipeRequest':

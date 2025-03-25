@@ -1,6 +1,9 @@
 from extensions import db
 from datetime import datetime
 
+# we need to figure out how we will set this up
+#User? or handle through apple id?
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)

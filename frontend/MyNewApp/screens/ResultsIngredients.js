@@ -20,6 +20,8 @@ import { BlurView } from "expo-blur";
 import { authService, APIURL } from "../services/auth";
 import axios from "axios";
 import { fetchRecipesByIngredients } from "../utils/api";
+import SaveFeedback from "../components/saveFeedbackComponent";
+import { saveRecipeToFirebase } from "../utils/recipeUtils";
 
 const { width } = Dimensions.get("window");
 
@@ -31,6 +33,8 @@ export default function ResultsIngredientsScreen({ route }) {
   const [slideAnim] = useState(new Animated.Value(0));
   const [fadeAnim] = useState(new Animated.Value(1));
   const [itemAnimations] = useState([]);
+  const [showSaveFeedback, setShowSaveFeedback] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
 
   const {
     healthy = false,
@@ -58,25 +62,56 @@ export default function ResultsIngredientsScreen({ route }) {
   // we need to implement this next and get the auth working for free users as well
   const handleRecipeSave = async (recipeText) => {
     try {
-      const sections = recipeText.split("\n\n");
-      const title = sections[0];
-      const ingredients = sections.find((s) => s.includes("•"));
-      const instructions = sections.find((s) => s.match(/^\d\./m));
-      const nutrition = sections.find(
-        (s) =>
-          s.toLowerCase().includes("time") ||
-          s.toLowerCase().includes("servings")
-      );
+      // Check if user is logged in
+      const user = authService.getCurrentUser();
+      if (!user) {
+        Alert.alert("Login Required", "Please log in to save recipes", [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Log In",
+            onPress: () => navigation.navigate("LandingPage"),
+          },
+        ]);
+        return;
+      }
 
-      //const response = await axios.post(`${APIURL}/api/recipes/save`, {
-      //title,
-      //ingredients,
-      // instructions,
-      //nutrition,
-      // });
+      // For premium features, check premium status
+      if (ingredients && ingredients.length > 0) {
+        const isPremium = await authService.checkPremiumStatus();
+        if (!isPremium) {
+          Alert.alert(
+            "Premium Feature",
+            "Saving recipes from ingredient search is a premium feature. Would you like to upgrade?",
+            [
+              {
+                text: "Not Now",
+                style: "cancel",
+              },
+              {
+                text: "View Plans",
+                onPress: () => navigation.navigate("PremiumPlans"),
+              },
+            ]
+          );
+          return;
+        }
+      }
 
+      // Show loading indicator
+      setLoading(true);
+
+      // Save the recipe to Firebase
+      await saveRecipeToFirebase(recipeText);
+
+      // Hide loading indicator
+      setLoading(false);
+
+      // Show success message with animated feedback
       Alert.alert(
-        "Success",
+        "Recipe Saved",
         "Recipe saved successfully! You can view it in My Recipes.",
         [
           {
@@ -90,11 +125,25 @@ export default function ResultsIngredientsScreen({ route }) {
         ]
       );
     } catch (error) {
-      if (error.response?.status === 401) {
-        Alert.alert("Error", "Please log in to save recipes");
+      // Hide loading indicator
+      setLoading(false);
+
+      // Handle specific errors
+      if (error.message === "User not logged in") {
+        Alert.alert("Login Required", "Please log in to save recipes", [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Log In",
+            onPress: () => navigation.navigate("LandingPage"),
+          },
+        ]);
       } else {
         Alert.alert("Error", "Failed to save recipe. Please try again.");
       }
+
       console.error("Error saving recipe:", error);
     }
   };
@@ -274,7 +323,7 @@ export default function ResultsIngredientsScreen({ route }) {
           </Animated.View>
         );
       }
-      
+
       if (section.match(/^\d\./m)) {
         return (
           <Animated.View
@@ -396,6 +445,20 @@ export default function ResultsIngredientsScreen({ route }) {
           <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+      <View style={styles.saveButtonContainer}>
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={() => handleRecipeSave(recipes[selectedRecipeIndex])}
+          disabled={loading}
+        >
+          <Ionicons name="bookmark-outline" size={20} color="white" />
+          <Text style={styles.saveButtonText}>Save Recipe</Text>
+        </TouchableOpacity>
+      </View>
+      <SaveFeedback
+        visible={showSaveFeedback}
+        onAnimationEnd={() => setShowSaveFeedback(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -452,6 +515,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  saveButtonContainer: {
+    alignItems: "center",
+    marginTop: 24,
+    marginBottom: 40,
+  },
+  saveButton: {
+    backgroundColor: "#008b8b",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  saveButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
   },
   actionButton: {
     padding: 10,

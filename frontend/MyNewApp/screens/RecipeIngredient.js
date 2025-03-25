@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchRecipesByIngredients } from "../utils/api";
 import { useNavigation } from "@react-navigation/native";
+import { saveRecipeToFirebase } from "../utils/recipeUtils";
 
 export default function FindByIngredients() {
   const navigation = useNavigation();
@@ -278,6 +279,7 @@ export default function FindByIngredients() {
                   styles.modalAddButton,
                   !newIngredient.trim() && styles.buttonDisabled,
                 ]}
+                // find out how to add all of the ingredients at same time w/o modal close
                 onPress={() => {
                   addIngredient();
                   setIngredientModalVisible(false);

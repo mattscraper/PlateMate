@@ -16,11 +16,11 @@ class RecipeGenerator:
             
         self.client = OpenAI(api_key=self.api_key)
         
-    def get_recipe_ideas(self, meal_type, healthy, allergies, count=10):
+    def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         
         
-        system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
-        1. Generate exactly {count} different recipes
+        system_prompt = """You are a culinary expert that creates diverse recipes quickly. These recipes should be very unique and outside the box for the most part. Format requirements:
+        1. Generate exactly {count} different recipes.. some should be harder than others to make.
         2. Never repeat recipe ideas or cuisines in the batch
         3. Vary cooking methods, ingredients, and cuisine styles
         4. Format each recipe exactly as follows:
@@ -30,7 +30,7 @@ class RecipeGenerator:
         - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
         - Numbered instructions(specific) specify each step in detail and make sure to include all steps
         - Nutritional information per serving (united states standards... example(calories,protein,fat,carbs)) in OWN BLOCK and make it look modern and seperate by line
-        5. Separate each recipe with ===== on its own line except for the title!
+        5. Separate each recipe with ===== on its own line and leave space below for each recipe title!
         6. No bold letters or asterisks
         7. Make recipes amazing and think outside the box."""
 
@@ -47,13 +47,14 @@ class RecipeGenerator:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",  
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt.format(count=count)},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,
-                max_tokens=4000,
+                temperature=0.95,
+                max_tokens=2500,
+                top_p=0.85
             )
             
             # Split response into individual recipes
@@ -72,8 +73,9 @@ class RecipeGenerator:
                         {"role": "system", "content": system_prompt.format(count=remaining)},
                         {"role": "user", "content": second_prompt}
                     ],
-                    temperature=0.9,
+                    temperature=0.95,
                     max_tokens=2000,
+                    top_p=0.85
                 )
                 
                 additional_recipes = second_response.choices[0].message.content.strip().split("=====")
@@ -88,7 +90,7 @@ class RecipeGenerator:
 
 
         
-    def get_recipe_ingredients(self, ingredients, allergies, count=10):
+    def get_recipe_ingredients(self, ingredients, allergies, count=5):
         
         
         system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
@@ -103,7 +105,7 @@ class RecipeGenerator:
         - Numbered instructions(specific)
         - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
         - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
-        5. Separate each recipe with ===== on its own line except for the title!
+        5. Separate each recipe with ===== on its own line and leave space below for title!
         6. No bold letters or asterisks
         7. Make recipes amazing and creative
         8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this."""
@@ -125,8 +127,9 @@ class RecipeGenerator:
                     {"role": "system", "content": system_prompt.format(count=count)},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,
-                max_tokens=4000,
+                temperature=0.95,
+                max_tokens=2500,
+                top_p = 0.85
             )
             
             # Split response into individual recipes
@@ -145,8 +148,9 @@ class RecipeGenerator:
                         {"role": "system", "content": system_prompt.format(count=remaining)},
                         {"role": "user", "content": second_prompt}
                     ],
-                    temperature=0.9,
+                    temperature=0.95,
                     max_tokens=2000,
+                    top_p = 0.85
                 )
                 
                 additional_recipes = second_response.choices[0].message.content.strip().split("=====")
@@ -167,7 +171,7 @@ class RecipeGenerator:
         3. Ensure daily calorie total is approximately {calories_per_day} calories
         4. Format each day EXACTLY as follows:
         -the days have to be correctly in order! the user can only choose meal plans for 1-14 days.
-            - MUST start each day with "Day X" where X is a sequential number from 1 to {days}
+            - MUST start each day with "Day X" where X is a sequential number from 1 to {days}. Make sure the days increment by one! ex, day1 then day2 then day3.
             - Each meal MUST be labeled as one of: Breakfast, Lunch, Dinner, or Snack... only one of each per day unless meals per day is less than 3
             - Recipe for each meal formatted exactly like:
                 - Title (do not include the word title)
@@ -176,7 +180,7 @@ class RecipeGenerator:
                 - Numbered instructions
                 - Nutritional information (including calories per serving, protein, carbs, and fat)
         5. Days MUST be numbered sequentially from 1 to {days} with no skipped or incorrect numbers
-        6. Separate each day with ===== on its own line expect for the title!
+        6. Separate each day with ===== on its own line expect for each title!
         7. Ensure variety in cuisines and cooking methods
         8. No bold letters or asterisks
         9. Distribute the {calories_per_day} calories appropriately across the {meals_per_day} meals
@@ -204,8 +208,9 @@ class RecipeGenerator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,
+                temperature=0.95,
                 max_tokens=4000,
+                top_p = 0.85
             )
 
             return response.choices[0].message.content.strip()
