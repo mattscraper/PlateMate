@@ -65,7 +65,8 @@ class RecipeGenerator:
             # If we didn't get enough recipes, make a second call for the remainder
             if len(recipes) < count:
                 remaining = count - len(recipes)
-                second_prompt = f"Create {remaining} more unique {meal_type} recipes, different from: {', '.join([r.split('\n')[0] for r in recipes])}"
+                recipes_list = ', '.join([r.split('\n')[0] for r in recipes])
+                second_prompt = f"Create {remaining} more unique {meal_type} recipes, different from: {recipes_list}"
                 
                 second_response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
