@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "ios" ? 50 : 40,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    marginTop: -50,
+    marginTop: -2,
     ...Platform.select({
       ios: {
         shadowColor: "#000",

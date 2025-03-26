@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: "#eaeaea",
-    marginTop: -58,
+    marginTop: -4,
   },
   headerButton: {
     padding: 8,

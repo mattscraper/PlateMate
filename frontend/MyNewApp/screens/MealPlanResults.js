@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: "#eaeaea",
-    marginTop: -57,
+    marginTop: -2,
   },
   headerButton: {
     padding: 8,

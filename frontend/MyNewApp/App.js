@@ -57,7 +57,10 @@ export default function App() {
     // figure out if we need this auth provider
     //<AuthProvider>
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="LandingPage">
+      <Stack.Navigator
+        initialRouteName="LandingPage"
+        screenOptions={{ headerShown: false }}
+      >
         <Stack.Screen name="LandingPage" component={LandingScreen} />
         <Stack.Screen name="FindRecipes" component={FindRecipes} />
         <Stack.Screen name="Results" component={ResultsScreen} />

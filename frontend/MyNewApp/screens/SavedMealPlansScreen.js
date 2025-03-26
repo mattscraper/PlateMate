@@ -54,7 +54,7 @@ export const SavedMealPlansScreen = ({ navigation }) => {
     setRefreshing(true);
     loadMealPlans();
   };
-// we need to user to name the meal plan themself when they save...NO DUPLICATES!!!
+  // we need to user to name the meal plan themself when they save...NO DUPLICATES!!!
   const deleteMealPlan = async (mealPlanId) => {
     Alert.alert(
       "Delete Meal Plan",
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
-    marginTop: 3,
+    marginTop: 10,
   },
 
   backButton: {

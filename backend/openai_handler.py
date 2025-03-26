@@ -169,6 +169,7 @@ class RecipeGenerator:
         system_prompt = f"""You are a meal planning expert. Format requirements:
         1. Generate a {days}-day meal plan with {meals_per_day} meals per day
         2. Never repeat recipes in the plan
+        do not skip any days at all! double check each day is finished before responding.
         EACH DAY NEEDS TO HAVE {meals_per_day} no matter what. do not skip days.
         3. Ensure daily calorie total is approximately {calories_per_day} calories
         4. Format each day EXACTLY as follows:
@@ -182,7 +183,7 @@ class RecipeGenerator:
                 - Numbered instructions
                 - Nutritional information (including calories per serving, protein, carbs, and fat)
         5. Days MUST be numbered sequentially from 1 to {days} with no skipped or incorrect numbers
-        6. Separate each day with ===== on its own line expect for each title!
+        6. Separate each day with ===== on its own line expect for each title! make sure the title does not come out as =====!
         7. Ensure variety in cuisines and cooking methods
         8. No bold letters or asterisks
         9. Distribute the {calories_per_day} calories appropriately across the {meals_per_day} meals
