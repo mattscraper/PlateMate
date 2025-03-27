@@ -169,7 +169,8 @@ class RecipeGenerator:
         system_prompt = f"""You are a meal planning expert. Format requirements:
         1. Generate a {days}-day meal plan with {meals_per_day} meals per day
         2. Never repeat recipes in the plan
-        do not skip any days at all! double check each day is finished before responding.
+        do not skip any days at all! double check that you have exactly {days} worth of meals is finished before responding.
+        you should have a total of {days} multiplied by {meals_per_day} recipes by the end
         EACH DAY NEEDS TO HAVE {meals_per_day} no matter what. do not skip days.
         3. Ensure daily calorie total is approximately {calories_per_day} calories
         4. Format each day EXACTLY as follows:
@@ -212,9 +213,9 @@ class RecipeGenerator:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.95,
-                max_tokens=4000,
+                max_tokens=4050,
                 top_p = 0.85,
-                timeout = 65
+                timeout = 80
             )
 
             return response.choices[0].message.content.strip()
