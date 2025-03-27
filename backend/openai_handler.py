@@ -212,7 +212,7 @@ class RecipeGenerator:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.95,
-                max_tokens=4200,
+                max_tokens=4000,
                 top_p = 0.85
             )
 
