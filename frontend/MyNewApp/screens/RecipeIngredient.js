@@ -235,8 +235,7 @@ export default function FindByIngredients() {
           )}
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Ingredient Modal */}
+      {/* Ingredient modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -253,40 +252,77 @@ export default function FindByIngredients() {
                 style={styles.modalCloseButton}
                 onPress={() => setIngredientModalVisible(false)}
               >
-                <Ionicons name="close" size={24} color="#2c3e50" />
+                <Text>
+                  <Ionicons name="close" size={24} color="#2c3e50" />
+                </Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Add Ingredient</Text>
+              <Text style={styles.modalTitle}>Add Ingredients</Text>
               <View style={styles.modalCloseButton} />
             </View>
 
             <View style={styles.modalBody}>
               <Text style={styles.modalSubtitle}>
-                What ingredients do you have?
+                Add Available Ingredients
               </Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newIngredient}
-                onChangeText={setNewIngredient}
-                placeholder="e.g., Chicken, Rice, Tomatoes"
-                placeholderTextColor="#a0a0a0"
-                autoFocus
-              />
+
+              {/* Current ingredient chips */}
+              {ingredients.length > 0 && (
+                <View style={styles.modalChipsContainer}>
+                  {ingredients.map((ingredient, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.chip}
+                      onPress={() => removeIngredient(ingredient)}
+                    >
+                      <Text style={styles.chipText}>{ingredient}</Text>
+                      <Text>
+                        <Ionicons
+                          name="close-circle"
+                          size={18}
+                          color="#008b8b"
+                        />
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.modalInput}
+                  value={newIngredient}
+                  onChangeText={setNewIngredient}
+                  placeholder="e.g., Chicken, Rice, Tomatoes"
+                  placeholderTextColor="#a0a0a0"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (newIngredient.trim()) {
+                      addIngredient();
+                    }
+                  }}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.quickAddButton,
+                    !newIngredient.trim() && styles.buttonDisabled,
+                  ]}
+                  onPress={addIngredient}
+                  disabled={!newIngredient.trim()}
+                >
+                  <Text>
+                    <Ionicons name="add" size={24} color="white" />
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
-                style={[
-                  styles.modalAddButton,
-                  !newIngredient.trim() && styles.buttonDisabled,
-                ]}
-                // find out how to add all of the ingredients at same time w/o modal close
-                onPress={() => {
-                  addIngredient();
-                  setIngredientModalVisible(false);
-                }}
-                disabled={!newIngredient.trim()}
+                style={styles.modalAddButton}
+                onPress={() => setIngredientModalVisible(false)}
               >
-                <Text style={styles.modalAddText}>Add Ingredient</Text>
+                <Text style={styles.modalAddText}>Done</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -348,7 +384,6 @@ export default function FindByIngredients() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
       {/* Loading Modal */}
       <Modal transparent={true} visible={isLoading}>
         <View style={styles.loadingOverlay}>
@@ -384,27 +419,50 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 25,
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)", // Soft glassmorphic effect
+    paddingTop: Platform.OS === "ios" ? 50 : 40,
+    paddingBottom: 18,
+    paddingHorizontal: 20,
+    borderBottomWidth: 0,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4, // For Android shadow
+    backdropFilter: "blur(10px)", // Works with some libraries for blur effect
   },
+
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 8,
+    fontSize: 34,
+    marginTop: -30,
+    fontWeight: "800",
+    color: "black", // Deep blue for a premium look
     textAlign: "center",
+    textTransform: "capitalize",
+    letterSpacing: 0.8,
   },
+
   subtitle: {
     fontSize: 17,
-    color: "#7f8c8d",
+    fontWeight: "40",
+    color: "#008b8b", // Subtle contrast for hierarchy
     textAlign: "center",
     maxWidth: "80%",
+    lineHeight: 22,
+    marginTop: 20,
+    marginBottom: -2,
+    opacity: 0.9,
+    fontStyle: "italic",
   },
   card: {
     backgroundColor: "white",
     borderRadius: 20,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 35,
     borderWidth: 2,
     borderColor: "#f0f0f0",
     ...Platform.select({
@@ -546,6 +604,52 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  modalInput: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 17,
+    borderWidth: 2,
+    borderColor: "#f0f0f0",
+    color: "#2c3e50",
+  },
+  quickAddButton: {
+    backgroundColor: "#008b8b",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  modalChipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 16,
+    padding: 8,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
   },
   modalBody: {
     padding: 20,

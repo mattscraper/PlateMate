@@ -547,19 +547,50 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 32,
     alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)", // Soft glassmorphic effect
+    paddingTop: Platform.OS === "ios" ? 50 : 40,
+    paddingBottom: 18,
+    paddingHorizontal: 20,
+    borderBottomWidth: 0,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4, // For Android shadow
+    backdropFilter: "blur(10px)", // Works with some libraries for blur effect
   },
+
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 8,
+    fontSize: 34,
+    marginTop: -31,
+    fontWeight: "800",
+    color: "black", // Deep blue for a premium look
     textAlign: "center",
+    textTransform: "capitalize",
+    letterSpacing: 0.2,
   },
+
   subtitle: {
     fontSize: 17,
-    color: "#7f8c8d",
+    fontWeight: "400",
+    color: "#008b8b", // Subtle contrast for hierarchy
     textAlign: "center",
     maxWidth: "80%",
+    lineHeight: 22,
+    marginTop: 22,
+    marginBottom: -10,
+    opacity: 0.9,
+    fontStyle: "italic",
+  },
+
+  headerAccent: {
+    height: 5,
+    width: "55%",
+    backgroundColor: "linear-gradient(90deg, #00c6ff, #0072ff)", // Gradient effect
+    borderRadius: 50,
+    marginTop: 10,
   },
 
   // Card Styles

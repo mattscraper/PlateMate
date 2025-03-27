@@ -445,13 +445,13 @@ export default function MealPlanResults() {
           style={styles.headerButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+          <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Your Meal Plan</Text>
 
         <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={24} color="#2c3e50" />
+          <Ionicons name="share-outline" size={24} color="white" />
         </TouchableOpacity>
       </View>
 
@@ -550,19 +550,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "white",
+    paddingVertical: 11,
+    backgroundColor: "#008b8b",
     borderBottomWidth: 1,
     borderBottomColor: "#eaeaea",
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     marginTop: -2,
+    shadowColor: "#000",
+    shadowOffset: { width: -10, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
   },
   headerButton: {
     padding: 8,
+    color: "white",
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#2c3e50",
+    color: "white",
+    marginTop: 12,
   },
   dayTabsContainer: {
     backgroundColor: "white",

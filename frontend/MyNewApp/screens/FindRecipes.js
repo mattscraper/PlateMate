@@ -498,17 +498,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 8,
+    fontSize: 34,
+    marginTop: -5,
+    fontWeight: "800",
+    color: "black", // Deep blue for a premium look
     textAlign: "center",
+    textTransform: "capitalize",
+    letterSpacing: 0.8,
   },
+
   subtitle: {
     fontSize: 17,
-    color: "#7f8c8d",
+    fontWeight: "40",
+    color: "#008b8b", // Subtle contrast for hierarchy
     textAlign: "center",
     maxWidth: "80%",
+    lineHeight: 22,
+    marginTop: 20,
+    marginBottom: -2,
+    opacity: 0.9,
+    fontStyle: "italic",
   },
 
   // Card Styles
