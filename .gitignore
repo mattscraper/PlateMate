@@ -1,5 +1,4 @@
 backend/venv/
-
 backend/.env
 backend/cleaned_categorized_recipes.json
 
