@@ -1,0 +1,2 @@
+trainRecipeData/recipe_titles.json filter=lfs diff=lfs merge=lfs -text
+trainRecipeData/recipeData.csv filter=lfs diff=lfs merge=lfs -text
