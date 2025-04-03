@@ -650,16 +650,18 @@ const styles = StyleSheet.create({
     borderColor: "#008b8b20",
   },
   allergyTag: {
-    backgroundColor: "#fff3e6",
-    borderColor: "#ffa50020",
+    backgroundColor: "#fff0f0",
+    borderColor: "#e74c3c",
+    borderWidth: 1,
+  },
+  allergyTagText: {
+    color: "#c0392b",
+    fontWeight: "600",
   },
   tagText: {
     fontSize: 13,
     color: "#008b8b",
     fontWeight: "600",
-  },
-  allergyTagText: {
-    color: "#ff9800",
   },
   scrollView: {
     flex: 1,

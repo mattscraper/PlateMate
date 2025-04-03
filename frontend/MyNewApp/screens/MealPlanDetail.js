@@ -72,7 +72,7 @@ export default function MealPlanDetail() {
       return [];
     }
 
-    // Split by day separator
+    // Split by day separator... try to fix scenario where it does not read the symbols
     const dayTexts = mealPlanText
       .split("====================")
       .filter((text) => text.trim());
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: "white",
+    backgroundColor: "#f8f9fa",
     borderBottomWidth: 1,
     borderBottomColor: "#eaeaea",
     marginTop: -4,
@@ -661,17 +661,20 @@ const styles = StyleSheet.create({
     borderColor: "#008b8b20",
   },
   allergyTag: {
-    backgroundColor: "#fff3e6",
-    borderColor: "#ffa50020",
+    backgroundColor: "#fff0f0",
+    borderColor: "#e74c3c",
+    borderWidth: 1,
+  },
+  allergyTagText: {
+    color: "#c0392b",
+    fontWeight: "600",
   },
   tagText: {
     fontSize: 13,
     color: "#008b8b",
     fontWeight: "600",
   },
-  allergyTagText: {
-    color: "#ff9800",
-  },
+
   scrollView: {
     flex: 1,
     paddingHorizontal: 16,

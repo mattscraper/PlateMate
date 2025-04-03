@@ -46,9 +46,9 @@ export default function ResultsIngredientsScreen({ route }) {
     itemAnimations.forEach((anim, index) => {
       Animated.timing(anim, {
         toValue: 1,
-        duration: 300,
-        delay: index * 100,
-        useNativeDriver: true,
+        duration: 1000,
+        delay: index * 5,
+        useNativeDriver: false,
       }).start();
     });
   }, [selectedRecipeIndex]);

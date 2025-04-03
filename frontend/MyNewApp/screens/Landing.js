@@ -460,7 +460,9 @@ export default function LandingScreen({ navigation }) {
         </SafeAreaView>
       </ScrollView>
 
-      {/* Login Overlay */}
+      {/* Login Overlay 
+      figure out if we should delete the boiler plate person image//
+      // */} 
       {isLoginVisible && (
         <View style={styles.overlay}>
           <View style={styles.modalContent}>
@@ -484,7 +486,7 @@ export default function LandingScreen({ navigation }) {
                 style={styles.inputIcon}
               />
               <TextInput
-                ref={emailRef}
+                ref={emailRef} // we may need to switch libraries to implement forgot password!
                 style={styles.input}
                 placeholder="Enter your email"
                 placeholderTextColor="#999"
@@ -803,12 +805,12 @@ const styles = StyleSheet.create({
     top: -5,
     right: -5,
     backgroundColor: "#FFD700",
-    width: 20,
+    width: 16,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 19,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 3,
     borderColor: "white",
   },
   menuTextContainer: {

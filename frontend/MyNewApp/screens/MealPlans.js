@@ -312,7 +312,7 @@ export default function MealPlans() {
             value={days}
             onChange={setDays}
             min={1}
-            max={14}
+            max={10}
             label="Days"
           />
           <DurationSelector

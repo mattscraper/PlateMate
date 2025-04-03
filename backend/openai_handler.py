@@ -1,5 +1,7 @@
 from openai import OpenAI
 import os
+import json
+import random
 from time import sleep
 from dotenv import load_dotenv
 
@@ -7,8 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class RecipeGenerator:
-    def __init__(self, api_key=None):
-        
+    def __init__(self, api_key=None, recipe_file_path="cleaned_categorized_recipes.json"):
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         
         if not self.api_key:
@@ -16,9 +17,100 @@ class RecipeGenerator:
             
         self.client = OpenAI(api_key=self.api_key)
         
+        # Load recipe titles from the existing JSON file
+        self.recipe_titles = {}
+        try:
+            with open(recipe_file_path, 'r') as file:
+                self.recipe_titles = json.load(file)
+            print(f"Loaded recipe titles from {recipe_file_path}")
+        except Exception as e:
+            print(f"Error loading recipe file: {str(e)}")
+                
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
+        # If there are allergies, use the original method to generate recipes
+        if allergies:
+            print(f"Using original method due to allergies: {allergies}")
+            return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
         
+        # Otherwise, use recipes from the JSON file
+        print(f"Using titles from JSON file for meal type: {meal_type}")
+        return self._generate_recipes_from_titles(meal_type, healthy, count)
         
+    def _generate_recipes_from_titles(self, meal_type, healthy, count=5):
+        """Generate recipes based on titles from the JSON file"""
+        # Check if we have recipes for the requested meal type
+        available_titles = []
+        
+        if meal_type.lower() == "any":
+            # Collect all titles from all categories
+            for category_titles in self.recipe_titles.values():
+                available_titles.extend(category_titles)
+        elif meal_type.lower() in self.recipe_titles:
+            available_titles = self.recipe_titles[meal_type.lower()]
+        
+        if not available_titles:
+            print(f"No titles found for meal type: {meal_type}, falling back to OpenAI")
+            # Fall back to OpenAI if no titles available
+            return self._generate_recipes_with_openai(meal_type, healthy, None, count)
+        
+        # Select random titles
+        print(f"Found {len(available_titles)} titles for {meal_type}")
+        selected_titles = random.sample(available_titles, min(count, len(available_titles)))
+        
+        # If we need more titles than available, repeat the process
+        while len(selected_titles) < count:
+            additional_titles = random.sample(available_titles, min(count - len(selected_titles), len(available_titles)))
+            selected_titles.extend(additional_titles)
+        
+        print(f"Selected {len(selected_titles)} random titles: {selected_titles}")
+        
+        # Generate recipes based on the selected titles
+        all_recipes = []
+        for title in selected_titles:
+            recipe = self._generate_single_recipe_from_title(title, healthy)
+            if recipe:
+                all_recipes.append(recipe)
+        
+        return all_recipes
+    
+    def _generate_single_recipe_from_title(self, title, healthy):
+        """Generate a single recipe based on a title"""
+        system_prompt = """You are a culinary expert that creates detailed recipes based on titles. Format requirements:
+        1. Generate a detailed recipe for the given title.
+        2. Format the recipe exactly as follows:
+        - Title far above everything without bolding, or any symbols of any kind (no word "recipe" in title)
+        - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION below the title
+        - Ingredients with bullet points (•) on lines below the times section
+        - Numbered instructions (be specific) - specify each step in detail
+        - Nutritional information per serving (United States standards: calories, protein, fat, carbs) in its OWN BLOCK
+        3. No bold letters or asterisks
+        4. Make the recipe amazing and creative while staying true to the title."""
+        
+        prompt = f"Create a detailed recipe for: {title}"
+        if healthy:
+            prompt += " Make it healthy and nutritious while maintaining the essence of the dish."
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.9,
+                max_tokens=1500,
+                top_p=0.85
+            )
+            
+            recipe_text = response.choices[0].message.content.strip()
+            return recipe_text
+                
+        except Exception as e:
+            print(f"Error generating recipe for '{title}': {str(e)}")
+            return None
+    
+    def _generate_recipes_with_openai(self, meal_type, healthy, allergies, count=5):
+        """Original method to generate recipes using OpenAI without predefined titles"""
         system_prompt = """You are a culinary expert that creates diverse recipes quickly. These recipes should be very unique and outside the box for the most part. Format requirements:
         1. Generate exactly {count} different recipes.. some should be harder than others to make.
         2. Never repeat recipe ideas or cuisines in the batch
@@ -42,8 +134,8 @@ class RecipeGenerator:
             
         if allergies:
             if "vegan" in allergies:
-                prompt += f"Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
-            prompt += f" Ensure they are completely free of these allergens or restrctions(example:vegan, vegitarian): {', '.join(allergies)}."
+                prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
+            prompt += f" Ensure they are completely free of these allergens or restrictions (example: vegan, vegetarian): {', '.join(allergies)}."
 
         try:
             response = self.client.chat.completions.create(
@@ -88,12 +180,8 @@ class RecipeGenerator:
             print(f"Error generating recipes: {str(e)}")
             return []
         
-
-
-        
     def get_recipe_ingredients(self, ingredients, allergies, count=5):
-        
-        
+        # This method remains unchanged from the original
         system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
         1. Generate exactly {count} different recipes
         . only generate recipes based on users available ingredients
@@ -118,7 +206,7 @@ class RecipeGenerator:
             
         if allergies:
             if "vegan" in allergies:
-                prompt += f"Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
+                prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
             prompt += f" Ensure they are completely free of these allergens or restrctions(example:vegan, vegitarian): {', '.join(allergies)}."
 
         try:
@@ -165,7 +253,7 @@ class RecipeGenerator:
             return []
 
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-
+        # This method remains unchanged from the original
         system_prompt = f"""You are a meal planning expert. Format requirements:
         1. Generate a {days}-day meal plan with {meals_per_day} meals per day
         2. Never repeat recipes in the plan
@@ -223,6 +311,3 @@ class RecipeGenerator:
         except Exception as e:
             print(f"Error generating meal plan: {str(e)}")
             return None
-def format_recipe_for_display(self, recipe):
-    """Format recipe text for display. Return as is since OpenAI already formats it well."""
-    return recipe
