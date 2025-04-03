@@ -53,14 +53,18 @@ class RecipeGenerator:
             # Fall back to OpenAI if no titles available
             return self._generate_recipes_with_openai(meal_type, healthy, None, count)
         
-        # Select random titles
+        # Select random titles - we need to select count titles
         print(f"Found {len(available_titles)} titles for {meal_type}")
-        selected_titles = random.sample(available_titles, min(count, len(available_titles)))
-        
-        # If we need more titles than available, repeat the process
-        while len(selected_titles) < count:
-            additional_titles = random.sample(available_titles, min(count - len(selected_titles), len(available_titles)))
-            selected_titles.extend(additional_titles)
+        # Take a random sample of titles, up to the count requested
+        if len(available_titles) >= count:
+            selected_titles = random.sample(available_titles, count)
+        else:
+            # If we don't have enough titles, take all available and then randomly sample again to make up the difference
+            selected_titles = available_titles.copy()
+            while len(selected_titles) < count:
+                # We need to resample from the original list
+                additional = random.sample(available_titles, min(count - len(selected_titles), len(available_titles)))
+                selected_titles.extend(additional)
         
         print(f"Selected {len(selected_titles)} random titles: {selected_titles}")
         
@@ -70,8 +74,18 @@ class RecipeGenerator:
             recipe = self._generate_single_recipe_from_title(title, healthy)
             if recipe:
                 all_recipes.append(recipe)
+            
+            # If we have collected the requested number of recipes, stop
+            if len(all_recipes) >= count:
+                break
         
-        return all_recipes
+        # If we couldn't generate enough recipes from titles, fall back to the original method
+        if len(all_recipes) < count:
+            print(f"Only generated {len(all_recipes)} recipes from titles, falling back to OpenAI for the remaining {count - len(all_recipes)}")
+            remaining_recipes = self._generate_recipes_with_openai(meal_type, healthy, None, count - len(all_recipes))
+            all_recipes.extend(remaining_recipes)
+        
+        return all_recipes[:count]
     
     def _generate_single_recipe_from_title(self, title, healthy):
         """Generate a single recipe based on a title"""

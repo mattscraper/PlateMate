@@ -302,7 +302,7 @@ export default function LandingScreen({ navigation }) {
     );
   };
 
-  // Welcome banner for logged in users
+  // We might want to adjust this welcome banner or get rid of it!!
   const WelcomeBanner = () => {
     if (!isLoggedIn) return null;
 
@@ -462,7 +462,7 @@ export default function LandingScreen({ navigation }) {
 
       {/* Login Overlay 
       figure out if we should delete the boiler plate person image//
-      // */} 
+      // */}
       {isLoginVisible && (
         <View style={styles.overlay}>
           <View style={styles.modalContent}>
