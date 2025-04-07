@@ -231,14 +231,18 @@ export default function ResultsScreen({ route }) {
   const formatRecipeText = (recipeText) => {
     if (!recipeText) return null;
     itemAnimations.length = 0;
-    const sections = recipeText
-      .split("\n\n")
-      .map((section) => section.trim())
-      .filter((section) => section.length > 0);
+
+    // Step 1: Remove any separator lines
+    recipeText = recipeText.replace(/={3,}/g, "").trim();
+
+    // Step 2: Split into sections by double newlines
+    const rawSections = recipeText.split("\n\n");
+    const sections = rawSections.filter((section) => section.trim().length > 0);
 
     return sections.map((section, index) => {
       const fadeIn = getNewAnimation();
 
+      // First section is always the title
       if (index === 0) {
         return (
           <Animated.View
@@ -253,14 +257,8 @@ export default function ResultsScreen({ route }) {
         );
       }
 
-      if (section.includes("•")) {
-        const sectionTitle = section.toLowerCase().includes("time")
-          ? "Timing Details"
-          : "Ingredients";
-        const icon = section.toLowerCase().includes("time")
-          ? "time"
-          : "restaurant";
-
+      // Check for time information (contains "Time" or "Servings")
+      if (section.includes("Time") || section.includes("Servings")) {
         return (
           <Animated.View
             key={index}
@@ -268,18 +266,34 @@ export default function ResultsScreen({ route }) {
           >
             <View style={styles.sectionHeader}>
               <View style={styles.sectionHeaderIcon}>
-                <Ionicons name={icon} size={20} color="#008b8b" />
+                <Ionicons name="time" size={20} color="#008b8b" />
               </View>
-              <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+              <Text style={styles.sectionTitle}>Timing Details</Text>
             </View>
-            {formatRecipeSection(
-              section,
-              section.toLowerCase().includes("time") ? "time" : "ingredients"
-            )}
+            {formatRecipeSection(section, "time")}
           </Animated.View>
         );
       }
 
+      // Check for ingredients (contains bullet points)
+      if (section.includes("•")) {
+        return (
+          <Animated.View
+            key={index}
+            style={[styles.section, { opacity: fadeIn }]}
+          >
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderIcon}>
+                <Ionicons name="restaurant" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.sectionTitle}>Ingredients</Text>
+            </View>
+            {formatRecipeSection(section, "ingredients")}
+          </Animated.View>
+        );
+      }
+
+      // Check for instructions (contains numbered steps)
       if (section.match(/^\d\./m)) {
         return (
           <Animated.View
@@ -297,6 +311,25 @@ export default function ResultsScreen({ route }) {
         );
       }
 
+      // Check for nutritional information
+      if (section.includes("Nutritional") || section.includes("Calories")) {
+        return (
+          <Animated.View
+            key={index}
+            style={[styles.section, { opacity: fadeIn }]}
+          >
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderIcon}>
+                <Ionicons name="nutrition" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.sectionTitle}>Nutrition Facts</Text>
+            </View>
+            {formatRecipeSection(section, "regular")}
+          </Animated.View>
+        );
+      }
+
+      // Default case for any other sections
       return (
         <Animated.View
           key={index}
