@@ -1,0 +1,12 @@
+Cloudflare R2 Storage Solution with Python
+
+Create a Cloudflare R2 bucket:
+
+Sign up for Cloudflare (free)
+Go to R2 storage and create a bucket
+Upload your large JSON file to the bucket
+Configure public access for the bucket
+
+
+
+IMPLEMENT THIS BY APRIL 5TH IN PREP FOR PRODUCTION!!!!!!

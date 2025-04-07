@@ -8,8 +8,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# THIS FILE WILL BE ADJUSTED ONCE WE IMPLEMENT JSON FILE READING!!!
+
 class RecipeGenerator:
-    def __init__(self, api_key=None, recipe_file_path="cleaned_categorized_recipes.json"):
+    def __init__(self, api_key=None, recipe_file_path="categorized_recipes.json"):
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         
         if not self.api_key:
