@@ -9,14 +9,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class RecipeGenerator:
-    def __init__(self, api_key=None, db_path="recipes.db"):
+    def __init__(self, api_key=None, db_path=None):
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         
         if not self.api_key:
             raise ValueError("OpenAI API key not found. Please set OPENAI_API_KEY environment variable or pass the key directly.")
             
         self.client = OpenAI(api_key=self.api_key)
+        
+        # Try to find the database file in several possible locations
+        if db_path is None:
+            # Try several possible locations
+            possible_paths = [
+                'recipes.db',              # Current directory
+                'data/recipes.db',         # Data subdirectory
+                'backend/data/recipes.db', # Backend/data subdirectory
+                '../data/recipes.db',      # Parent's data subdirectory
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    db_path = path
+                    break
+            else:
+                # Default if none found
+                db_path = 'recipes.db'
+        
         self.db_path = db_path
+        print(f"Using database at: {os.path.abspath(db_path)}")
         
         # Test database connection
         try:
