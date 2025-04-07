@@ -1,42 +1,101 @@
 import sqlite3
 import os
+import argparse
 
-# List all .db files in the current directory
-print("Database files in current directory:")
-for file in os.listdir():
-    if file.endswith('.db'):
-        print(f"  - {file} ({os.path.getsize(file) / 1024:.1f} KB)")
-
-# Try to open both database files
-for db_file in ['recipes.db', 'recipes.db']:
-    if os.path.exists(db_file):
-        print(f"\nChecking {db_file}:")
+def check_database(db_path=None):
+    """
+    Check SQLite database files in the current directory
+    and report on their structure and content.
+    """
+    # Find all database files if no specific path provided
+    if db_path is None:
+        db_files = [f for f in os.listdir('.') if f.endswith('.db')]
+        if not db_files:
+            print("No database files found in current directory.")
+            return
+    else:
+        if not os.path.exists(db_path):
+            print(f"Database file not found: {db_path}")
+            return
+        db_files = [db_path]
+    
+    # Show current directory
+    print(f"Current directory: {os.getcwd()}")
+    
+    # List all database files
+    print("\nDatabase files:")
+    for db_file in db_files:
+        size_kb = os.path.getsize(db_file) / 1024
+        print(f"  - {db_file} ({size_kb:.1f} KB)")
+    
+    # Check each database
+    for db_file in db_files:
+        print(f"\n=== Checking {db_file} ===")
+        
         try:
             conn = sqlite3.connect(db_file)
             cursor = conn.cursor()
             
-            # Check table structure
-            cursor.execute("PRAGMA table_info(recipes)")
-            columns = cursor.fetchall()
-            print(f"Table columns: {', '.join(col[1] for col in columns)}")
+            # Get list of tables
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
             
-            # Check record count
-            cursor.execute("SELECT COUNT(*) FROM recipes")
-            count = cursor.fetchone()[0]
-            print(f"Total recipes: {count}")
+            if not tables:
+                print("No tables found in database.")
+                conn.close()
+                continue
+                
+            print(f"Tables in database: {', '.join(table[0] for table in tables)}")
             
-            # Check categories
-            if count > 0:
-                cursor.execute("SELECT category, COUNT(*) FROM recipes GROUP BY category")
-                for category, cat_count in cursor.fetchall():
-                    print(f"  - {category}: {cat_count}")
-                    
-                # Get a sample recipe
-                cursor.execute("SELECT * FROM recipes LIMIT 1")
-                sample = cursor.fetchone()
-                print("\nSample recipe:")
-                print(sample)
+            # Check each table
+            for table in tables:
+                table_name = table[0]
+                print(f"\nTable: {table_name}")
+                
+                # Get table structure
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                columns = cursor.fetchall()
+                print("Columns:")
+                for col in columns:
+                    print(f"  - {col[1]} ({col[2]})")
+                
+                # Get row count
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                count = cursor.fetchone()[0]
+                print(f"Row count: {count}")
+                
+                if count > 0:
+                    # If it's the recipes table, show category distribution
+                    if table_name == 'recipes' and 'category' in [col[1] for col in columns]:
+                        cursor.execute(f"SELECT category, COUNT(*) FROM {table_name} GROUP BY category")
+                        categories = cursor.fetchall()
+                        print("Categories:")
+                        for category, cat_count in categories:
+                            print(f"  - {category}: {cat_count}")
+                        
+                        # Sample row from each category
+                        print("\nSample rows:")
+                        for category, _ in categories:
+                            cursor.execute(f"SELECT * FROM {table_name} WHERE category = ? LIMIT 1", (category,))
+                            sample = cursor.fetchone()
+                            if sample:
+                                print(f"  {category}: {sample}")
+                    else:
+                        # Just show a few sample rows for other tables
+                        cursor.execute(f"SELECT * FROM {table_name} LIMIT 3")
+                        samples = cursor.fetchall()
+                        print("Sample rows:")
+                        for sample in samples:
+                            print(f"  {sample}")
             
             conn.close()
+            
         except Exception as e:
-            print(f"Error: {str(e)}")
+            print(f"Error analyzing database: {str(e)}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Check SQLite database structure and content')
+    parser.add_argument('--db', help='Path to specific database file (optional)')
+    
+    args = parser.parse_args()
+    check_database(args.db)
