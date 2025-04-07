@@ -1,6 +1,6 @@
 from openai import OpenAI
 import os
-import json
+import sqlite3
 import random
 from time import sleep
 from dotenv import load_dotenv
@@ -8,86 +8,111 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# THIS FILE WILL BE ADJUSTED ONCE WE IMPLEMENT JSON FILE READING!!!
-
 class RecipeGenerator:
-    def __init__(self, api_key=None, recipe_file_path="categorized_recipes.json"):
+    def __init__(self, api_key=None, db_path="recipes.db"):
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         
         if not self.api_key:
             raise ValueError("OpenAI API key not found. Please set OPENAI_API_KEY environment variable or pass the key directly.")
             
         self.client = OpenAI(api_key=self.api_key)
+        self.db_path = db_path
         
-        # Load recipe titles from the existing JSON file
-        self.recipe_titles = {}
+        # Test database connection
         try:
-            with open(recipe_file_path, 'r') as file:
-                self.recipe_titles = json.load(file)
-            print(f"Loaded recipe titles from {recipe_file_path}")
-        except Exception as e:
-            print(f"Error loading recipe file: {str(e)}")
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get recipe count
+            cursor.execute("SELECT COUNT(*) FROM recipes")
+            count = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT category, COUNT(*) FROM recipes GROUP BY category")
+            categories = cursor.fetchall()
+            conn.close()
+            
+            print(f"Connected to database with {count} recipes")
+            for category, cat_count in categories:
+                print(f"  - {category}: {cat_count} recipes")
                 
+        except Exception as e:
+            print(f"Database error: {str(e)}")
+            
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         # If there are allergies, use the original method to generate recipes
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
         
-        # Otherwise, use recipes from the JSON file
-        print(f"Using titles from JSON file for meal type: {meal_type}")
-        return self._generate_recipes_from_titles(meal_type, healthy, count)
+        # Otherwise, use recipes from the database
+        print(f"Using titles from database for meal type: {meal_type}")
+        return self._generate_recipes_from_database(meal_type, healthy, count)
         
-    def _generate_recipes_from_titles(self, meal_type, healthy, count=5):
-        """Generate recipes based on titles from the JSON file"""
-        # Check if we have recipes for the requested meal type
-        available_titles = []
-        
-        if meal_type.lower() == "any":
-            # Collect all titles from all categories
-            for category_titles in self.recipe_titles.values():
-                available_titles.extend(category_titles)
-        elif meal_type.lower() in self.recipe_titles:
-            available_titles = self.recipe_titles[meal_type.lower()]
-        
-        if not available_titles:
-            print(f"No titles found for meal type: {meal_type}, falling back to OpenAI")
-            # Fall back to OpenAI if no titles available
-            return self._generate_recipes_with_openai(meal_type, healthy, None, count)
-        
-        # Select random titles - we need to select count titles
-        print(f"Found {len(available_titles)} titles for {meal_type}")
-        # Take a random sample of titles, up to the count requested
-        if len(available_titles) >= count:
-            selected_titles = random.sample(available_titles, count)
-        else:
-            # If we don't have enough titles, take all available and then randomly sample again to make up the difference
-            selected_titles = available_titles.copy()
-            while len(selected_titles) < count:
-                # We need to resample from the original list
-                additional = random.sample(available_titles, min(count - len(selected_titles), len(available_titles)))
-                selected_titles.extend(additional)
-        
-        print(f"Selected {len(selected_titles)} random titles: {selected_titles}")
-        
-        # Generate recipes based on the selected titles
-        all_recipes = []
-        for title in selected_titles:
-            recipe = self._generate_single_recipe_from_title(title, healthy)
-            if recipe:
-                all_recipes.append(recipe)
+    def _generate_recipes_from_database(self, meal_type, healthy, count=5):
+        """Generate recipes based on titles from the database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
             
-            # If we have collected the requested number of recipes, stop
-            if len(all_recipes) >= count:
-                break
-        
-        # If we couldn't generate enough recipes from titles, fall back to the original method
-        if len(all_recipes) < count:
-            print(f"Only generated {len(all_recipes)} recipes from titles, falling back to OpenAI for the remaining {count - len(all_recipes)}")
-            remaining_recipes = self._generate_recipes_with_openai(meal_type, healthy, None, count - len(all_recipes))
-            all_recipes.extend(remaining_recipes)
-        
-        return all_recipes[:count]
+            # Query the database for recipe titles
+            if meal_type.lower() == "any":
+                cursor.execute("SELECT title FROM recipes ORDER BY RANDOM() LIMIT ?", (count*2,))
+            else:
+                cursor.execute(
+                    "SELECT title FROM recipes WHERE category = ? ORDER BY RANDOM() LIMIT ?", 
+                    (meal_type.lower(), count*2)
+                )
+                
+            # Fetch all matching titles
+            titles = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            
+            print(f"Found {len(titles)} titles for {meal_type}")
+            
+            # If we don't have enough titles, query again for more from any category
+            if len(titles) < count and meal_type.lower() != "any":
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                
+                # Get more random titles to make up the difference
+                cursor.execute(
+                    "SELECT title FROM recipes ORDER BY RANDOM() LIMIT ?", 
+                    (count*2 - len(titles),)
+                )
+                additional_titles = [row[0] for row in cursor.fetchall()]
+                titles.extend(additional_titles)
+                conn.close()
+            
+            # We get more titles than needed to account for potential failures
+            random.shuffle(titles)
+            
+            # Generate recipes based on the selected titles
+            all_recipes = []
+            for title in titles:
+                # Add rate limiting to avoid OpenAI API limits
+                if len(all_recipes) > 0:
+                    sleep(0.5)  # Sleep for half a second between calls
+                    
+                recipe = self._generate_single_recipe_from_title(title, healthy)
+                if recipe:
+                    all_recipes.append(recipe)
+                
+                # If we have collected the requested number of recipes, stop
+                if len(all_recipes) >= count:
+                    break
+            
+            # If we couldn't generate enough recipes from titles, fall back to the original method
+            if len(all_recipes) < count:
+                print(f"Only generated {len(all_recipes)} recipes from titles, falling back to OpenAI for the remaining {count - len(all_recipes)}")
+                remaining_recipes = self._generate_recipes_with_openai(meal_type, healthy, None, count - len(all_recipes))
+                all_recipes.extend(remaining_recipes)
+            
+            return all_recipes[:count]
+            
+        except Exception as e:
+            print(f"Database error: {str(e)}")
+            # Fall back to OpenAI if database access fails
+            return self._generate_recipes_with_openai(meal_type, healthy, None, count)
     
     def _generate_single_recipe_from_title(self, title, healthy):
         """Generate a single recipe based on a title"""
