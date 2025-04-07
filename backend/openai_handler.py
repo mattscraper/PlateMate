@@ -139,13 +139,18 @@ class RecipeGenerator:
         system_prompt = """You are a culinary expert that creates detailed recipes based on titles. Format requirements:
         1. Generate a detailed recipe for the given title.
         2. Format the recipe exactly as follows:
-        - Title far above everything without bolding, or any symbols of any kind (no word "recipe" in title)
-        - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION below the title
-        - Ingredients with bullet points (•) on lines below the times section
-        - Numbered instructions (be specific) - specify each step in detail
-        - Nutritional information per serving (United States standards: calories, protein, fat, carbs) in its OWN BLOCK
-        3. No bold letters or asterisks
-        4. Make the recipe amazing and creative while staying true to the title."""
+        - Make sure the title is far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
+        - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "="
+        - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
+        - Numbered instructions(specific)
+        - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
+        - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
+        5. End each recipe with ===== on its own line and leave space below
+        6. No bold letters or asterisks
+        7. Make recipes amazing and creative
+        8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this.
+        
+        9. Make the recipe amazing and creative while staying true to the title."""
         
         prompt = f"Create a detailed recipe for: {title}"
         if healthy:
