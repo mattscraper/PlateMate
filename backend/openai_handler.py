@@ -145,7 +145,7 @@ class RecipeGenerator:
         - Numbered instructions(specific)
         - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
         - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
-        5. End each recipe with ===== on its own line and leave space below
+        
         6. No bold letters or asterisks
         7. Make recipes amazing and creative
         8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this.
