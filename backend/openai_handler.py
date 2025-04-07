@@ -68,20 +68,194 @@ class RecipeGenerator:
         # Otherwise, use recipes from the database
         print(f"Using titles from database for meal type: {meal_type}")
         return self._generate_recipes_from_database(meal_type, healthy, count)
+    
+    def _ensure_recipe_formatting(self, recipe_text):
+        """Process a recipe to ensure consistent formatting, especially for instructions"""
+        lines = recipe_text.split('\n')
+        sections = []
+        current_section = []
+        in_instructions = False
+        has_instruction_header = False
+        
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            
+            # Skip empty lines between sections
+            if not stripped:
+                if current_section:
+                    sections.append('\n'.join(current_section))
+                    current_section = []
+                continue
+            
+            # Check if this is an instruction header
+            if stripped.lower() == "instructions:" or stripped.lower() == "instructions":
+                has_instruction_header = True
+                in_instructions = True
+                if i > 0 and current_section:
+                    sections.append('\n'.join(current_section))
+                    current_section = []
+                current_section.append(stripped)
+                continue
+            
+            # Check if this is a numbered instruction
+            if re.match(r'^\d+\.', stripped):
+                in_instructions = True
+                # If this is the first instruction and we don't have a header, add one
+                if not has_instruction_header and (not current_section or 
+                                                not any(s.lower().startswith("instruction") for s in current_section)):
+                    if current_section:
+                        sections.append('\n'.join(current_section))
+                    current_section = ["Instructions:"]
+                    has_instruction_header = True
+                current_section.append(stripped)
+                continue
+                
+            # Handle other lines
+            if in_instructions:
+                # If this line doesn't look like a new section header, keep it with instructions
+                if not re.match(r'^[A-Za-z]+(\s+[A-Za-z]+)*:', stripped) and not stripped.lower() == "nutritional information":
+                    current_section.append(stripped)
+                else:
+                    # This appears to be a new section
+                    in_instructions = False
+                    if current_section:
+                        sections.append('\n'.join(current_section))
+                    current_section = [stripped]
+            else:
+                current_section.append(stripped)
+        
+        # Add the last section
+        if current_section:
+            sections.append('\n'.join(current_section))
+        
+        # Join sections with proper spacing
+        result = '\n\n'.join(sections)
+        
+        # Final cleanup to ensure one blank line between sections
+        return re.sub(r'\n{3,}', '\n\n', result)
+        
+    def _generate_multiple_recipes_from_titles(self, titles, healthy, count=5):
+        """Generate multiple recipes in a single API call to save tokens and ensure consistent formatting"""
+        # Get only the number of titles we need
+        selected_titles = titles[:count]
+        titles_str = ", ".join([f'"{title}"' for title in selected_titles])
+        
+        system_prompt = """You are a culinary expert creating multiple recipes. Follow these formatting instructions precisely:
+
+CRITICAL FORMAT RULES:
+1. Each recipe must have these sections IN THIS ORDER:
+   - Title (first line)
+   - Time/Servings information (in one paragraph)
+   - Ingredients (with bullet points •)
+   - Instructions (with numbers 1., 2., etc. ALL UNDER ONE "Instructions" HEADER)
+   - Nutritional information
+
+2. Section spacing:
+   - EXACTLY ONE blank line between sections
+   - NO extra blank lines within sections
+   - NEVER use bullet points (•) except for ingredients
+
+3. Recipe separation:
+   - Separate each recipe with exactly five equals signs: =====
+   - Always put a blank line before and after the separator
+
+FORMAT EXAMPLE:
+Delicious Recipe Title
+
+Preparation Time: 15 minutes, Cooking Time: 30 minutes, Servings: 4
+
+• 1 cup ingredient one
+• 2 tablespoons ingredient two
+• 3 teaspoons ingredient three
+
+Instructions:
+1. First step instruction details.
+2. Second step with more details.
+3. Third step with final instructions.
+
+Nutritional Information (per serving):
+Calories: 350
+Protein: 15g
+Fat: 12g
+Carbohydrates: 45g
+
+=====
+
+Next Recipe Title
+...and so on.
+"""
+
+        prompt = f"Create {len(selected_titles)} detailed recipes for these titles: {titles_str}. Each recipe must strictly follow my format requirements."
+        if healthy:
+            prompt += " Make all recipes healthy and nutritious while maintaining the essence of each dish."
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.85,
+                max_tokens=2500,  # Increased to accommodate multiple recipes
+                top_p=0.8
+            )
+            
+            # Get the full response and split by recipe separator
+            all_recipes_text = response.choices[0].message.content.strip()
+            raw_recipes = all_recipes_text.split("=====")
+            processed_recipes = []
+            
+            for recipe in raw_recipes:
+                # Clean up each recipe
+                cleaned = recipe.strip()
+                if cleaned:
+                    # Process recipe to ensure proper formatting
+                    processed = self._ensure_recipe_formatting(cleaned)
+                    processed_recipes.append(processed)
+            
+            # If we didn't get enough recipes, make an additional call for the remaining
+            if len(processed_recipes) < len(selected_titles):
+                missing_count = len(selected_titles) - len(processed_recipes)
+                missing_titles = selected_titles[len(processed_recipes):]
+                
+                # Recursive call to get the remaining recipes
+                remaining_recipes = self._generate_multiple_recipes_from_titles(
+                    missing_titles, 
+                    healthy, 
+                    missing_count
+                )
+                processed_recipes.extend(remaining_recipes)
+            
+            return processed_recipes[:count]  # Ensure we only return the requested number
+                
+        except Exception as e:
+            print(f"Error generating multiple recipes: {str(e)}")
+            # Fall back to individual recipe generation for resilience
+            processed_recipes = []
+            for title in selected_titles:
+                try:
+                    recipe = self._generate_single_recipe_from_title(title, healthy)
+                    if recipe:
+                        processed_recipes.append(recipe)
+                except Exception as inner_e:
+                    print(f"Error in fallback generation for '{title}': {str(inner_e)}")
+            
+            return processed_recipes
         
     def _generate_recipes_from_database(self, meal_type, healthy, count=5):
-        """Generate recipes based on titles from the database"""
+        """Generate recipes based on titles from the database using batch processing"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
             # Query the database for recipe titles
             if meal_type.lower() == "any":
-                cursor.execute("SELECT title FROM recipes ORDER BY RANDOM() LIMIT ?", (count*2,))
+                cursor.execute("SELECT title FROM recipes ORDER BY RANDOM() LIMIT ?", (count*3,))
             else:
                 cursor.execute(
                     "SELECT title FROM recipes WHERE category = ? ORDER BY RANDOM() LIMIT ?", 
-                    (meal_type.lower(), count*2)
+                    (meal_type.lower(), count*3)
                 )
                 
             # Fetch all matching titles
@@ -107,18 +281,23 @@ class RecipeGenerator:
             # We get more titles than needed to account for potential failures
             random.shuffle(titles)
             
-            # Generate recipes based on the selected titles
+            # Generate recipes in batches to save tokens
+            batch_size = min(5, count)  # Process 5 recipes at a time, or fewer if requested
             all_recipes = []
-            for title in titles:
-                # Add rate limiting to avoid OpenAI API limits
-                if len(all_recipes) > 0:
-                    sleep(0.5)  # Sleep for half a second between calls
+            
+            for i in range(0, len(titles), batch_size):
+                batch_titles = titles[i:i+batch_size]
+                if not batch_titles:
+                    break
                     
-                recipe = self._generate_single_recipe_from_title(title, healthy)
-                if recipe:
-                    all_recipes.append(recipe)
+                # Add rate limiting to avoid API limits
+                if i > 0:
+                    sleep(1)  # Sleep between batches
+                    
+                batch_recipes = self._generate_multiple_recipes_from_titles(batch_titles, healthy, len(batch_titles))
+                all_recipes.extend(batch_recipes)
                 
-                # If we have collected the requested number of recipes, stop
+                # If we have enough recipes, stop
                 if len(all_recipes) >= count:
                     break
             
@@ -131,7 +310,7 @@ class RecipeGenerator:
             return all_recipes[:count]
             
         except Exception as e:
-            print(f"Database error: {str(e)}")
+            print(f"Database error in batch processing: {str(e)}")
             # Fall back to OpenAI if database access fails
             return self._generate_recipes_with_openai(meal_type, healthy, None, count)
     
