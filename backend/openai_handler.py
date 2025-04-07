@@ -140,13 +140,14 @@ class RecipeGenerator:
         1. Generate a detailed recipe for the given title.
         2. Format the recipe exactly as follows:
         - Title far above everything without bolding, or any symbols of any kind (no word "recipe" in title)
+        - make sure you add the title!
         - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION below the title
         - Ingredients with bullet points (•) on lines below the times section.. Make sure these are in order and close together line by line for the frontend to handle
         - Numbered instructions (be specific) - specify each step in detail
         - Nutritional information per serving (United States standards: calories, protein, fat, carbs) in its OWN BLOCK
         3. No bold letters or asterisks
         4. Make the recipe amazing and creative while staying true to the title.
-        4. do not add === at bottom"""
+        4. place === below to UI knows to seperate responses"""
         
         prompt = f"Create a detailed recipe for: {title}"
         if healthy:
