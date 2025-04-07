@@ -135,19 +135,19 @@ class RecipeGenerator:
             return self._generate_recipes_with_openai(meal_type, healthy, None, count)
     
     def _generate_single_recipe_from_title(self, title, healthy):
-        """Generate a single recipe based on a title"""
+        """Generate a single recipe based on a title with proper formatting to match frontend expectations"""
         system_prompt = """You are a culinary expert that creates detailed recipes based on titles. Format requirements:
         1. Generate a detailed recipe for the given title.
-        2. Format the recipe exactly as follows:
-        - Title far above everything without bolding, or any symbols of any kind (no word "recipe" in title)
-        - make sure you add the title!
-        - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION below the title
-        - Ingredients with bullet points (•) on lines below the times section.. Make sure these are in order and close together line by line for the frontend to handle
-        - Numbered instructions (be specific) - specify each step in detail
-        - Nutritional information per serving (United States standards: calories, protein, fat, carbs) in its OWN BLOCK
-        3. No bold letters or asterisks
-        4. Make the recipe amazing and creative while staying true to the title.
-        4. place === below to UI knows to seperate responses"""
+        2. Format the recipe EXACTLY as follows:
+        - Title on the very first line (no word "recipe" in title)
+        - Leave a BLANK LINE after the title
+        - Put "Preparation Time: X minutes", "Cooking Time: X minutes", and "Servings: X" in their own section with a blank line before and after
+        - Ingredients section with bullet points (•) and a blank line before and after
+        - Instructions with numbered steps (1., 2., etc.) and a blank line before and after
+        - Nutritional information in its own section with a blank line before
+        3. All sections MUST be separated by EXACTLY ONE blank line
+        4. Do not use bold formatting, asterisks, or any special characters except bullet points (•) for ingredients
+        5. Do not include any separator line (====) in your response"""
         
         prompt = f"Create a detailed recipe for: {title}"
         if healthy:
@@ -166,7 +166,24 @@ class RecipeGenerator:
             )
             
             recipe_text = response.choices[0].message.content.strip()
-            return recipe_text
+            
+            # Clean up any residual separators or formatting issues
+            recipe_text = recipe_text.replace("===", "").strip()
+            
+            # Ensure sections are properly separated
+            # This helps the frontend parsing which relies on \n\n between sections
+            sections = recipe_text.split("\n\n")
+            cleaned_sections = []
+            
+            for section in sections:
+                # Remove any extra blank lines within sections
+                cleaned = "\n".join([line for line in section.split("\n") if line.strip()])
+                cleaned_sections.append(cleaned)
+            
+            # Join back with exactly one blank line between sections
+            final_recipe = "\n\n".join(cleaned_sections)
+            
+            return final_recipe
                 
         except Exception as e:
             print(f"Error generating recipe for '{title}': {str(e)}")
