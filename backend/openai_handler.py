@@ -194,81 +194,29 @@ class RecipeGenerator:
             # Clean up any residual separators or formatting issues
             recipe_text = recipe_text.replace("===", "").strip()
             
-            # Process the recipe to ensure proper section formatting
+            # Ensure proper section separation with exactly one blank line between sections
+            sections = []
+            current_section = []
             lines = recipe_text.split("\n")
-            title = lines[0]
-            processed_lines = [title, ""]  # Start with title and blank line
             
-            # Track what section we're in
-            in_ingredients = False
-            in_instructions = False
-            in_nutrition = False
-            
-            for i in range(1, len(lines)):
-                line = lines[i].strip()
-                
-                # Skip empty lines - we'll add them strategically
-                if not line:
-                    continue
+            for i, line in enumerate(lines):
+                if not line.strip():
+                    # We've hit a blank line
+                    if current_section:  # If we have content, add it as a section
+                        sections.append("\n".join(current_section))
+                        current_section = []
+                else:
+                    current_section.append(line)
                     
-                # Detect section transitions
-                if line.startswith("•"):
-                    # First ingredient - add a blank line before if needed
-                    if not in_ingredients and "Time" not in processed_lines[-1] and "Servings" not in processed_lines[-1]:
-                        processed_lines.append("")
-                    in_ingredients = True
-                    in_instructions = False
-                    in_nutrition = False
-                elif re.match(r"^\d+\.", line):
-                    # First instruction - add a blank line before if needed
-                    if not in_instructions:
-                        processed_lines.append("")
-                    in_ingredients = False
-                    in_instructions = True
-                    in_nutrition = False
-                elif "Nutritional" in line or "Calories" in line:
-                    # Nutrition section - add a blank line before if needed
-                    if not in_nutrition:
-                        processed_lines.append("")
-                    in_ingredients = False
-                    in_instructions = False
-                    in_nutrition = True
-                elif "Time" in line or "Servings" in line:
-                    # Time section - add a blank line before if needed
-                    if processed_lines[-1] and processed_lines[-1] != title:
-                        processed_lines.append("")
-                    in_ingredients = False
-                    in_instructions = False
-                    in_nutrition = False
-                
-                # Add the current line
-                processed_lines.append(line)
-                
-                # If we just finished a section, add a blank line
-                if (i+1 < len(lines)) and not lines[i+1].strip():
-                    next_line = ""
-                    if i+2 < len(lines):
-                        next_line = lines[i+2].strip()
-                    
-                    # Only add blank line if moving to new section type
-                    if (in_ingredients and not next_line.startswith("•")) or \
-                    (in_instructions and not next_line.match("^\d+\.")) or \
-                    (line == processed_lines[-1] and "Nutritional" in line):
-                        processed_lines.append("")
+            # Add the last section if there's content
+            if current_section:
+                sections.append("\n".join(current_section))
             
-            # Join all lines
-            final_recipe = "\n".join(processed_lines)
-            
-            # Ensure double newlines between major sections for frontend parsing
-            final_recipe = final_recipe.replace("\n\n\n", "\n\n")
-            
-            # Another safeguard - add proper newlines around sections
-            final_recipe = re.sub(r'([A-Za-z]+)(\s*)\n(•)', r'\1\n\n•', final_recipe)  # Space before ingredients
-            final_recipe = re.sub(r'(•[^\n]+)(\s*)\n(\d\.)', r'\1\n\n\3', final_recipe)  # Space before instructions
-            final_recipe = re.sub(r'(\d\.[^\n]+)(\s*)\n(Nutritional|Calories)', r'\1\n\n\3', final_recipe)  # Space before nutrition
+            # Join sections with a double newline
+            final_recipe = "\n\n".join(sections)
             
             return final_recipe
-            
+                
         except Exception as e:
             print(f"Error generating recipe for '{title}': {str(e)}")
             return None
