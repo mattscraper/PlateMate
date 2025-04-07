@@ -232,12 +232,163 @@ export default function ResultsScreen({ route }) {
     if (!recipeText) return null;
     itemAnimations.length = 0;
 
-    // Step 1: Remove any separator lines
+    // Step 1: Remove any separator lines and clean up
     recipeText = recipeText.replace(/={3,}/g, "").trim();
 
-    // Step 2: Split into sections by double newlines
-    const rawSections = recipeText.split("\n\n");
-    const sections = rawSections.filter((section) => section.trim().length > 0);
+    // Step 2: Pre-process the recipe to consolidate sections
+    let processedText = recipeText;
+
+    // Split into lines
+    const lines = processedText.split("\n");
+    let consolidatedLines = [];
+    let currentSection = "";
+    let inIngredients = false;
+    let inInstructions = false;
+    let inNutrition = false;
+    let inTimeInfo = false;
+
+    // Process line by line to properly organize sections
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Skip empty lines unless they're section separators
+      if (!line) {
+        // If we're in a section, keep collecting
+        if (inIngredients || inInstructions || inNutrition || inTimeInfo) {
+          continue;
+        }
+
+        // Otherwise add as separator between sections
+        if (
+          consolidatedLines.length > 0 &&
+          consolidatedLines[consolidatedLines.length - 1] !== ""
+        ) {
+          consolidatedLines.push("");
+        }
+        continue;
+      }
+
+      // Detect section type
+      if (line.startsWith("•")) {
+        // Ingredient line
+        if (!inIngredients) {
+          // Starting new ingredients section
+          if (currentSection) {
+            consolidatedLines.push(currentSection);
+            consolidatedLines.push(""); // Add separator
+          }
+          currentSection = line;
+          inIngredients = true;
+          inInstructions = false;
+          inNutrition = false;
+          inTimeInfo = false;
+        } else {
+          // Continue ingredients section
+          currentSection += "\n" + line;
+        }
+      } else if (/^\d+\./.test(line)) {
+        // Instruction line
+        if (!inInstructions) {
+          // Starting new instructions section
+          if (currentSection) {
+            consolidatedLines.push(currentSection);
+            consolidatedLines.push(""); // Add separator
+          }
+          currentSection = line;
+          inIngredients = false;
+          inInstructions = true;
+          inNutrition = false;
+          inTimeInfo = false;
+        } else {
+          // Continue instructions section
+          currentSection += "\n" + line;
+        }
+      } else if (
+        line.includes("Nutritional") ||
+        (line.includes("Calories") && !line.toLowerCase().includes("time"))
+      ) {
+        // Nutrition line
+        if (!inNutrition) {
+          // Starting new nutrition section
+          if (currentSection) {
+            consolidatedLines.push(currentSection);
+            consolidatedLines.push(""); // Add separator
+          }
+          currentSection = line;
+          inIngredients = false;
+          inInstructions = false;
+          inNutrition = true;
+          inTimeInfo = false;
+        } else {
+          // Continue nutrition section
+          currentSection += "\n" + line;
+        }
+      } else if (line.includes("Time") || line.includes("Servings")) {
+        // Time info line
+        if (!inTimeInfo && !inIngredients && !inInstructions && !inNutrition) {
+          // Starting new time info section
+          if (currentSection) {
+            consolidatedLines.push(currentSection);
+            consolidatedLines.push(""); // Add separator
+          }
+          currentSection = line;
+          inIngredients = false;
+          inInstructions = false;
+          inNutrition = false;
+          inTimeInfo = true;
+        } else if (inTimeInfo) {
+          // Continue time info section
+          currentSection += "\n" + line;
+        } else {
+          // Time mentioned in another context, just add the line
+          if (currentSection) {
+            currentSection += "\n" + line;
+          } else {
+            consolidatedLines.push(line);
+          }
+        }
+      } else if (i === 0) {
+        // First line is title
+        consolidatedLines.push(line);
+        consolidatedLines.push(""); // Add separator after title
+      } else {
+        // Other content, add to current section or as standalone
+        if (inIngredients || inInstructions || inNutrition || inTimeInfo) {
+          currentSection += "\n" + line;
+        } else {
+          if (currentSection) {
+            consolidatedLines.push(currentSection);
+            consolidatedLines.push(""); // Add separator
+          }
+          currentSection = line;
+        }
+      }
+    }
+
+    // Add the last section if it exists
+    if (currentSection) {
+      consolidatedLines.push(currentSection);
+    }
+
+    // Cleanup - remove consecutive blank lines and trim
+    let finalText = "";
+    let lastLineWasBlank = false;
+    for (const line of consolidatedLines) {
+      if (line === "") {
+        if (!lastLineWasBlank) {
+          finalText += "\n\n";
+          lastLineWasBlank = true;
+        }
+      } else {
+        finalText += line + "\n";
+        lastLineWasBlank = false;
+      }
+    }
+
+    // Step 3: Now split into sections with the cleaned-up text
+    const sections = finalText
+      .split("\n\n")
+      .filter((section) => section.trim());
 
     return sections.map((section, index) => {
       const fadeIn = getNewAnimation();
@@ -250,27 +401,9 @@ export default function ResultsScreen({ route }) {
             style={[styles.titleWrapper, { opacity: fadeIn }]}
           >
             <View style={styles.titleContainer}>
-              <Text style={styles.recipeTitle}>{section}</Text>
+              <Text style={styles.recipeTitle}>{section.trim()}</Text>
               <View style={styles.titleDecoration} />
             </View>
-          </Animated.View>
-        );
-      }
-
-      // Check for time information (contains "Time" or "Servings")
-      if (section.includes("Time") || section.includes("Servings")) {
-        return (
-          <Animated.View
-            key={index}
-            style={[styles.section, { opacity: fadeIn }]}
-          >
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderIcon}>
-                <Ionicons name="time" size={20} color="#008b8b" />
-              </View>
-              <Text style={styles.sectionTitle}>Timing Details</Text>
-            </View>
-            {formatRecipeSection(section, "time")}
           </Animated.View>
         );
       }
@@ -294,7 +427,7 @@ export default function ResultsScreen({ route }) {
       }
 
       // Check for instructions (contains numbered steps)
-      if (section.match(/^\d\./m)) {
+      if (/^\d+\./.test(section)) {
         return (
           <Animated.View
             key={index}
@@ -307,6 +440,24 @@ export default function ResultsScreen({ route }) {
               <Text style={styles.sectionTitle}>Instructions</Text>
             </View>
             {formatRecipeSection(section, "instructions")}
+          </Animated.View>
+        );
+      }
+
+      // Check for time information (contains "Time" or "Servings")
+      if (section.includes("Time") || section.includes("Servings")) {
+        return (
+          <Animated.View
+            key={index}
+            style={[styles.section, { opacity: fadeIn }]}
+          >
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderIcon}>
+                <Ionicons name="time" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.sectionTitle}>Timing Details</Text>
+            </View>
+            {formatRecipeSection(section, "time")}
           </Animated.View>
         );
       }
@@ -340,24 +491,6 @@ export default function ResultsScreen({ route }) {
       );
     });
   };
-
-  if (!recipes || recipes.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="restaurant-outline" size={80} color="#008b8b" />
-          <Text style={styles.emptyText}>No recipes found</Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <Modal transparent={true} visible={loading}>

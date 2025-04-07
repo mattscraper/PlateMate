@@ -4,6 +4,7 @@ import sqlite3
 import random
 from time import sleep
 from dotenv import load_dotenv
+import re
 
 # Load environment variables
 load_dotenv()
@@ -141,13 +142,36 @@ class RecipeGenerator:
         2. Format the recipe EXACTLY as follows:
         - Title on the very first line (no word "recipe" in title)
         - Leave a BLANK LINE after the title
-        - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION....put far below title
-        - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
-        - Numbered instructions(specific) specify each step in detail and make sure to include all steps
-        - Nutritional information in its own section with a blank line before (united states standards... example(calories,protein,fat,carbs)) in OWN BLOCK and make it look modern and seperate by line
-        3. All sections MUST be separated by EXACTLY ONE blank line
-        4. Do not use bold formatting, asterisks, or any special characters except bullet points (•) for ingredients
-        5. Do not include any separator line (====) in your response"""
+        - Time section: Put "Preparation Time: X minutes", "Cooking Time: X minutes", and "Servings: X" together in a SINGLE PARAGRAPH with NO BULLET POINTS
+        - Leave a BLANK LINE after the time section
+        - Ingredients section: Each ingredient on its own line, each starting with a bullet point (•)
+        - Leave a BLANK LINE after the ingredients section
+        - Instructions section: Each instruction on its own line, numbered (1., 2., etc.)
+        - Leave a BLANK LINE after the instructions section
+        - Nutritional information section: Put on its own lines with no blank lines in between
+        3. CRITICAL: Make sure to have exactly ONE BLANK LINE between major sections, not multiple blank lines
+        4. CRITICAL: DO NOT use bullet points for anything except ingredients
+        5. Do not use bold formatting, asterisks, or any special characters except bullet points (•) for ingredients
+        6. Never include any separator line (====) in your response
+        7. Format example:
+        
+        Recipe Title
+        
+        Preparation Time: 15 minutes, Cooking Time: 30 minutes, Servings: 4
+        
+        • Ingredient 1
+        • Ingredient 2
+        • Ingredient 3
+        
+        1. Instruction step one
+        2. Instruction step two
+        3. Instruction step three
+        
+        Nutritional Information (per serving):
+        Calories: 350
+        Protein: 15g
+        Fat: 12g
+        Carbohydrates: 45g"""
         
         prompt = f"Create a detailed recipe for: {title}"
         if healthy:
@@ -170,21 +194,81 @@ class RecipeGenerator:
             # Clean up any residual separators or formatting issues
             recipe_text = recipe_text.replace("===", "").strip()
             
-            # Ensure sections are properly separated
-            # This helps the frontend parsing which relies on \n\n between sections
-            sections = recipe_text.split("\n\n")
-            cleaned_sections = []
+            # Process the recipe to ensure proper section formatting
+            lines = recipe_text.split("\n")
+            title = lines[0]
+            processed_lines = [title, ""]  # Start with title and blank line
             
-            for section in sections:
-                # Remove any extra blank lines within sections
-                cleaned = "\n".join([line for line in section.split("\n") if line.strip()])
-                cleaned_sections.append(cleaned)
+            # Track what section we're in
+            in_ingredients = False
+            in_instructions = False
+            in_nutrition = False
             
-            # Join back with exactly one blank line between sections
-            final_recipe = "\n\n".join(cleaned_sections)
+            for i in range(1, len(lines)):
+                line = lines[i].strip()
+                
+                # Skip empty lines - we'll add them strategically
+                if not line:
+                    continue
+                    
+                # Detect section transitions
+                if line.startswith("•"):
+                    # First ingredient - add a blank line before if needed
+                    if not in_ingredients and "Time" not in processed_lines[-1] and "Servings" not in processed_lines[-1]:
+                        processed_lines.append("")
+                    in_ingredients = True
+                    in_instructions = False
+                    in_nutrition = False
+                elif re.match(r"^\d+\.", line):
+                    # First instruction - add a blank line before if needed
+                    if not in_instructions:
+                        processed_lines.append("")
+                    in_ingredients = False
+                    in_instructions = True
+                    in_nutrition = False
+                elif "Nutritional" in line or "Calories" in line:
+                    # Nutrition section - add a blank line before if needed
+                    if not in_nutrition:
+                        processed_lines.append("")
+                    in_ingredients = False
+                    in_instructions = False
+                    in_nutrition = True
+                elif "Time" in line or "Servings" in line:
+                    # Time section - add a blank line before if needed
+                    if processed_lines[-1] and processed_lines[-1] != title:
+                        processed_lines.append("")
+                    in_ingredients = False
+                    in_instructions = False
+                    in_nutrition = False
+                
+                # Add the current line
+                processed_lines.append(line)
+                
+                # If we just finished a section, add a blank line
+                if (i+1 < len(lines)) and not lines[i+1].strip():
+                    next_line = ""
+                    if i+2 < len(lines):
+                        next_line = lines[i+2].strip()
+                    
+                    # Only add blank line if moving to new section type
+                    if (in_ingredients and not next_line.startswith("•")) or \
+                    (in_instructions and not next_line.match("^\d+\.")) or \
+                    (line == processed_lines[-1] and "Nutritional" in line):
+                        processed_lines.append("")
+            
+            # Join all lines
+            final_recipe = "\n".join(processed_lines)
+            
+            # Ensure double newlines between major sections for frontend parsing
+            final_recipe = final_recipe.replace("\n\n\n", "\n\n")
+            
+            # Another safeguard - add proper newlines around sections
+            final_recipe = re.sub(r'([A-Za-z]+)(\s*)\n(•)', r'\1\n\n•', final_recipe)  # Space before ingredients
+            final_recipe = re.sub(r'(•[^\n]+)(\s*)\n(\d\.)', r'\1\n\n\3', final_recipe)  # Space before instructions
+            final_recipe = re.sub(r'(\d\.[^\n]+)(\s*)\n(Nutritional|Calories)', r'\1\n\n\3', final_recipe)  # Space before nutrition
             
             return final_recipe
-                
+            
         except Exception as e:
             print(f"Error generating recipe for '{title}': {str(e)}")
             return None
