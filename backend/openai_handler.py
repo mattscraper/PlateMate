@@ -134,23 +134,23 @@ class RecipeGenerator:
             # Fall back to OpenAI if database access fails
             return self._generate_recipes_with_openai(meal_type, healthy, None, count)
     
-    def _generate_single_recipe_from_title(self, title, healthy):
+    def _generate_single_recipe_from_title(self, title, healthy,):
         """Generate a single recipe based on a title"""
         system_prompt = """You are a culinary expert that creates detailed recipes based on titles. Format requirements:
-        1. Generate a detailed recipe for the given title.
-        2. Format the recipe exactly as follows:
-        - Make sure the title is far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
-        - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "="
+        1. Generate a detailed recipe for the given title
+        2. Never repeat recipe ideas or cuisines in the batch
+        3. Vary cooking methods, ingredients, and cuisine styles
+        4. Format each recipe exactly as follows:
+        - title far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
+        - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "=" and should be far above everything
+        - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION....put far below title
         - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
-        - Numbered instructions(specific)
-        - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
-        - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
-        
+        - Numbered instructions(specific) specify each step in detail and make sure to include all steps
+        - Nutritional information per serving (united states standards... example(calories,protein,fat,carbs)) in OWN BLOCK and make it look modern and seperate by line
+        5. Separate each recipe with ===== on its own line and leave space below for each recipe title!
         6. No bold letters or asterisks
-        7. Make recipes amazing and creative
-        8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this.
-        
-        9. Make the recipe amazing and creative while staying true to the title."""
+        7. Make recipes amazing and think outside the box."""
+
         
         prompt = f"Create a detailed recipe for: {title}"
         if healthy:
