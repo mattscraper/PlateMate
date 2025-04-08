@@ -172,40 +172,46 @@ export default function ResultsScreen({ route }) {
   const formatRecipeSection = (section, type) => {
     switch (type) {
       case "ingredients":
-        return section.split("\n").map((ingredient, i) => {
-          const fadeIn = getNewAnimation();
-          return (
-            <Animated.View
-              key={i}
-              style={[styles.ingredientItem, { opacity: fadeIn }]}
-            >
-              <View style={styles.ingredientIconContainer}>
-                <Ionicons name="checkmark-circle" size={20} color="#008b8b" />
-              </View>
-              <Text style={styles.ingredientText}>
-                {ingredient.replace("•", "").trim()}
-              </Text>
-            </Animated.View>
-          );
-        });
+        return section
+          .split("\n")
+          .filter((line) => !line.toLowerCase().includes("ingredients")) // Filter out the header
+          .map((ingredient, i) => {
+            const fadeIn = getNewAnimation();
+            return (
+              <Animated.View
+                key={i}
+                style={[styles.ingredientItem, { opacity: fadeIn }]}
+              >
+                <View style={styles.ingredientIconContainer}>
+                  <Ionicons name="checkmark-circle" size={20} color="#008b8b" />
+                </View>
+                <Text style={styles.ingredientText}>
+                  {ingredient.replace("•", "").trim()}
+                </Text>
+              </Animated.View>
+            );
+          });
 
       case "instructions":
-        return section.split("\n").map((instruction, i) => {
-          const fadeIn = getNewAnimation();
-          return (
-            <Animated.View
-              key={i}
-              style={[styles.instructionItem, { opacity: fadeIn }]}
-            >
-              <View style={styles.instructionNumber}>
-                <Text style={styles.instructionNumberText}>{i + 1}</Text>
-              </View>
-              <Text style={styles.instructionText}>
-                {instruction.replace(/^\d+\./, "").trim()}
-              </Text>
-            </Animated.View>
-          );
-        });
+        return section
+          .split("\n")
+          .filter((line) => !line.toLowerCase().includes("instructions")) // Filter out the header
+          .map((instruction, i) => {
+            const fadeIn = getNewAnimation();
+            return (
+              <Animated.View
+                key={i}
+                style={[styles.instructionItem, { opacity: fadeIn }]}
+              >
+                <View style={styles.instructionNumber}>
+                  <Text style={styles.instructionNumberText}>{i + 1}</Text>
+                </View>
+                <Text style={styles.instructionText}>
+                  {instruction.replace(/^\d+\./, "").trim()}
+                </Text>
+              </Animated.View>
+            );
+          });
 
       case "time":
         return section.split("\n").map((info, i) => {
@@ -780,7 +786,7 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 14,
     color: "#008b8b",
-    marginLeft: 8,
+    marginLeft: 12,
     fontWeight: "600",
   },
   regularText: {

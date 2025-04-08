@@ -61,10 +61,13 @@ class RecipeGenerator:
             
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         # If there are allergies, use the original method to generate recipes
+        meal_type_valid = ["breakfast","lunch","dinenr","snack"]
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
-        
+        if meal_type not in meal_type_valid:
+            print(f"meal type is custom, default to original method: {meal_type}")
+            return self._generate_recipes_with_openai(meal_type,healthy,allergies,count)
         # Otherwise, use recipes from the database
         print(f"Using titles from database for meal type: {meal_type}")
         return self._generate_recipes_from_database(meal_type, healthy, count)
