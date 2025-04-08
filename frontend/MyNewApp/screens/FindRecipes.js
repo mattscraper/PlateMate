@@ -302,6 +302,12 @@ export default function FindRecipes() {
       >
         {/* Header */}
         <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+          </TouchableOpacity>
           <Text style={styles.title}>Discover New Recipes</Text>
           <Text style={styles.subtitle}>Find your next culinary adventure</Text>
         </View>
@@ -496,6 +502,11 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 32,
     alignItems: "center",
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 310,
+    marginBottom: 10,
   },
   title: {
     fontSize: 34,

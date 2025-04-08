@@ -232,162 +232,97 @@ export default function ResultsScreen({ route }) {
     if (!recipeText) return null;
     itemAnimations.length = 0;
 
-    // Step 1: Remove any separator lines and clean up
-    recipeText = recipeText.replace(/={3,}/g, "").trim();
+    // Clean up the recipe text
+    recipeText = recipeText.replace(/={3,}/g, "").trim(); // Remove separators
 
-    // Step 2: Pre-process the recipe to consolidate sections
+    // Pre-process the recipe to consolidate sections properly
     let processedText = recipeText;
 
-    // Split into lines
-    const lines = processedText.split("\n");
-    let consolidatedLines = [];
-    let currentSection = "";
-    let inIngredients = false;
-    let inInstructions = false;
-    let inNutrition = false;
-    let inTimeInfo = false;
+    // First identify if we need to fix the instructions section
+    const hasMultipleInstructionHeaders =
+      (processedText.match(/instructions/gi) || []).length > 1;
+    const hasNumberedLines = processedText.match(/^\d+\./gm);
 
-    // Process line by line to properly organize sections
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
+    if (hasMultipleInstructionHeaders) {
+      // Split the recipe into lines for processing
+      const lines = processedText.split("\n");
+      let consolidatedLines = [];
+      let instructionsStarted = false;
+      let inInstructionSection = false;
+      let skipLine = false;
 
-      // Skip empty lines unless they're section separators
-      if (!line) {
-        // If we're in a section, keep collecting
-        if (inIngredients || inInstructions || inNutrition || inTimeInfo) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // Skip logic for duplicate instruction headers
+        if (skipLine) {
+          skipLine = false;
           continue;
         }
 
-        // Otherwise add as separator between sections
+        // Handle instruction headers
         if (
-          consolidatedLines.length > 0 &&
-          consolidatedLines[consolidatedLines.length - 1] !== ""
+          line.toLowerCase() === "instructions:" ||
+          line.toLowerCase() === "instructions"
         ) {
-          consolidatedLines.push("");
-        }
-        continue;
-      }
-
-      // Detect section type
-      if (line.startsWith("•")) {
-        // Ingredient line
-        if (!inIngredients) {
-          // Starting new ingredients section
-          if (currentSection) {
-            consolidatedLines.push(currentSection);
-            consolidatedLines.push(""); // Add separator
-          }
-          currentSection = line;
-          inIngredients = true;
-          inInstructions = false;
-          inNutrition = false;
-          inTimeInfo = false;
-        } else {
-          // Continue ingredients section
-          currentSection += "\n" + line;
-        }
-      } else if (/^\d+\./.test(line)) {
-        // Instruction line
-        if (!inInstructions) {
-          // Starting new instructions section
-          if (currentSection) {
-            consolidatedLines.push(currentSection);
-            consolidatedLines.push(""); // Add separator
-          }
-          currentSection = line;
-          inIngredients = false;
-          inInstructions = true;
-          inNutrition = false;
-          inTimeInfo = false;
-        } else {
-          // Continue instructions section
-          currentSection += "\n" + line;
-        }
-      } else if (
-        line.includes("Nutritional") ||
-        (line.includes("Calories") && !line.toLowerCase().includes("time"))
-      ) {
-        // Nutrition line
-        if (!inNutrition) {
-          // Starting new nutrition section
-          if (currentSection) {
-            consolidatedLines.push(currentSection);
-            consolidatedLines.push(""); // Add separator
-          }
-          currentSection = line;
-          inIngredients = false;
-          inInstructions = false;
-          inNutrition = true;
-          inTimeInfo = false;
-        } else {
-          // Continue nutrition section
-          currentSection += "\n" + line;
-        }
-      } else if (line.includes("Time") || line.includes("Servings")) {
-        // Time info line
-        if (!inTimeInfo && !inIngredients && !inInstructions && !inNutrition) {
-          // Starting new time info section
-          if (currentSection) {
-            consolidatedLines.push(currentSection);
-            consolidatedLines.push(""); // Add separator
-          }
-          currentSection = line;
-          inIngredients = false;
-          inInstructions = false;
-          inNutrition = false;
-          inTimeInfo = true;
-        } else if (inTimeInfo) {
-          // Continue time info section
-          currentSection += "\n" + line;
-        } else {
-          // Time mentioned in another context, just add the line
-          if (currentSection) {
-            currentSection += "\n" + line;
+          if (!instructionsStarted) {
+            // First instruction header
+            instructionsStarted = true;
+            inInstructionSection = true;
+            consolidatedLines.push("Instructions:");
           } else {
-            consolidatedLines.push(line);
+            // Skip duplicate instruction headers
+            skipLine = true;
+            continue;
           }
         }
-      } else if (i === 0) {
-        // First line is title
-        consolidatedLines.push(line);
-        consolidatedLines.push(""); // Add separator after title
-      } else {
-        // Other content, add to current section or as standalone
-        if (inIngredients || inInstructions || inNutrition || inTimeInfo) {
-          currentSection += "\n" + line;
-        } else {
-          if (currentSection) {
-            consolidatedLines.push(currentSection);
-            consolidatedLines.push(""); // Add separator
+        // Handle numbered instructions
+        else if (/^\d+\./.test(line)) {
+          if (!instructionsStarted) {
+            // If we encounter a numbered instruction without a header
+            instructionsStarted = true;
+            inInstructionSection = true;
+            consolidatedLines.push("Instructions:");
           }
-          currentSection = line;
+          consolidatedLines.push(line);
+        }
+        // Handle line transitions
+        else if (line === "" && inInstructionSection) {
+          // Check if the next non-empty line is nutritional info or another section
+          let nextNonEmptyIndex = i + 1;
+          while (
+            nextNonEmptyIndex < lines.length &&
+            !lines[nextNonEmptyIndex].trim()
+          ) {
+            nextNonEmptyIndex++;
+          }
+
+          if (nextNonEmptyIndex < lines.length) {
+            const nextLine = lines[nextNonEmptyIndex].trim();
+            if (
+              nextLine.toLowerCase().includes("nutritional") ||
+              nextLine.toLowerCase().includes("calories") ||
+              !nextLine.match(/^\d+\./)
+            ) {
+              // End of instructions section
+              inInstructionSection = false;
+              consolidatedLines.push(line); // Keep the blank line
+            }
+          }
+        }
+        // For all other lines
+        else {
+          consolidatedLines.push(line);
         }
       }
+
+      // Rebuild the processed text
+      processedText = consolidatedLines.join("\n");
     }
 
-    // Add the last section if it exists
-    if (currentSection) {
-      consolidatedLines.push(currentSection);
-    }
-
-    // Cleanup - remove consecutive blank lines and trim
-    let finalText = "";
-    let lastLineWasBlank = false;
-    for (const line of consolidatedLines) {
-      if (line === "") {
-        if (!lastLineWasBlank) {
-          finalText += "\n\n";
-          lastLineWasBlank = true;
-        }
-      } else {
-        finalText += line + "\n";
-        lastLineWasBlank = false;
-      }
-    }
-
-    // Step 3: Now split into sections with the cleaned-up text
-    const sections = finalText
-      .split("\n\n")
+    // Now split into sections based on blank lines
+    const sections = processedText
+      .split(/\n\s*\n/)
       .filter((section) => section.trim());
 
     return sections.map((section, index) => {
@@ -404,6 +339,24 @@ export default function ResultsScreen({ route }) {
               <Text style={styles.recipeTitle}>{section.trim()}</Text>
               <View style={styles.titleDecoration} />
             </View>
+          </Animated.View>
+        );
+      }
+
+      // Check for time information
+      if (section.includes("Time") || section.includes("Servings")) {
+        return (
+          <Animated.View
+            key={index}
+            style={[styles.section, { opacity: fadeIn }]}
+          >
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderIcon}>
+                <Ionicons name="time" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.sectionTitle}>Timing Details</Text>
+            </View>
+            {formatRecipeSection(section, "time")}
           </Animated.View>
         );
       }
@@ -426,8 +379,11 @@ export default function ResultsScreen({ route }) {
         );
       }
 
-      // Check for instructions (contains numbered steps)
-      if (/^\d+\./.test(section)) {
+      // Check for instructions (contains "instructions" or numbered steps)
+      if (
+        section.toLowerCase().includes("instructions") ||
+        section.match(/^\d+\./m)
+      ) {
         return (
           <Animated.View
             key={index}
@@ -444,26 +400,11 @@ export default function ResultsScreen({ route }) {
         );
       }
 
-      // Check for time information (contains "Time" or "Servings")
-      if (section.includes("Time") || section.includes("Servings")) {
-        return (
-          <Animated.View
-            key={index}
-            style={[styles.section, { opacity: fadeIn }]}
-          >
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderIcon}>
-                <Ionicons name="time" size={20} color="#008b8b" />
-              </View>
-              <Text style={styles.sectionTitle}>Timing Details</Text>
-            </View>
-            {formatRecipeSection(section, "time")}
-          </Animated.View>
-        );
-      }
-
       // Check for nutritional information
-      if (section.includes("Nutritional") || section.includes("Calories")) {
+      if (
+        section.includes("Nutritional") ||
+        (section.includes("Calories") && !section.includes("Time"))
+      ) {
         return (
           <Animated.View
             key={index}

@@ -298,6 +298,12 @@ export default function MealPlans() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+        </TouchableOpacity>
         <View style={styles.header}>
           <Text style={styles.title}>Create Meal Plan</Text>
           <Text style={styles.subtitle}>
@@ -560,6 +566,11 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4, // For Android shadow
     backdropFilter: "blur(10px)", // Works with some libraries for blur effect
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 310,
+    marginBottom: 10,
   },
 
   title: {

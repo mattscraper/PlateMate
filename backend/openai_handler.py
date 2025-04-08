@@ -173,7 +173,7 @@ Instructions:
 2. Second step with more details.
 3. Third step with final instructions.
 
-Nutritional Information (per serving):
+(make sure nutrition is in its own little category)
 Calories: 350
 Protein: 15g
 Fat: 12g
@@ -243,7 +243,7 @@ Next Recipe Title
             
             return processed_recipes
         
-    def _generate_recipes_from_database(self, meal_type, healthy, count=5):
+    def _generate_recipes_from_database(self, meal_type, healthy, count=10):
         """Generate recipes based on titles from the database using batch processing"""
         try:
             conn = sqlite3.connect(self.db_path)

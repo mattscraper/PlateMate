@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authService } from "../services/auth";
 import { useFocusEffect } from "@react-navigation/native";
+import PersistentFooter from "../components/PersistentFooter"; // Import the new footer component
 
 export default function LandingScreen({ navigation }) {
   // Core state
@@ -29,6 +30,9 @@ export default function LandingScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isForgotVisible, setIsForgotVisible] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+
+  // Create animated value for scroll position
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   // Refs for inputs
   const emailRef = useRef(null);
@@ -77,6 +81,11 @@ export default function LandingScreen({ navigation }) {
     } catch (error) {
       console.error("Error checking premium status:", error);
     }
+  };
+
+  // Handler for when login is required by footer navigation
+  const handleLoginRequired = () => {
+    setIsLoginVisible(true);
   };
 
   // State for custom toast messages
@@ -337,6 +346,7 @@ export default function LandingScreen({ navigation }) {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 70 }} // Add padding to account for footer
       >
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.container}>
@@ -460,9 +470,15 @@ export default function LandingScreen({ navigation }) {
         </SafeAreaView>
       </ScrollView>
 
-      {/* Login Overlay 
-      figure out if we should delete the boiler plate person image//
-      // */}
+      {/* Persistent Footer Navigation */}
+      <PersistentFooter
+        navigation={navigation}
+        isLoggedIn={isLoggedIn}
+        isPremium={isPremium}
+        onLoginRequired={handleLoginRequired}
+      />
+
+      {/* Login Overlay */}
       {isLoginVisible && (
         <View style={styles.overlay}>
           <View style={styles.modalContent}>
@@ -486,7 +502,7 @@ export default function LandingScreen({ navigation }) {
                 style={styles.inputIcon}
               />
               <TextInput
-                ref={emailRef} // we may need to switch libraries to implement forgot password!
+                ref={emailRef}
                 style={styles.input}
                 placeholder="Enter your email"
                 placeholderTextColor="#999"
@@ -879,6 +895,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    zIndex: 1000, // Make sure overlay is above footer
   },
   modalContent: {
     backgroundColor: "white",
