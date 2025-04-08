@@ -177,9 +177,9 @@ export const estimateDifficulty = (ingredients, instructions) => {
 
   const complexityScore = ingredientCount * 0.3 + instructionCount * 0.7;
 
-  if (complexityScore < 6.7) {
+  if (complexityScore < 7.5) {
     return "Easy";
-  } else if (complexityScore <= 6.7) {
+  } else if (complexityScore <= 9) {
     return "Medium";
   } else {
     return "Hard";

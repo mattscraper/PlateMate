@@ -562,7 +562,7 @@ Next Recipe Title
             - MUST start each day with "Day X" where X is a sequential number from 1 to {days}. Make sure the days increment by one! ex, day1 then day2 then day3.
             - Each meal MUST be labeled as one of: Breakfast, Lunch, Dinner, or Snack... only one of each per day unless meals per day is less than 3
             - Recipe for each meal formatted exactly like:
-                - Title (do not include the word title)
+                - Title (do not include the word title) andd make sure its far above everything with padding from previous recipe as well 
                 - Preparation Time, Cooking Time, Servings
                 - Ingredients with bullet points (•)
                 - Numbered instructions
