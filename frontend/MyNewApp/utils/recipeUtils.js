@@ -92,23 +92,6 @@ export const generateRecipeTags = (recipeText) => {
   const lowerCaseRecipe = recipeText.toLowerCase();
 
   // Add some common diet tags based on content
-  if (
-    lowerCaseRecipe.includes("vegetarian") ||
-    (!lowerCaseRecipe.includes("meat") &&
-      !lowerCaseRecipe.includes("chicken") &&
-      !lowerCaseRecipe.includes("beef") &&
-      !lowerCaseRecipe.includes("pork"))
-  ) {
-    tags.push("vegetarian");
-  }
-
-  if (lowerCaseRecipe.includes("vegan")) {
-    tags.push("vegan");
-  }
-
-  if (lowerCaseRecipe.includes("gluten-free")) {
-    tags.push("gluten-free");
-  }
 
   // Add meal type tags
   if (lowerCaseRecipe.includes("breakfast")) {
@@ -194,9 +177,9 @@ export const estimateDifficulty = (ingredients, instructions) => {
 
   const complexityScore = ingredientCount * 0.3 + instructionCount * 0.7;
 
-  if (complexityScore < 10) {
+  if (complexityScore < 6.7) {
     return "Easy";
-  } else if (complexityScore < 20) {
+  } else if (complexityScore <= 6.7) {
     return "Medium";
   } else {
     return "Hard";

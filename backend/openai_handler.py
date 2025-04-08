@@ -170,7 +170,7 @@ Servings: 4
 • 2 tablespoons ingredient two
 • 3 teaspoons ingredient three
 
-Instructions:
+(make sure instructions is in its own little category)
 1. First step instruction details.
 2. Second step with more details.
 3. Third step with final instructions.

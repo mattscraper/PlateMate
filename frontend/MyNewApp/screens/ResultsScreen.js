@@ -773,8 +773,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(0,139,139,0.08)",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 15,
+    paddingHorizontal: 25,
     borderRadius: 20,
   },
   timeText: {
