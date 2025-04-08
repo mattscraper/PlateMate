@@ -162,7 +162,9 @@ CRITICAL FORMAT RULES:
 FORMAT EXAMPLE:
 Delicious Recipe Title
 
-Preparation Time: 15 minutes, Cooking Time: 30 minutes, Servings: 4
+Preparation Time: 15 minutes
+Cooking Time: 30 minutes
+Servings: 4
 
 • 1 cup ingredient one
 • 2 tablespoons ingredient two
@@ -187,7 +189,7 @@ Next Recipe Title
 
         prompt = f"Create {len(selected_titles)} detailed recipes for these titles: {titles_str}. Each recipe must strictly follow my format requirements."
         if healthy:
-            prompt += " Make all recipes healthy and nutritious while maintaining the essence of each dish."
+            prompt += " Make all recipes healthy and nutritious while maintaining the essence of each dish, you can change the name of the dish and come up with your own recipe if the title is obviously not healthy."
         
         try:
             response = self.client.chat.completions.create(
