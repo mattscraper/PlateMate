@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,19 +11,55 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import { authService } from "../services/auth";
 
 const { width } = Dimensions.get("window");
 
-const PersistentFooter = ({
-  navigation,
-  isLoggedIn,
-  isPremium,
-  onLoginRequired,
-}) => {
+const PersistentFooter = ({ navigation, onLoginRequired }) => {
   const insets = useSafeAreaInsets();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+
+  // Check auth state on component mount
+  useEffect(() => {
+    // Initial check
+    checkAuthStatus();
+
+    // Set up listener for auth state changes
+    const unsubscribe = authService.onAuthStateChange((user) => {
+      setIsLoggedIn(!!user);
+      if (user) {
+        checkPremiumStatus();
+      } else {
+        setIsPremium(false);
+      }
+    });
+
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, []);
+
+  const checkAuthStatus = () => {
+    const user = authService.getCurrentUser();
+    setIsLoggedIn(!!user);
+    if (user) {
+      checkPremiumStatus();
+    }
+  };
+
+  const checkPremiumStatus = async () => {
+    try {
+      const isPremiumUser = await authService.checkPremiumStatus();
+      setIsPremium(isPremiumUser);
+    } catch (error) {
+      console.error("Error checking premium status:", error);
+      setIsPremium(false);
+    }
+  };
 
   const handleNavigation = (routeName, requiresLogin, isPremiumFeature) => {
-    if (requiresLogin && !isLoggedIn) {
+    // Premium features always require login first
+    if ((requiresLogin || isPremiumFeature) && !isLoggedIn) {
       // Show an alert with login options
       Alert.alert(
         "Login Required",
@@ -36,9 +72,7 @@ const PersistentFooter = ({
           {
             text: "Sign In",
             onPress: () => {
-              if (onLoginRequired) {
-                navigation.navigate("LandingPage");
-              }
+              onLoginRequired();
             },
           },
         ]
@@ -46,9 +80,23 @@ const PersistentFooter = ({
       return;
     }
 
-    if (isPremiumFeature && !isPremium && isLoggedIn) {
+    // If it's a premium feature and user is logged in but not premium
+    if (isPremiumFeature && isLoggedIn && !isPremium) {
       // Navigate to premium plans for premium features
-      navigation.navigate("PremiumPlans");
+      Alert.alert(
+        "Premium Feature",
+        "This feature requires a premium subscription.",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Upgrade",
+            onPress: () => navigation.navigate("PremiumPlans"),
+          },
+        ]
+      );
       return;
     }
 
@@ -67,14 +115,14 @@ const PersistentFooter = ({
       name: "FindByIngredients",
       icon: "basket-outline",
       label: "Ingredients",
-      requiresLogin: false,
+      requiresLogin: true, // Changed to true since premium features require login
       isPremiumFeature: true,
     },
     {
       name: "MealPlans",
       icon: "book-outline",
       label: "Meal Plan",
-      requiresLogin: false,
+      requiresLogin: true, // Changed to true since premium features require login
       isPremiumFeature: true,
     },
     {
@@ -88,7 +136,7 @@ const PersistentFooter = ({
       name: "PremiumPlans",
       icon: "star",
       label: "Premium",
-      requiresLogin: true,
+      requiresLogin: false, // Allow non-logged in users to see pricing
       isPremiumFeature: false,
     },
   ];
@@ -130,6 +178,7 @@ const PersistentFooter = ({
 };
 
 const styles = StyleSheet.create({
+  // Styles remain unchanged
   container: {
     position: "absolute",
     bottom: 0,
