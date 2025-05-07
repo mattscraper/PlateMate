@@ -1,3 +1,17 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:292864cd41e86286b7cf42866c598db0750b07d2f8a2137bd9f43ef7d7751f90
-size 343
+﻿{
+  "build": {
+    "production": {
+      "ios": {
+        "resourceClass": "m-medium",
+        "prebuildCommand": "bash ./scripts/modify-podfile.sh"
+      }
+    },
+    "preview": {
+      "ios": {
+        "resourceClass": "m-medium",
+        "distribution": "internal",
+        "prebuildCommand": "bash ./scripts/modify-podfile.sh"
+      }
+    }
+  }
+}
