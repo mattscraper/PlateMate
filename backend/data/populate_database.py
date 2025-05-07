@@ -188,7 +188,7 @@ def verify_database(db_path):
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Convert JSON recipe file to SQLite database')
-    parser.add_argument('--json', default='categorized_recipes.json', help='Path to JSON file')
+    parser.add_argument('--json', default='new_recipes.json', help='Path to JSON file')
     parser.add_argument('--db', default='recipes.db', help='Path for output database')
     parser.add_argument('--batch', type=int, default=5000, help='Batch size for processing')
     

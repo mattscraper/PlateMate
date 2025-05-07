@@ -127,7 +127,7 @@ export default function LandingScreen({ navigation }) {
           setEmail("");
           setPassword("");
           showCustomToast(
-            "Welcome to PlateMate! Account created successfully.",
+            "Welcome to Kitch! Account created successfully.",
             "success"
           );
         }
@@ -139,7 +139,7 @@ export default function LandingScreen({ navigation }) {
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
-          showCustomToast(`Welcome back to PlateMate!`, "success");
+          showCustomToast(`Welcome back to Kitch!`, "success");
         }
       }
     } catch (error) {
@@ -357,7 +357,7 @@ export default function LandingScreen({ navigation }) {
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>PlateMate</Text>
+              <Text style={styles.title}>Kitch AI</Text>
               <Text style={styles.subtitle}>
                 Your Personal Recipe Assistant
               </Text>
@@ -394,7 +394,7 @@ export default function LandingScreen({ navigation }) {
               <MenuCard
                 icon="bookmark"
                 title="My Recipes"
-                description="Access your saved recipes and cooking history"
+                description="Access your saved recipes and meal plans"
                 onPress={() => {
                   if (isLoggedIn) {
                     navigation.navigate("MyRecipes");
@@ -486,7 +486,7 @@ export default function LandingScreen({ navigation }) {
               <View style={styles.modalHeaderIcon}>
                 <Ionicons name="person" size={32} color="#008b8b" />
               </View>
-              <Text style={styles.modalTitle}>Welcome to PlateMate</Text>
+              <Text style={styles.modalTitle}>Welcome to Kitch</Text>
               <Text style={styles.modalSubtitle}>
                 {isNewUser
                   ? "Create an account to start your culinary journey"
@@ -754,27 +754,29 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginVertical: 32,
-    marginTop: 14,
+    marginTop: 13,
   },
   logo: {
     width: 120,
     height: 120,
     borderRadius: 60,
     marginTop: 1,
-    marginBottom: 1,
+    marginBottom: 9,
   },
   logoText: {
     fontSize: 48,
     marginBottom: 16,
   },
   title: {
-    fontSize: 36,
+    fontSize: 40,
     fontWeight: "bold",
     color: "#2c3e50",
-    marginBottom: 8,
+    marginBottom: 3,
+    letterSpacing: -1,
+    shadowOpacity: 0.2,
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 17,
     color: "#7f8c8d",
     textAlign: "center",
   },

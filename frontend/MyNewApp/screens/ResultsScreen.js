@@ -12,6 +12,7 @@ import {
   Dimensions,
   Alert,
 } from "react-native";
+import { PanResponder } from "react-native";
 import { saveRecipeToFirebase } from "../utils/recipeUtils";
 import { useNavigation } from "@react-navigation/native";
 import { fetchRecipes } from "../utils/api";
@@ -34,6 +35,7 @@ export default function ResultsScreen({ route }) {
   const [itemAnimations] = useState([]);
   const [showSaveFeedback, setShowSaveFeedback] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [panReponder, setPanResponder] = useState(null);
 
   const { mealType = "", healthy = false, allergies = [] } = route.params || {};
 
@@ -41,8 +43,8 @@ export default function ResultsScreen({ route }) {
     itemAnimations.forEach((anim, index) => {
       Animated.timing(anim, {
         toValue: 1,
-        duration: 300,
-        delay: index * 100,
+        duration: 1000,
+        delay: index * 5,
         useNativeDriver: true,
       }).start();
     });
@@ -758,17 +760,17 @@ const styles = StyleSheet.create({
   timeSection: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginVertical: 8,
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 16,
+    justifyContent: "space-between",
+    marginVertical: 16,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 22,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowColor: "rgba(0,0,0,0.1)",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
       },
       android: {
         elevation: 4,
@@ -776,18 +778,25 @@ const styles = StyleSheet.create({
     }),
   },
   timeItem: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
-    backgroundColor: "rgba(0,139,139,0.08)",
-    paddingVertical: 15,
-    paddingHorizontal: 25,
-    borderRadius: 20,
+    justifyContent: "center",
+    backgroundColor: "rgba(0,139,139,0.06)",
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    margin: 8,
+    borderRadius: 12,
+    minWidth: 100,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "rgba(0,139,139,0.1)",
   },
   timeText: {
     fontSize: 14,
     color: "#008b8b",
-    marginLeft: 12,
+    marginTop: 8,
     fontWeight: "600",
+    textAlign: "center",
   },
   regularText: {
     fontSize: 16,

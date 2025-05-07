@@ -20,7 +20,7 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
 
-  // Check auth state on component mount
+  // Check auth state on component mount and focus
   useEffect(() => {
     // Initial check
     checkAuthStatus();
@@ -35,9 +35,19 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       }
     });
 
-    // Cleanup subscription
-    return () => unsubscribe();
-  }, []);
+    // Check premium status whenever the screen comes into focus
+    const focusListener = navigation.addListener("focus", () => {
+      if (isLoggedIn) {
+        checkPremiumStatus();
+      }
+    });
+
+    // Cleanup subscriptions
+    return () => {
+      unsubscribe();
+      focusListener();
+    };
+  }, [navigation, isLoggedIn]);
 
   const checkAuthStatus = () => {
     const user = authService.getCurrentUser();
@@ -51,6 +61,7 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
     try {
       const isPremiumUser = await authService.checkPremiumStatus();
       setIsPremium(isPremiumUser);
+      console.log("Premium status checked:", isPremiumUser);
     } catch (error) {
       console.error("Error checking premium status:", error);
       setIsPremium(false);
@@ -82,21 +93,29 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
 
     // If it's a premium feature and user is logged in but not premium
     if (isPremiumFeature && isLoggedIn && !isPremium) {
-      // Navigate to premium plans for premium features
-      Alert.alert(
-        "Premium Feature",
-        "This feature requires a premium subscription.",
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-          {
-            text: "Upgrade",
-            onPress: () => navigation.navigate("PremiumPlans"),
-          },
-        ]
-      );
+      // Force a premium status check in case it changed
+      checkPremiumStatus().then(() => {
+        // Only show premium alert if user is still not premium after fresh check
+        if (!isPremium) {
+          Alert.alert(
+            "Premium Feature",
+            "This feature requires a premium subscription.",
+            [
+              {
+                text: "Cancel",
+                style: "cancel",
+              },
+              {
+                text: "Upgrade",
+                onPress: () => navigation.navigate("PremiumPlans"),
+              },
+            ]
+          );
+        } else {
+          // If fresh check shows user is premium, navigate to the route
+          navigation.navigate(routeName);
+        }
+      });
       return;
     }
 
@@ -115,14 +134,14 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       name: "FindByIngredients",
       icon: "basket-outline",
       label: "Ingredients",
-      requiresLogin: true, // Changed to true since premium features require login
+      requiresLogin: true,
       isPremiumFeature: true,
     },
     {
       name: "MealPlans",
       icon: "book-outline",
       label: "Meal Plan",
-      requiresLogin: true, // Changed to true since premium features require login
+      requiresLogin: true,
       isPremiumFeature: true,
     },
     {
@@ -163,7 +182,7 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
           >
             <View style={styles.iconWrapper}>
               <Ionicons name={route.icon} size={24} color="#008b8b" />
-              {route.isPremiumFeature && (
+              {route.isPremiumFeature && !isPremium && (
                 <View style={styles.premiumBadge}>
                   <Ionicons name="star" size={8} color="white" />
                 </View>

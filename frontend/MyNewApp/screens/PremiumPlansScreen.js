@@ -97,7 +97,7 @@ export default function PremiumPlansScreen({ navigation }) {
         <View style={styles.contentContainer}>
           <View style={styles.introSection}>
             <Ionicons name="star" size={48} color="#FFD700" />
-            <Text style={styles.introTitle}>Upgrade to PlateMate Premium</Text>
+            <Text style={styles.introTitle}>Upgrade to Kitch Premium</Text>
             <Text style={styles.introText}>
               Get access to all premium features and elevate your cooking
               experience.

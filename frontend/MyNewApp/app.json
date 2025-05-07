@@ -4,7 +4,6 @@
     "android": {
       "package": "com.platemate.recipemealplanner"
     },
-
     "slug": "platemate",
     "version": "1.0.0",
     "baseUrl": "http:172.20.10.2:5000",
@@ -21,7 +20,10 @@
       "name": "PlateMate",
       "bundleIdentifier": "com.platemate.recipemealplanner",
       "buildNumber": "1.0.0",
-      "googleServicesFile": "./assets/GoogleService-Info.plist"
+      "googleServicesFile": "./assets/GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "supportsTablet": true,
     "infoPlist": {
@@ -32,7 +34,13 @@
           "NSIncludesSubdomains": true
         }
       }
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3287301c-9f8d-4553-9f48-efc19ee880db"
+      }
+    },
+    "owner": "mattnaples22"
   },
   "android": {
     "adaptiveIcon": {
