@@ -2,7 +2,6 @@
   "build": {
       
           "development": {
-              "ios" {
               "developmentClient": true,
               "distribution": "internal"
           },

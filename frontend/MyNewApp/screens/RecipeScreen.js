@@ -346,7 +346,7 @@ const CARD_WIDTH = (width - 60) / 2;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'white',
   },
   loadingContainer: {
     flex: 1,
