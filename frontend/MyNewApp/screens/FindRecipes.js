@@ -396,14 +396,7 @@ export default function FindRecipes() {
             </>
           )}
         </TouchableOpacity>
-        {/* Navigation Button to Ingredients Search */}
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => navigation.navigate("FindByIngredients")}
-        >
-          <Ionicons name="nutrition" size={24} color="#008b8b" />
-          <Text style={styles.secondaryButtonText}>Search by Ingredients</Text>
-        </TouchableOpacity>
+       
       </ScrollView>
 
       {/* Allergy Modal */}

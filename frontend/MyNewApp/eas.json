@@ -1,5 +1,12 @@
-﻿{
+{
   "build": {
+      
+          "development": {
+              "ios" {
+              "developmentClient": true,
+              "distribution": "internal"
+          },
+      
     "production": {
       "ios": {
         "resourceClass": "m-medium",

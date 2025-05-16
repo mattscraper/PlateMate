@@ -11,6 +11,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 //import { initializeDatabase } from "./initDatabase";
 
 import ResultsScreen from "./screens/ResultsScreen";
+import RecipeScreen from "./screens/RecipeScreen"
 import FindRecipes from "./screens/FindRecipes";
 import LandingScreen from "./screens/Landing";
 import MyRecipes from "./screens/MyRecipes";
@@ -125,6 +126,10 @@ export default function App() {
               name="SavedMealPlansScreen"
               component={SavedMealPlansScreen}
             />
+          <Stack.Screen
+            name="RecipeScreen"
+            component={RecipeScreen}
+          />
           </Stack.Navigator>
         </NavigationContainer>
 

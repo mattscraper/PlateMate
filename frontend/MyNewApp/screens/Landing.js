@@ -364,10 +364,18 @@ export default function LandingScreen({ navigation }) {
             </View>
 
             <View style={styles.menuContainer}>
+          
+          <MenuCard
+            icon="image"
+            title="Recipe Explorer"
+            description="Browse a vibrant grid of recipes with mouthwatering photos and details."
+            onPress={() => navigation.navigate("RecipeScreen")}
+          />
+
               <MenuCard
                 icon="search"
-                title="Find New Recipes"
-                description="Discover delicious recipes tailored to your preferences"
+                title="Smart Recipe Builder"
+                description="Enter your preferences and get personalized recipes instantly."
                 onPress={() => navigation.navigate("FindRecipes")}
               />
               <MenuCard

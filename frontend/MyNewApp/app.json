@@ -40,7 +40,11 @@
         "projectId": "3287301c-9f8d-4553-9f48-efc19ee880db"
       }
     },
-    "owner": "mattnaples22"
+    "owner": "mattnaples22",
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/3287301c-9f8d-4553-9f48-efc19ee880db"
+    }
   },
   "android": {
     "adaptiveIcon": {

@@ -123,6 +123,13 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
   };
 
   const routes = [
+      {
+        name: "RecipeScreen",
+        icon: "image",
+        label: "Explore",
+        requiresLogin: false, // Allow non-logged in users to see pricing
+        isPremiumFeature: false,
+      },
     {
       name: "FindRecipes",
       icon: "search",
@@ -151,13 +158,7 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       requiresLogin: true,
       isPremiumFeature: false,
     },
-    {
-      name: "PremiumPlans",
-      icon: "star",
-      label: "Premium",
-      requiresLogin: false, // Allow non-logged in users to see pricing
-      isPremiumFeature: false,
-    },
+    
   ];
 
   return (
