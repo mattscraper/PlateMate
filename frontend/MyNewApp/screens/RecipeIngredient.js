@@ -66,7 +66,7 @@ export default function FindByIngredients() {
       return () => clearInterval(textInterval);
     }
   }, [isLoading]);
-
+// figure out of we want user to enter at least 3 ingredients
   const handleSubmit = async () => {
     if (ingredients.length === 0) return;
 

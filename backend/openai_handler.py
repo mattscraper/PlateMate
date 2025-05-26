@@ -550,30 +550,52 @@ Next Recipe Title
             return []
 
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-        # This method remains unchanged from the original
-        system_prompt = f"""You are a meal planning expert. Format requirements:
-        1. Generate a {days}-day meal plan with {meals_per_day} meals per day
-        2. Never repeat recipes in the plan
-        do not skip any days at all! double check that you have exactly {days} worth of meals is finished before responding.
-        you should have a total of {days} multiplied by {meals_per_day} recipes by the end
-        EACH DAY NEEDS TO HAVE {meals_per_day} no matter what. do not skip days.
-        3. Ensure daily calorie total is approximately {calories_per_day} calories
-        4. Format each day EXACTLY as follows:
-        -the days have to be correctly in order! the user can only choose meal plans for 1-14 days.
-            - MUST start each day with "Day X" where X is a sequential number from 1 to {days}. Make sure the days increment by one! ex, day1 then day2 then day3.
-            - Each meal MUST be labeled as one of: Breakfast, Lunch, Dinner, or Snack... only one of each per day unless meals per day is less than 3
-            - Recipe for each meal formatted exactly like:
-                - Title (do not include the word title) andd make sure its far above
-                - Preparation Time, Cooking Time, Servings
-                - Ingredients with bullet points (•)
-                - Numbered instructions
-                - Nutritional information (including calories per serving, protein, carbs, and fat)
-        5. Days MUST be numbered sequentially from 1 to {days} with no skipped or incorrect numbers
-        6. Separate each day with ===== on its own line expect for each title! make sure the title does not come out as =====!
-        7. Ensure variety in cuisines and cooking methods
-        8. No bold letters or asterisks
-        9. Distribute the {calories_per_day} calories appropriately across the {meals_per_day} meals
-        10. do not leave any additional comments, just the meal plans"""
+        # Updated system prompt with stricter formatting rules
+        system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
+
+        1. Generate exactly {days} days with {meals_per_day} meals each day
+        2. NEVER repeat recipes in the plan
+        3. Each day MUST have exactly {meals_per_day} meals - no skipping!
+        4. Target {calories_per_day} calories per day total
+
+        EXACT FORMAT FOR EACH DAY:
+        Day X (where X is 1, 2, 3, etc.)
+        
+        [MEAL TYPE]: [RECIPE TITLE]
+        
+        Preparation Time: X minutes
+        Cooking Time: X minutes  
+        Servings: X
+        
+        • [Ingredient 1]
+        • [Ingredient 2]
+        • [Ingredient 3]
+        
+        Instructions:
+        1. [First step]
+        2. [Second step]
+        3. [Third step]
+        
+        Nutritional Information:
+        Calories: X
+        Protein: Xg
+        Carbs: Xg
+        Fat: Xg
+        
+        =====
+        
+        CRITICAL RULES:
+        - Recipe title MUST be on its own line after meal type
+        - Recipe title CANNOT contain ingredients or measurements
+        - Recipe title CANNOT be "-----" or "====="
+        - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
+        - NEVER put ingredients in the title line
+        - Each meal type: Breakfast, Lunch, Dinner, or Snack
+        - Separate days with ===== ONLY
+        - NO bold text, asterisks, or special formatting
+        - Ingredients MUST start with • symbol
+        - Instructions MUST be numbered 1., 2., 3., etc.
+        """
 
         # Initialize prompt
         prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day."
@@ -584,7 +606,7 @@ Next Recipe Title
 
         if allergies:
             allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-            prompt += f" Ensure all recipes are free of: {allergies_list}."
+            prompt += f" Ensure all recipes are completely free of: {allergies_list}."
 
         if preferences:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
@@ -597,10 +619,10 @@ Next Recipe Title
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.95,
+                temperature=0.7,  # Reduced for more consistent formatting
                 max_tokens=4050,
-                top_p = 0.85,
-                timeout = 80
+                top_p=0.8,  # Reduced for more consistent output
+                timeout=80
             )
 
             return response.choices[0].message.content.strip()
