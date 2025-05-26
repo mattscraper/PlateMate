@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,12 +13,15 @@ import {
   Linking,
   StatusBar,
   Platform,
+  Alert,
 } from 'react-native';
+import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import PersistentFooter from "../components/PersistentFooter";
+import { saveRecipeToFirebase } from '../utils/recipeUtils';
 
 const RecipeScreen = ({ navigation }) => {
   const [recipes, setRecipes] = useState([]);
@@ -26,11 +29,35 @@ const RecipeScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const navigate = useNavigation();
   
   // Add state for authentication and premium status
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [isLoginVisible, setIsLoginVisible] = useState(false);
+
+  // Loading texts for consistency
+  const [loadingText, setLoadingText] = useState("");
+  const loadingTexts = [
+    "Loading delicious recipes...",
+    "Discovering amazing dishes...",
+    "Finding culinary inspiration...",
+    "Preparing recipe collection...",
+    "Gathering cooking ideas...",
+  ];
+
+  useEffect(() => {
+    if (loading && !refreshing) {
+      let currentIndex = 0;
+      const textInterval = setInterval(() => {
+        setLoadingText(loadingTexts[currentIndex]);
+        currentIndex = (currentIndex + 1) % loadingTexts.length;
+      }, 1200);
+
+      return () => clearInterval(textInterval);
+    }
+  }, [loading, refreshing]);
 
   // Check login status whenever screen is focused
   useFocusEffect(
@@ -83,6 +110,121 @@ const RecipeScreen = ({ navigation }) => {
   // Handler for when login is required by footer navigation
   const handleLoginRequired = () => {
     setIsLoginVisible(true);
+  };
+
+  // Convert structured recipe to text format for saving
+  const convertRecipeToText = (recipe) => {
+    let recipeText = `${recipe.strMeal}\n\n`;
+    
+    // Add meta information
+    if (recipe.strCategory) {
+      recipeText += `Category: ${recipe.strCategory}\n`;
+    }
+    if (recipe.strArea) {
+      recipeText += `Cuisine: ${recipe.strArea}\n`;
+    }
+    recipeText += '\n';
+
+    // Add ingredients
+    recipeText += 'Ingredients:\n';
+    for (let i = 1; i <= 20; i++) {
+      const ingredient = recipe[`strIngredient${i}`];
+      const measure = recipe[`strMeasure${i}`];
+      
+      if (ingredient && ingredient.trim()) {
+        const measureText = measure && measure.trim() ? `${measure.trim()} ` : '';
+        recipeText += `• ${measureText}${ingredient.trim()}\n`;
+      }
+    }
+    recipeText += '\n';
+
+    // Add instructions
+    recipeText += 'Instructions:\n';
+    if (recipe.strInstructions) {
+      // Split instructions by periods or new lines and number them
+      const instructions = recipe.strInstructions
+        .split(/\.|(?:\r?\n)+/)
+        .map(inst => inst.trim())
+        .filter(inst => inst.length > 0);
+      
+      instructions.forEach((instruction, index) => {
+        recipeText += `${index + 1}. ${instruction}\n`;
+      });
+    }
+
+    // Add YouTube link if available
+    if (recipe.strYoutube) {
+      recipeText += `\nVideo Tutorial: ${recipe.strYoutube}\n`;
+    }
+
+    // Add image URL for display purposes
+    if (recipe.strMealThumb) {
+      recipeText += `\nImage: ${recipe.strMealThumb}\n`;
+    }
+
+    return recipeText;
+  };
+
+  // Handle recipe save
+  const handleRecipeSave = async (recipe) => {
+    try {
+      // Check if user is logged in
+      const user = authService.getCurrentUser();
+      if (!user) {
+        Alert.alert("Login Required", "Please log in to save recipes", [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Log In",
+            onPress: () => navi.navigate("LandingPage"),
+          },
+        ]);
+        return;
+      }
+
+      setSaveLoading(true);
+
+      // Convert recipe to text format and save
+      const recipeText = convertRecipeToText(recipe);
+      await saveRecipeToFirebase(recipeText);
+
+      // Show success message
+      Alert.alert(
+        "Recipe Saved!",
+        "Recipe saved successfully! You can view it in My Recipes.",
+        [
+          {
+            text: "View Now",
+            onPress: () => navigation.navigate("MyRecipes"),
+          },
+          {
+            text: "Continue Browsing",
+            style: "cancel",
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error saving recipe:", error);
+      
+      if (error.message === "User not logged in") {
+        Alert.alert("Login Required", "Please log in to save recipes", [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Log In",
+            onPress: () => navigate.navigate("LandingPage"),
+          },
+        ]);
+      } else {
+        Alert.alert("Error", "Failed to save recipe. Please try again.");
+      }
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   // Load random recipes from API
@@ -231,6 +373,22 @@ const RecipeScreen = ({ navigation }) => {
 
             {/* Content */}
             <View style={styles.contentContainer}>
+              {/* Save Button */}
+              <TouchableOpacity
+                style={[styles.saveButton, saveLoading && styles.saveButtonDisabled]}
+                onPress={() => handleRecipeSave(selectedRecipe)}
+                disabled={saveLoading}
+              >
+                {saveLoading ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Ionicons name="bookmark-outline" size={24} color="white" />
+                )}
+                <Text style={styles.saveButtonText}>
+                  {saveLoading ? 'Saving...' : 'Save Recipe'}
+                </Text>
+              </TouchableOpacity>
+
               {/* Ingredients Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Ingredients</Text>
@@ -273,7 +431,7 @@ const RecipeScreen = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#008b8b" />
-        <Text style={styles.loadingText}>Loading delicious recipes...</Text>
+        <Text style={styles.loadingText}>{loadingText}</Text>
       </SafeAreaView>
     );
   }
@@ -357,8 +515,9 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#7f8c8d',
-    fontWeight: '500',
+    color: '#008b8b',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   header: {
     backgroundColor: 'white',
@@ -542,6 +701,36 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 24,
+  },
+  saveButton: {
+    backgroundColor: '#008b8b',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   section: {
     marginBottom: 32,

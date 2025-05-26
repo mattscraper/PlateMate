@@ -9,7 +9,7 @@ import {
   Modal,
   TextInput,
   Platform,
-  Animated,
+  ActivityIndicator,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
 } from "react-native";
@@ -36,8 +36,6 @@ export default function MealPlans() {
 
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingAnim] = useState(new Animated.Value(0));
-  const [loadingProgress] = useState(new Animated.Value(0));
   const [loadingText, setLoadingText] = useState("");
 
   // Diet type options
@@ -57,16 +55,26 @@ export default function MealPlans() {
   const customDietTypeRef = useRef("");
 
   const loadingTexts = [
-    "Planning your perfect menu... 📝",
-    "Crafting balanced meals... 🥗",
-    "Organizing your week... 📅",
-    "Adding variety to your diet... 🍽️",
-    "Calculating nutritional balance... 🥑",
-    "Personalizing your meal plan... 👨‍🍳",
-    "Making healthy choices... 🥬",
-    "Creating delicious combinations... 🍳",
-    "Designing your food journey... 🗺️",
-    "Adding finishing touches... ✨",
+    "Planning your perfect menu...",
+    "Crafting balanced meals...",
+    "Organizing your week...",
+    "Adding variety to your diet...",
+    "Calculating nutritional balance...",
+    "Personalizing your meal plan...",
+    "Making healthy choices...",
+    "Creating delicious combinations...",
+    "Designing your food journey...",
+    "Adding finishing touches...",
+    "Balancing proteins and carbs...",
+    "Selecting fresh ingredients...",
+    "Optimizing your nutrition...",
+    "Customizing portion sizes...",
+    "Planning prep schedules...",
+    "Matching your preferences...",
+    "Creating shopping lists...",
+    "Timing your meals perfectly...",
+    "Building healthy habits...",
+    "Finalizing your week ahead...",
   ];
 
   useEffect(() => {
@@ -103,24 +111,8 @@ export default function MealPlans() {
 
   const handleSubmit = async () => {
     setIsLoading(true);
-    loadingProgress.setValue(0);
 
     try {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(loadingProgress, {
-            toValue: 0.9,
-            duration: 3000,
-            useNativeDriver: false,
-          }),
-          Animated.timing(loadingProgress, {
-            toValue: 0.4,
-            duration: 1500,
-            useNativeDriver: false,
-          }),
-        ])
-      ).start();
-
       const mealPlan = await fetchMealPlans(
         days,
         mealsPerDay,
@@ -130,13 +122,6 @@ export default function MealPlans() {
         caloriesPerDay // Add this parameter
       );
 
-      Animated.timing(loadingProgress, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: false,
-      }).start();
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
       navigation.navigate("MealPlanResults", {
         mealPlan,
         days,
@@ -163,6 +148,16 @@ export default function MealPlans() {
   const removeAllergy = (allergyToRemove) => {
     setAllergies(allergies.filter((allergy) => allergy !== allergyToRemove));
   };
+
+  // Show loading screen
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#008b8b" />
+        <Text style={styles.loadingText}>{loadingText}</Text>
+      </SafeAreaView>
+    );
+  }
 
   // Duration selector component
   const DurationSelector = ({ value, onChange, min, max, label }) => (
@@ -290,6 +285,7 @@ export default function MealPlans() {
       </KeyboardAvoidingView>
     </Modal>
   );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -318,7 +314,7 @@ export default function MealPlans() {
             value={days}
             onChange={setDays}
             min={1}
-            max={10}
+            max={7}
             label="Days"
           />
           <DurationSelector
@@ -443,40 +439,9 @@ export default function MealPlans() {
           onPress={handleSubmit}
           disabled={isLoading}
         >
-          {isLoading ? (
-            <Animated.View style={{ opacity: loadingAnim }}>
-              <Ionicons name="restaurant" size={24} color="white" />
-            </Animated.View>
-          ) : (
-            <>
-              <Ionicons name="calendar" size={24} color="white" />
-              <Text style={styles.buttonText}>Generate Meal Plan</Text>
-            </>
-          )}
+          <Ionicons name="calendar" size={24} color="white" />
+          <Text style={styles.buttonText}>Generate Meal Plan</Text>
         </TouchableOpacity>
-
-        {/* Loading Modal */}
-        <Modal transparent={true} visible={isLoading}>
-          <View style={styles.loadingOverlay}>
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingTitle}>Creating Your Menu</Text>
-              <Text style={styles.loadingText}>{loadingText}</Text>
-              <View style={styles.progressBarContainer}>
-                <Animated.View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: loadingProgress.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ["0%", "100%"],
-                      }),
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          </View>
-        </Modal>
 
         {/* Allergy Modal */}
         <Modal
@@ -547,6 +512,19 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#008b8b',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   // Header Styles
@@ -904,58 +882,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 18,
     fontWeight: "700",
-  },
-
-  // Loading Styles
-  loadingOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingContainer: {
-    backgroundColor: "white",
-    borderRadius: 24,
-    padding: 28,
-    width: "85%",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
-  },
-  loadingTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginBottom: 16,
-  },
-  loadingText: {
-    fontSize: 17,
-    color: "#008b8b",
-    marginBottom: 24,
-    textAlign: "center",
-    minHeight: 24,
-    fontWeight: "600",
-  },
-  progressBarContainer: {
-    width: "100%",
-    height: 8,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: "#008b8b",
-    borderRadius: 4,
   },
 
   // Custom Input Section Styles

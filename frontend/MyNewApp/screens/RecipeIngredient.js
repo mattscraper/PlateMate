@@ -8,7 +8,7 @@ import {
   Modal,
   TextInput,
   Platform,
-  Animated,
+  ActivityIndicator,
   KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,32 +28,31 @@ export default function FindByIngredients() {
   const [newAllergy, setNewAllergy] = useState("");
   const [allergyModalVisible, setAllergyModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingProgress] = useState(new Animated.Value(0));
   const [loadingText, setLoadingText] = useState("");
 
   // Loading animation texts
   const loadingTexts = [
-    "Checking your ingredients... 🧂",
-    "Mixing and matching... 🥗",
-    "Finding perfect recipes... 📖",
-    "Almost ready to cook... 🍳",
-    "Preheating the oven... 🔥",
-    "Whisking up some ideas... 🍶",
-    "Chopping veggies... 🥕",
-    "Sautéing some inspiration... 🍴",
-    "Rolling the dough... 🥖",
-    "Seasoning to perfection... 🌿",
-    "Simmering the magic... 🍲",
-    "Tasting for quality... 👨‍🍳",
-    "Fetching the secret sauce... 🥫",
-    "Sprinkling some love... 💕",
-    "Turning up the heat... 🔥",
-    "Serving up deliciousness... 🍽️",
-    "Plating your masterpiece... 🍛",
-    "Finding the freshest produce... 🥬",
-    "Melting butter for flavor... 🧈",
-    "Whipping up something amazing... 🥄",
-    "Marinating the goodness... 🧄",
+    "Checking your ingredients...",
+    "Mixing and matching...",
+    "Finding perfect recipes...",
+    "Almost ready to cook...",
+    "Preheating the oven...",
+    "Whisking up some ideas...",
+    "Chopping veggies...",
+    "Sautéing some inspiration...",
+    "Rolling the dough...",
+    "Seasoning to perfection...",
+    "Simmering the magic...",
+    "Tasting for quality...",
+    "Fetching the secret sauce...",
+    "Sprinkling some love...",
+    "Turning up the heat...",
+    "Serving up deliciousness...",
+    "Plating your masterpiece...",
+    "Finding the freshest produce...",
+    "Melting butter for flavor...",
+    "Whipping up something amazing...",
+    "Marinating the goodness...",
   ];
 
   useEffect(() => {
@@ -72,34 +71,10 @@ export default function FindByIngredients() {
     if (ingredients.length === 0) return;
 
     setIsLoading(true);
-    loadingProgress.setValue(0);
 
     try {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(loadingProgress, {
-            toValue: 0.9,
-            duration: 3000,
-            useNativeDriver: false,
-          }),
-          Animated.timing(loadingProgress, {
-            toValue: 0.4,
-            duration: 1500,
-            useNativeDriver: false,
-          }),
-        ])
-      ).start();
-
       // change this in production.. will host backend to server
       const recipes = await fetchRecipesByIngredients(ingredients, allergies);
-
-      Animated.timing(loadingProgress, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: false,
-      }).start();
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
       navigation.navigate("ResultsIngredients", {
         recipes,
         ingredients,
@@ -135,6 +110,16 @@ export default function FindByIngredients() {
   const removeAllergy = (allergyToRemove) => {
     setAllergies(allergies.filter((allergy) => allergy !== allergyToRemove));
   };
+
+  // Show loading screen
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#008b8b" />
+        <Text style={styles.loadingText}>{loadingText}</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -229,18 +214,11 @@ export default function FindByIngredients() {
           onPress={handleSubmit}
           disabled={ingredients.length === 0 || isLoading}
         >
-          {isLoading ? (
-            <Animated.View>
-              <Ionicons name="restaurant" size={24} color="white" />
-            </Animated.View>
-          ) : (
-            <>
-              <Ionicons name="search" size={24} color="white" />
-              <Text style={styles.buttonText}>Find Recipes</Text>
-            </>
-          )}
+          <Ionicons name="search" size={24} color="white" />
+          <Text style={styles.buttonText}>Find Recipes</Text>
         </TouchableOpacity>
       </ScrollView>
+      
       {/* Ingredient modal */}
       <Modal
         animationType="slide"
@@ -258,9 +236,7 @@ export default function FindByIngredients() {
                 style={styles.modalCloseButton}
                 onPress={() => setIngredientModalVisible(false)}
               >
-                <Text>
-                  <Ionicons name="close" size={24} color="#2c3e50" />
-                </Text>
+                <Ionicons name="close" size={24} color="#2c3e50" />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Add Ingredients</Text>
               <View style={styles.modalCloseButton} />
@@ -281,13 +257,11 @@ export default function FindByIngredients() {
                       onPress={() => removeIngredient(ingredient)}
                     >
                       <Text style={styles.chipText}>{ingredient}</Text>
-                      <Text>
-                        <Ionicons
-                          name="close-circle"
-                          size={18}
-                          color="#008b8b"
-                        />
-                      </Text>
+                      <Ionicons
+                        name="close-circle"
+                        size={18}
+                        color="#008b8b"
+                      />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -316,9 +290,7 @@ export default function FindByIngredients() {
                   onPress={addIngredient}
                   disabled={!newIngredient.trim()}
                 >
-                  <Text>
-                    <Ionicons name="add" size={24} color="white" />
-                  </Text>
+                  <Ionicons name="add" size={24} color="white" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -390,31 +362,10 @@ export default function FindByIngredients() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      {/* Loading Modal */}
-      <Modal transparent={true} visible={isLoading}>
-        <View style={styles.loadingOverlay}>
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingTitle}>Finding Recipes</Text>
-            <Text style={styles.loadingText}>{loadingText}</Text>
-            <View style={styles.progressBarContainer}>
-              <Animated.View
-                style={[
-                  styles.progressBar,
-                  {
-                    width: loadingProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ["0%", "100%"],
-                    }),
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -423,6 +374,19 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#008b8b',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   header: {
     marginBottom: 25,
@@ -672,15 +636,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
-  modalInput: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 17,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    color: "#2c3e50",
-  },
   modalFooter: {
     padding: 20,
     borderTopWidth: 1,
@@ -707,56 +662,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 17,
     fontWeight: "700",
-  },
-  // Loading Modal Styles
-  loadingOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingContainer: {
-    backgroundColor: "white",
-    borderRadius: 24,
-    padding: 28,
-    width: "85%",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
-  },
-  loadingTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginBottom: 16,
-  },
-  loadingText: {
-    fontSize: 17,
-    color: "#008b8b",
-    marginBottom: 24,
-    textAlign: "center",
-    minHeight: 24,
-    fontWeight: "600",
-  },
-  progressBarContainer: {
-    width: "100%",
-    height: 8,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: "#008b8b",
-    borderRadius: 4,
   },
 });

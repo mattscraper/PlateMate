@@ -67,10 +67,15 @@ export default function LandingScreen({ navigation }) {
   }, []);
 
   const checkLoginStatus = async () => {
-    const user = authService.getCurrentUser();
-    setIsLoggedIn(!!user);
-    if (user) {
-      checkPremiumStatus();
+    try {
+      const user = authService.getCurrentUser();
+      setIsLoggedIn(!!user);
+      if (user) {
+        checkPremiumStatus();
+      }
+    } catch (error) {
+      console.error("Error checking login status:", error);
+      setIsLoggedIn(false);
     }
   };
 
@@ -80,6 +85,7 @@ export default function LandingScreen({ navigation }) {
       setIsPremium(isPremiumUser);
     } catch (error) {
       console.error("Error checking premium status:", error);
+      setIsPremium(false);
     }
   };
 
@@ -92,129 +98,200 @@ export default function LandingScreen({ navigation }) {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState("success"); // success, error, info
+  const toastTimeoutRef = useRef(null);
 
   const showCustomToast = (message, type = "success") => {
+    // Clear any existing timeout
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
     setToastMessage(message);
     setToastType(type);
     setShowToast(true);
 
-    // Auto hide after 3 seconds
-    setTimeout(() => {
+    // Auto hide after 4 seconds
+    toastTimeoutRef.current = setTimeout(() => {
       setShowToast(false);
-    }, 3000);
+    }, 4000);
   };
 
   const handleLogin = async () => {
-    if (!email || !email.includes("@")) {
+    console.log('Login attempt started');
+    
+    // Enhanced validation
+    if (!email || !email.trim()) {
+      showCustomToast("Please enter your email address", "error");
+      return;
+    }
+
+    if (!email.includes("@") || !email.includes(".")) {
       showCustomToast("Please enter a valid email address", "error");
       return;
     }
 
-    if (!password || password.length < 6) {
+    if (!password) {
+      showCustomToast("Please enter your password", "error");
+      return;
+    }
+
+    if (password.length < 6) {
       showCustomToast("Password must be at least 6 characters", "error");
       return;
     }
 
     setIsLoading(true);
+    
     try {
+      console.log('Attempting auth operation:', isNewUser ? 'register' : 'login');
+      
+      let user = null;
+      
       if (isNewUser) {
         // Register and automatically log in
-        const user = await authService.register(email, password);
+        user = await authService.register(email.trim().toLowerCase(), password);
+        console.log('Registration successful:', !!user);
+        
         if (user) {
           setIsLoggedIn(true);
           setIsPremium(false); // New users start with free tier
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
-          showCustomToast(
-            "Welcome to Kitch! Account created successfully.",
-            "success"
-          );
+          showCustomToast("Welcome to Kitch! Account created successfully.", "success");
+        } else {
+          throw new Error("Registration failed - no user returned");
         }
       } else {
-        const user = await authService.login(email, password);
+        // Login
+        user = await authService.login(email.trim().toLowerCase(), password);
+        console.log('Login successful:', !!user);
+        
         if (user) {
           setIsLoggedIn(true);
           setIsPremium(user.isPremium || false);
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
-          showCustomToast(`Welcome back to Kitch!`, "success");
+          showCustomToast("Welcome back to Kitch!", "success");
+        } else {
+          throw new Error("Login failed - no user returned");
         }
       }
     } catch (error) {
-      let errorMessage = "An unexpected error occurred";
-      let errorIcon = "alert-circle";
+      console.error("Authentication error details:", {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
 
-      // Check for specific Firebase error codes
-      if (error.code === "auth/email-already-in-use") {
-        errorMessage =
-          "This email is already in use. Please try another email or sign in instead.";
-      } else if (error.code === "auth/invalid-email") {
-        errorMessage = "Invalid email address format.";
-      } else if (
-        error.code === "auth/user-not-found" ||
-        error.code === "auth/wrong-password"
-      ) {
-        errorMessage = "Invalid email or password.";
-        errorIcon = "key";
-      } else if (error.code === "auth/too-many-requests") {
-        errorMessage =
-          "Too many failed login attempts. Please try again later.";
-        errorIcon = "time";
-      } else if (error.code === "auth/weak-password") {
-        errorMessage =
-          "Password is too weak. Please choose a stronger password.";
-        errorIcon = "lock-open";
-      } else if (error.code === "auth/network-request-failed") {
-        errorMessage = "Network error. Please check your internet connection.";
-        errorIcon = "wifi";
+      let errorMessage = "An unexpected error occurred. Please try again.";
+
+      // Handle Firebase Auth errors
+      if (error.code) {
+        switch (error.code) {
+          case "auth/email-already-in-use":
+            errorMessage = "This email is already registered. Please sign in instead or use a different email.";
+            // Automatically switch to login mode
+            setIsNewUser(false);
+            break;
+          case "auth/invalid-email":
+            errorMessage = "Please enter a valid email address.";
+            break;
+          case "auth/user-not-found":
+            errorMessage = "No account found with this email. Please check your email or create a new account.";
+            break;
+          case "auth/wrong-password":
+            errorMessage = "Incorrect password. Please try again.";
+            break;
+          case "auth/invalid-credential":
+            errorMessage = "Invalid email or password. Please check your credentials and try again.";
+            break;
+          case "auth/too-many-requests":
+            errorMessage = "Too many failed attempts. Please wait a few minutes before trying again.";
+            break;
+          case "auth/weak-password":
+            errorMessage = "Password is too weak. Please choose a stronger password with at least 6 characters.";
+            break;
+          case "auth/network-request-failed":
+            errorMessage = "Network error. Please check your internet connection and try again.";
+            break;
+          case "auth/user-disabled":
+            errorMessage = "This account has been disabled. Please contact support.";
+            break;
+          case "auth/operation-not-allowed":
+            errorMessage = "This sign-in method is not enabled. Please contact support.";
+            break;
+          default:
+            errorMessage = `Authentication failed: ${error.message}`;
+        }
+      } else if (error.message) {
+        // Handle custom errors from authService
+        errorMessage = error.message;
       }
 
       showCustomToast(errorMessage, "error");
-      console.error("Auth error:", error);
     } finally {
       setIsLoading(false);
+      console.log('Login attempt completed');
     }
   };
 
   const handleForgotPassword = async () => {
-    if (!email || !email.includes("@")) {
+    console.log('Forgot password attempt started');
+    
+    if (!email || !email.trim()) {
+      showCustomToast("Please enter your email address", "error");
+      return;
+    }
+
+    if (!email.includes("@") || !email.includes(".")) {
       showCustomToast("Please enter a valid email address", "error");
       return;
     }
 
     setIsLoading(true);
+    
     try {
-      await authService.forgotPassword(email);
-      showCustomToast(
-        "Password reset instructions sent to your email",
-        "success"
-      );
+      await authService.forgotPassword(email.trim().toLowerCase());
+      showCustomToast("Password reset instructions sent to your email", "success");
       setIsForgotVisible(false);
       setEmail("");
+      console.log('Forgot password successful');
     } catch (error) {
-      let errorMessage = "Failed to process request. Please try again.";
+      console.error("Forgot password error:", {
+        code: error.code,
+        message: error.message
+      });
 
-      if (error.code === "auth/user-not-found") {
-        // For security reasons, we still show a success message even if the email doesn't exist
-        showCustomToast(
-          "Password reset instructions sent to your email",
-          "success"
-        );
-        setIsForgotVisible(false);
-        setEmail("");
-        return;
-      } else if (error.code === "auth/invalid-email") {
-        errorMessage = "Invalid email address format.";
-      } else if (error.code === "auth/network-request-failed") {
-        errorMessage = "Network error. Please check your internet connection.";
+      let errorMessage = "Failed to send reset email. Please try again.";
+
+      if (error.code) {
+        switch (error.code) {
+          case "auth/user-not-found":
+            // For security reasons, we show success message even if user doesn't exist
+            showCustomToast("Password reset instructions sent to your email", "success");
+            setIsForgotVisible(false);
+            setEmail("");
+            return;
+          case "auth/invalid-email":
+            errorMessage = "Please enter a valid email address.";
+            break;
+          case "auth/network-request-failed":
+            errorMessage = "Network error. Please check your internet connection.";
+            break;
+          case "auth/too-many-requests":
+            errorMessage = "Too many requests. Please wait a few minutes before trying again.";
+            break;
+          default:
+            errorMessage = `Reset failed: ${error.message}`;
+        }
       }
 
       showCustomToast(errorMessage, "error");
-      console.error("Forgot password error:", error);
     } finally {
       setIsLoading(false);
+      console.log('Forgot password attempt completed');
     }
   };
 
@@ -262,7 +339,7 @@ export default function LandingScreen({ navigation }) {
           <Ionicons name={icon} size={32} color="#008b8b" />
           {isPremiumFeature && (
             <View style={styles.premiumBadge}>
-              <Ionicons name="star" size={12} color="white" />
+              <View style={styles.premiumIcon} />
             </View>
           )}
         </View>
@@ -275,65 +352,166 @@ export default function LandingScreen({ navigation }) {
     </TouchableOpacity>
   );
 
-  // Custom Toast component
+  // Enhanced Toast component with better styling and animation
   const Toast = ({ visible, message, type }) => {
+    const [fadeAnim] = useState(new Animated.Value(0));
+
+    useEffect(() => {
+      if (visible) {
+        Animated.sequence([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      } else {
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    }, [visible]);
+
     if (!visible) return null;
 
     let backgroundColor, iconName, textColor;
 
     switch (type) {
       case "success":
-        backgroundColor = "#4caf50";
+        backgroundColor = "#10B981";
         iconName = "checkmark-circle";
         textColor = "white";
         break;
       case "error":
-        backgroundColor = "#f44336";
+        backgroundColor = "#EF4444";
         iconName = "alert-circle";
         textColor = "white";
         break;
       case "info":
-        backgroundColor = "#2196f3";
+        backgroundColor = "#3B82F6";
         iconName = "information-circle";
         textColor = "white";
         break;
       default:
-        backgroundColor = "#333";
+        backgroundColor = "#374151";
         iconName = "chatbubble-ellipses";
         textColor = "white";
     }
 
     return (
-      <Animated.View style={[styles.toast, { backgroundColor }]}>
+      <Animated.View
+        style={[
+          styles.toast,
+          { backgroundColor, opacity: fadeAnim }
+        ]}
+      >
         <Ionicons name={iconName} size={24} color={textColor} />
-        <Text style={[styles.toastText, { color: textColor }]}>{message}</Text>
+        <Text style={[styles.toastText, { color: textColor }]} numberOfLines={3}>
+          {message}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setShowToast(false)}
+          style={styles.toastCloseButton}
+        >
+          <Ionicons name="close" size={20} color={textColor} />
+        </TouchableOpacity>
       </Animated.View>
     );
   };
 
-  // We might want to adjust this welcome banner or get rid of it!!
-  const WelcomeBanner = () => {
+  // Dashboard Header Component (from our dashboard version)
+  const DashboardHeader = () => (
+    <View style={styles.dashboardHeader}>
+      <View style={styles.headerLeft}>
+        <Image
+          source={require("../assets/logo.jpg")}
+          style={styles.dashboardLogo}
+          resizeMode="contain"
+        />
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.dashboardTitle}>Kitch AI</Text>
+          <Text style={styles.dashboardSubtitle}>Recipe Assistant</Text>
+        </View>
+      </View>
+      <View style={styles.headerRight}>
+        <TouchableOpacity
+          style={styles.profileIconButton}
+          onPress={() => {
+            if (isLoggedIn) {
+              Alert.alert(
+                "Sign Out",
+                "Are you sure you want to sign out?",
+                [
+                  {
+                    text: "Cancel",
+                    style: "cancel",
+                  },
+                  {
+                    text: "Sign Out",
+                    onPress: async () => {
+                      try {
+                        await authService.logout();
+                        setIsLoggedIn(false);
+                        setIsPremium(false);
+                        showCustomToast("Signed out successfully", "success");
+                      } catch (error) {
+                        console.error("Logout error:", error);
+                        showCustomToast("Failed to sign out. Please try again.", "error");
+                      }
+                    },
+                  },
+                ]
+              );
+            } else {
+              setIsLoginVisible(true);
+            }
+          }}
+        >
+          <Ionicons
+            name={isLoggedIn ? "person-circle" : "person-circle-outline"}
+            size={32}
+            color={isLoggedIn ? "#008b8b" : "#7f8c8d"}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // Account Status Card (consolidated into one clean card)
+  const AccountStatusCard = () => {
     if (!isLoggedIn) return null;
 
     return (
-      <View style={styles.welcomeBanner}>
-        <View style={styles.welcomeContent}>
-          <Ionicons name="person-circle" size={28} color="#008b8b" />
-          <View style={styles.welcomeTextContainer}>
-            <Text style={styles.welcomeHeading}>Welcome </Text>
-            <Text style={styles.welcomeSubheading}>
-              {isPremium ? "Premium Member" : "Free Account"}
+      <View style={styles.accountStatusCard}>
+        <View style={styles.statusContent}>
+          <View style={styles.statusIconContainer}>
+            <Ionicons
+              name={isPremium ? "checkmark-circle" : "person-circle"}
+              size={24}
+              color={isPremium ? "#34D399" : "#008b8b"}
+            />
+          </View>
+          <View style={styles.statusTextContainer}>
+            <Text style={styles.statusTitle}>
+              {isPremium ? "Premium Account" : "Free Account"}
+            </Text>
+            <Text style={styles.statusSubtitle}>
+              {isPremium
+                ? "All features unlocked"
+                : "Upgrade to unlock premium features"}
             </Text>
           </View>
+          {!isPremium && (
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => navigation.navigate("PremiumPlans")}
+            >
+              <Text style={styles.upgradeButtonText}>Upgrade</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        {!isPremium && (
-          <TouchableOpacity
-            style={styles.upgradeBannerButton}
-            onPress={() => navigation.navigate("PremiumPlans")}
-          >
-            <Text style={styles.upgradeBannerText}>Upgrade</Text>
-          </TouchableOpacity>
-        )}
       </View>
     );
   };
@@ -350,18 +528,11 @@ export default function LandingScreen({ navigation }) {
       >
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.container}>
-            <WelcomeBanner />
-            <View style={styles.header}>
-              <Image
-                source={require("../assets/logo.jpg")}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.title}>Kitch AI</Text>
-              <Text style={styles.subtitle}>
-                Your Personal Recipe Assistant
-              </Text>
-            </View>
+            {/* Dashboard Header */}
+            <DashboardHeader />
+
+            {/* Account Status */}
+            <AccountStatusCard />
 
             <View style={styles.menuContainer}>
           
@@ -412,68 +583,6 @@ export default function LandingScreen({ navigation }) {
                 }}
               />
             </View>
-
-            {isLoggedIn && (
-              <View style={styles.userStatusContainer}>
-                <Text style={styles.userStatusText}>
-                  {isPremium ? "Premium Member 🌟" : "Free Account"}
-                </Text>
-                {!isPremium && (
-                  <TouchableOpacity
-                    style={styles.upgradeToPremiumButton}
-                    onPress={() => navigation.navigate("PremiumPlans")}
-                  >
-                    <Text style={styles.upgradeToPremiumText}>
-                      Upgrade to Premium
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => {
-                if (isLoggedIn) {
-                  Alert.alert(
-                    "Sign Out",
-                    "Are you sure you want to sign out?",
-                    [
-                      {
-                        text: "Cancel",
-                        style: "cancel",
-                      },
-                      {
-                        text: "Sign Out",
-                        onPress: async () => {
-                          try {
-                            await authService.logout();
-                            setIsLoggedIn(false);
-                            setIsPremium(false);
-                          } catch (error) {
-                            Alert.alert(
-                              "Error",
-                              "Failed to sign out. Please try again."
-                            );
-                          }
-                        },
-                      },
-                    ]
-                  );
-                } else {
-                  setIsLoginVisible(true);
-                }
-              }}
-            >
-              <Ionicons
-                name={isLoggedIn ? "log-out-outline" : "person-circle-outline"}
-                size={24}
-                color="#008b8b"
-              />
-              <Text style={styles.profileButtonText}>
-                {isLoggedIn ? "Sign Out" : "Sign In"}
-              </Text>
-            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </ScrollView>
@@ -519,6 +628,7 @@ export default function LandingScreen({ navigation }) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={!isLoading}
               />
             </View>
 
@@ -539,10 +649,12 @@ export default function LandingScreen({ navigation }) {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={!isLoading}
               />
               <TouchableOpacity
                 style={styles.inputIcon}
                 onPress={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
               >
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
@@ -559,6 +671,7 @@ export default function LandingScreen({ navigation }) {
                   setIsLoginVisible(false);
                   setIsForgotVisible(true);
                 }}
+                disabled={isLoading}
               >
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
@@ -567,13 +680,13 @@ export default function LandingScreen({ navigation }) {
             <TouchableOpacity
               style={[
                 styles.loginButton,
-                (!email || !password) && styles.loginButtonDisabled,
+                ((!email || !password) || isLoading) && styles.loginButtonDisabled,
               ]}
               onPress={handleLogin}
               disabled={isLoading || !email || !password}
             >
               {isLoading ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color="white" size="small" />
               ) : (
                 <Text style={styles.loginButtonText}>
                   {isNewUser ? "Create Account" : "Sign In"}
@@ -584,6 +697,7 @@ export default function LandingScreen({ navigation }) {
             <TouchableOpacity
               style={styles.switchModeButton}
               onPress={() => setIsNewUser(!isNewUser)}
+              disabled={isLoading}
             >
               <Text style={styles.switchModeText}>
                 {isNewUser
@@ -600,6 +714,7 @@ export default function LandingScreen({ navigation }) {
                 setPassword("");
                 setIsNewUser(false);
               }}
+              disabled={isLoading}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -637,16 +752,17 @@ export default function LandingScreen({ navigation }) {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={!isLoading}
               />
             </View>
 
             <TouchableOpacity
-              style={[styles.loginButton, !email && styles.loginButtonDisabled]}
+              style={[styles.loginButton, (!email || isLoading) && styles.loginButtonDisabled]}
               onPress={handleForgotPassword}
               disabled={isLoading || !email}
             >
               {isLoading ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color="white" size="small" />
               ) : (
                 <Text style={styles.loginButtonText}>Send Reset Link</Text>
               )}
@@ -658,6 +774,7 @@ export default function LandingScreen({ navigation }) {
                 setIsForgotVisible(false);
                 setEmail("");
               }}
+              disabled={isLoading}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -676,117 +793,139 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f9fa",
   },
-  toast: {
-    position: "absolute",
-    bottom: 50,
-    left: 20,
-    right: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    zIndex: 9999,
+  container: {
+    flex: 1,
+    padding: 20,
   },
-  toastText: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginLeft: 12,
-    flexShrink: 1,
-  },
-  welcomeBanner: {
-    backgroundColor: "white",
-    marginHorizontal: 16,
-    marginTop: -2,
-    marginBottom: 1,
-    borderRadius: 16,
-    padding: 16,
+  
+  // Dashboard Header Styles (from our dashboard version)
+  dashboardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 5,
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  dashboardLogo: {
+    width: 65,
+    height: 65,
+    borderRadius: 25,
+    marginRight: 15,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  dashboardTitle: {
+    fontSize: 35,
+    fontWeight: "700",
+    color: "#2c3e50",
+    letterSpacing: -0.6,
+  },
+  dashboardSubtitle: {
+    fontSize: 14,
+    color: "#7f8c8d",
+    marginTop: 4,
+  },
+  headerRight: {
+    marginLeft: 15,
+  },
+  profileIconButton: {
+    padding: 5,
+  },
+
+  // Enterprise Account Status Card
+  accountStatusCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    marginBottom: 25,
+    borderLeftWidth: 4,
+    borderLeftColor: "#008b8b",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: -10, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 18,
-        marginTop: 5,
-        marginBottom: 9,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
       },
       android: {
         elevation: 2,
       },
     }),
   },
-  welcomeContent: {
+  statusContent: {
     flexDirection: "row",
     alignItems: "center",
+    padding: 16,
+  },
+  statusIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f8f9fa",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  statusTextContainer: {
     flex: 1,
-    height: 25,
-    marginTop: 3,
+    marginRight: 16,
   },
-  welcomeTextContainer: {
-    marginLeft: 12,
-    marginRight: 10,
-  },
-  welcomeHeading: {
-    marginLeft: 58,
-    fontSize: 18,
+  statusTitle: {
+    fontSize: 16,
     fontWeight: "600",
     color: "#2c3e50",
+    marginBottom: 2,
   },
-  welcomeSubheading: {
-    marginLeft: 40,
-    fontSize: 14,
+  statusSubtitle: {
+    fontSize: 13,
     color: "#7f8c8d",
   },
-  upgradeBannerButton: {
-    backgroundColor: "#FFD700",
+  upgradeButton: {
+    backgroundColor: "#008b8b",
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
   },
-  upgradeBannerText: {
+  upgradeButtonText: {
     fontWeight: "600",
-    color: "#2c3e50",
-    fontSize: 14,
+    color: "white",
+    fontSize: 13,
   },
-  container: {
+
+  toast: {
+    position: "absolute",
+    bottom: 100,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 16,
+    borderRadius: 12,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 9999,
+    minHeight: 64,
+  },
+  toastText: {
+    fontSize: 15,
+    fontWeight: "500",
+    marginLeft: 12,
+    marginRight: 12,
     flex: 1,
-    padding: 20,
+    lineHeight: 20,
   },
-  header: {
-    alignItems: "center",
-    marginVertical: 32,
-    marginTop: 13,
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginTop: 1,
-    marginBottom: 9,
-  },
-  logoText: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 40,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 3,
-    letterSpacing: -1,
-    shadowOpacity: 0.2,
-  },
-  subtitle: {
-    fontSize: 17,
-    color: "#7f8c8d",
-    textAlign: "center",
+  toastCloseButton: {
+    padding: 4,
+    marginTop: -2,
   },
   menuContainer: {
     flex: 1,
@@ -795,19 +934,19 @@ const styles = StyleSheet.create({
   },
   menuItem: {
     backgroundColor: "white",
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     flexDirection: "row",
     alignItems: "center",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
         shadowRadius: 12,
       },
       android: {
-        elevation: 4,
+        elevation: 3,
       },
     }),
   },
@@ -819,32 +958,48 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: "#e6f3f3",
+    borderRadius: 12,
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
     position: "relative",
   },
+  // Professional Premium Badge
   premiumBadge: {
     position: "absolute",
-    top: -5,
-    right: -5,
-    backgroundColor: "#FFD700",
+    top: -2,
+    right: -2,
     width: 16,
-    height: 20,
-    borderRadius: 19,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "white",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 3,
-    borderColor: "white",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  premiumIcon: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#34D399",
   },
   menuTextContainer: {
     flex: 1,
     marginRight: 16,
   },
   menuTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#2c3e50",
     marginBottom: 4,
@@ -853,47 +1008,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#7f8c8d",
     lineHeight: 20,
-  },
-  userStatusContainer: {
-    backgroundColor: "#f0f8ff",
-    padding: 16,
-    borderRadius: 16,
-    marginTop: 20,
-    marginBottom: 10,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e1e8ed",
-  },
-  userStatusText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
-    marginBottom: 8,
-  },
-  upgradeToPremiumButton: {
-    backgroundColor: "#FFD700",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-  },
-  upgradeToPremiumText: {
-    fontWeight: "600",
-    color: "#2c3e50",
-  },
-  profileButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: "#e6f3f3",
-    gap: 8,
-    marginTop: 20,
-  },
-  profileButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#008b8b",
   },
   overlay: {
     position: "absolute",
@@ -905,19 +1019,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    zIndex: 1000, // Make sure overlay is above footer
+    zIndex: 1000,
   },
   modalContent: {
     backgroundColor: "white",
-    borderRadius: 24,
+    borderRadius: 20,
     width: "100%",
     padding: 24,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.15,
-        shadowRadius: 16,
+        shadowRadius: 20,
       },
       android: {
         elevation: 8,
@@ -932,14 +1046,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#e6f3f3",
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
   },
   modalTitle: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#2c3e50",
     marginBottom: 8,
   },
@@ -953,9 +1067,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f8f9fa",
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: "#e9ecef",
     marginBottom: 20,
   },
   inputIcon: {
@@ -970,16 +1084,18 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: "#008b8b",
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 12,
     alignItems: "center",
     marginBottom: 12,
+    minHeight: 52,
+    justifyContent: "center",
   },
   loginButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   loginButtonText: {
     color: "white",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
   },
   switchModeButton: {

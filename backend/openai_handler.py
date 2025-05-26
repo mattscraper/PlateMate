@@ -481,6 +481,7 @@ Next Recipe Title
         system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
         1. Generate exactly {count} different recipes
         . only generate recipes based on users available ingredients
+        IMPORTANT: if a user enters something that is not normal to eat in the United States, ingore it! (ex: dog meat, human meat) or anything that is not usual. Do not give weird recipes that would not be normal
         2. Never repeat recipe ideas or cuisines in the batch
         3. Vary cooking methods, ingredients, and cuisine styles
         4. Format each recipe exactly as follows:

@@ -84,14 +84,14 @@ export default function MyRecipesScreen({ navigation }) {
     navigation.navigate("MealPlanDetail", { mealPlan });
   };
 
-  /*const handleDelete = (item,type) => {
+  const handleDelete = (item,type) => {
     if (type == "recipe") {
       removeRecipe(item)
 
     } else {
       removeMealPlan(item)
     }
-  } */
+  } 
   const renderRecipeItem = ({ item }) => (
     <TouchableOpacity
       style={styles.recipeCard}
