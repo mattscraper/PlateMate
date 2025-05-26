@@ -183,62 +183,45 @@ export default function MealPlanResults() {
     let nutrition = '';
     let timings = [];
 
-    // ENHANCED TITLE EXTRACTION - Find the actual recipe title
+    // SIMPLIFIED AND MORE EFFECTIVE TITLE EXTRACTION
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       
-      // Skip obvious non-titles
-      if (line.startsWith('•') ||
+      // Skip empty lines and obvious non-titles
+      if (!line ||
+          line.startsWith('•') ||
           line.startsWith('-') ||
           line.match(/^\d+\./) ||
           line.toLowerCase().includes('preparation') ||
           line.toLowerCase().includes('cooking') ||
           line.toLowerCase().includes('servings') ||
           line.toLowerCase().includes('calorie') ||
-          line.toLowerCase().includes('ingredients') ||
-          line.toLowerCase().includes('instructions') ||
+          line.toLowerCase().includes('protein') ||
+          line.toLowerCase().includes('carb') ||
+          line.toLowerCase().includes('fat') ||
+          line.toLowerCase().includes('ingredients:') ||
+          line.toLowerCase().includes('instructions:') ||
           line.toLowerCase().includes('nutritional') ||
           line === '-----' ||
           line === '----' ||
-          line.match(/^=+$/) ||
-          line.length < 3) {
+          line.match(/^=+$/)) {
         continue;
       }
       
-      // Look for title patterns - should be a substantial line
-      if (line.length > 3 &&
-          !line.includes(':') &&
-          !line.match(/^\d/) &&
-          !line.toLowerCase().startsWith('step') &&
-          !line.toLowerCase().startsWith('mix') &&
-          !line.toLowerCase().startsWith('add') &&
-          !line.toLowerCase().startsWith('cook') &&
-          !line.toLowerCase().startsWith('heat') &&
-          !line.toLowerCase().startsWith('serve')) {
+      // Look for a substantial line that could be a title
+      // Don't be too restrictive - let most lines through unless they're obviously not titles
+      if (line.length >= 3 && !line.endsWith(':')) {
+        title = line.replace(/[^\w\s\-'&()]/g, '').trim();
         
-        // Clean up the title
-        title = line.replace(/[^\w\s\-'&]/g, '').trim();
-        
-        // Validate it's a real title
-        if (title.length > 3 &&
-            !title.toLowerCase().includes('ingredient') &&
-            !title.toLowerCase().includes('instruction')) {
+        // Only reject if it's clearly an ingredient (has measurements)
+        if (!title.match(/\d+\s*(cup|tbsp|tsp|lb|oz|gram|ml|liter)/i)) {
           break;
         }
       }
     }
 
-    // If no title found or title looks like an ingredient, generate one
-    if (!title ||
-        title.length < 3 ||
-        title === '-----' ||
-        title.toLowerCase().includes('cup') ||
-        title.toLowerCase().includes('tablespoon') ||
-        title.toLowerCase().includes('teaspoon') ||
-        title.toLowerCase().includes('pound') ||
-        title.toLowerCase().includes('gram') ||
-        title.toLowerCase().includes('ounce')) {
-      
+    // Only generate fallback title if we truly have nothing
+    if (!title || title.length < 3) {
       const titleWords = ['Delicious', 'Healthy', 'Fresh', 'Nutritious', 'Gourmet', 'Classic', 'Hearty', 'Tasty'];
       const randomWord = titleWords[Math.floor(Math.random() * titleWords.length)];
       title = `${randomWord} ${mealType}`;
@@ -250,26 +233,27 @@ export default function MealPlanResults() {
       
       if (!trimmedLine || trimmedLine === title) continue;
 
-      // Timing information
+      // Timing information - be more flexible
       if (trimmedLine.toLowerCase().includes('preparation') ||
           trimmedLine.toLowerCase().includes('cooking') ||
           trimmedLine.toLowerCase().includes('servings') ||
-          trimmedLine.match(/prep.*time/i) ||
-          trimmedLine.match(/cook.*time/i)) {
+          trimmedLine.toLowerCase().includes('prep') ||
+          trimmedLine.toLowerCase().includes('cook') ||
+          trimmedLine.match(/\d+\s*min/i) ||
+          trimmedLine.match(/\d+\s*hour/i)) {
         timings.push(trimmedLine);
       }
       // Ingredients (bullet points or dashes)
       else if (trimmedLine.match(/^[•\-\*]\s/)) {
         const ingredient = trimmedLine.replace(/^[•\-\*]\s*/, '').trim();
         
-        // Enhanced ingredient filtering
+        // Only filter out obvious non-ingredients
         if (ingredient &&
             ingredient !== '-----' &&
             ingredient !== '----' &&
-            ingredient.length > 2 &&
+            ingredient.length > 1 &&
             !ingredient.match(/^=+$/) &&
-            !ingredient.toLowerCase().includes('instruction') &&
-            !ingredient.toLowerCase().includes('step ') &&
+            !ingredient.toLowerCase().startsWith('instruction') &&
             !ingredient.match(/^\d+\.\s/)) {
           ingredients.push(ingredient);
         }
@@ -278,14 +262,22 @@ export default function MealPlanResults() {
       else if (trimmedLine.match(/^\d+\./)) {
         instructions.push(trimmedLine);
       }
-      // Nutrition info
+      // Nutrition info - look for any nutrition-related content
       else if (trimmedLine.toLowerCase().includes('calorie') ||
                trimmedLine.toLowerCase().includes('protein') ||
                trimmedLine.toLowerCase().includes('fat') ||
                trimmedLine.toLowerCase().includes('carb') ||
                trimmedLine.toLowerCase().includes('kcal') ||
-               trimmedLine.toLowerCase().includes('nutritional')) {
-        nutrition = trimmedLine;
+               trimmedLine.toLowerCase().includes('nutritional') ||
+               trimmedLine.match(/\d+g\s*(protein|fat|carb)/i) ||
+               trimmedLine.match(/\d+\s*calorie/i)) {
+        
+        // If this line has nutrition info, add it to existing or start new
+        if (nutrition) {
+          nutrition += ' • ' + trimmedLine;
+        } else {
+          nutrition = trimmedLine;
+        }
       }
     }
 
@@ -307,16 +299,17 @@ export default function MealPlanResults() {
       ];
     }
 
-    if (!nutrition) {
+    // ALWAYS ensure complete macro information
+    if (!nutrition || !nutrition.includes('protein') || !nutrition.includes('carb') || !nutrition.includes('fat')) {
       const caloriesPerMeal = Math.round(caloriesPerDay / mealsPerDay);
-      const protein = Math.round(caloriesPerMeal * 0.2 / 4); // 20% protein
-      const carbs = Math.round(caloriesPerMeal * 0.5 / 4); // 50% carbs
-      const fat = Math.round(caloriesPerMeal * 0.3 / 9); // 30% fat
+      const protein = Math.round(caloriesPerMeal * 0.2 / 4); // 20% protein (4 cal/g)
+      const carbs = Math.round(caloriesPerMeal * 0.5 / 4); // 50% carbs (4 cal/g)
+      const fat = Math.round(caloriesPerMeal * 0.3 / 9); // 30% fat (9 cal/g)
       nutrition = `${caloriesPerMeal} calories • ${protein}g protein • ${carbs}g carbs • ${fat}g fat`;
     }
 
     if (timings.length === 0) {
-      timings = ['Preparation: 15 minutes', 'Cooking: 20 minutes'];
+      timings = ['Prep: 15 min', 'Cook: 20 min'];
     }
 
     return {
@@ -329,12 +322,12 @@ export default function MealPlanResults() {
     };
   };
 
-  const generateFallbackMeal = (mealType, mealIndex) => {
+  generateFallbackMeal = (mealType, mealIndex) => {
     const mealTitles = {
-      'Breakfast': ['Protein Power Bowl', 'Morning Energy Plate', 'Sunrise Special'],
-      'Lunch': ['Midday Balance Bowl', 'Power Lunch Plate', 'Afternoon Fuel'],
-      'Dinner': ['Evening Comfort Meal', 'Dinner Delight', 'Night Nourishment'],
-      'Snack': ['Energy Boost', 'Quick Bite', 'Healthy Snack']
+      'Breakfast': ['Protein Power Bowl', 'Morning Energy Plate', 'Sunrise Special', 'Hearty Breakfast Skillet', 'Golden Morning Toast'],
+      'Lunch': ['Midday Balance Bowl', 'Power Lunch Plate', 'Afternoon Fuel', 'Fresh Garden Salad', 'Savory Lunch Wrap'],
+      'Dinner': ['Evening Comfort Meal', 'Dinner Delight', 'Night Nourishment', 'Sunset Feast', 'Cozy Dinner Bowl'],
+      'Snack': ['Energy Boost', 'Quick Bite', 'Healthy Snack', 'Power Snack', 'Midday Treat']
     };
 
     const titles = mealTitles[mealType] || ['Healthy Meal'];
@@ -1058,10 +1051,11 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
 
-  // Record Metadata
+  // Record Metadata - Better responsive design for timing
   recordMeta: {
     flexDirection: 'row',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
@@ -1070,14 +1064,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: '#f8f9fa',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    maxWidth: '45%', // Prevent text overflow
   },
   recordMetaText: {
     fontSize: 12,
     color: '#7f8c8d',
     fontWeight: '500',
+    flexShrink: 1, // Allow text to shrink if needed
   },
 
   // Record Data Sections

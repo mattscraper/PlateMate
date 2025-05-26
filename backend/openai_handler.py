@@ -561,7 +561,7 @@ Next Recipe Title
         EXACT FORMAT FOR EACH DAY:
         Day X (where X is 1, 2, 3, etc.)
         
-        [MEAL TYPE]: [RECIPE TITLE]
+        [RECIPE TITLE]
         
         Preparation Time: X minutes
         Cooking Time: X minutes  
