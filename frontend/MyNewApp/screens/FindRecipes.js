@@ -11,12 +11,17 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
-  TouchableWithoutFeedback,
+  StatusBar,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchRecipes } from "../utils/api";
 import { useNavigation } from "@react-navigation/native";
+import { BlurView } from "expo-blur";
+
+const { width, height } = Dimensions.get("window");
 
 export default function FindRecipes() {
   const navigation = useNavigation();
@@ -26,71 +31,52 @@ export default function FindRecipes() {
   const [healthy, setHealthy] = useState(false);
   const [allergies, setAllergies] = useState([]);
 
-  // Modal states
-  const [mealTypeModalVisible, setMealTypeModalVisible] = useState(false);
-  const [allergyModalVisible, setAllergyModalVisible] = useState(false);
+  // Modal states - completely separated
+  const [showMealTypeModal, setShowMealTypeModal] = useState(false);
+  const [showAllergyModal, setShowAllergyModal] = useState(false);
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customMealInput, setCustomMealInput] = useState("");
   const [newAllergy, setNewAllergy] = useState("");
 
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
 
+  // Animation
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const customInputRef = useRef(null);
+
   // Constants
   const predefinedMealTypes = [
-    { id: "custom", label: "Custom...", value: "" },
-    { id: "breakfast", label: "Breakfast", value: "Breakfast" },
-    { id: "lunch", label: "Lunch", value: "Lunch" },
-    { id: "dinner", label: "Dinner", value: "Dinner" },
-    { id: "dessert", label: "Dessert", value: "Dessert" },
-    { id: "snack", label: "Snack", value: "Snack" },
-    { id: "any", label: "Any", value: "Any" },
+    { id: "breakfast", label: "Breakfast", value: "Breakfast", icon: "sunny", color: "#ff9500" },
+    { id: "lunch", label: "Lunch", value: "Lunch", icon: "restaurant", color: "#34c759" },
+    { id: "dinner", label: "Dinner", value: "Dinner", icon: "moon", color: "#5856d6" },
+    { id: "dessert", label: "Dessert", value: "Dessert", icon: "ice-cream", color: "#ff2d92" },
+    { id: "snack", label: "Snack", value: "Snack", icon: "nutrition", color: "#ff9500" },
+    { id: "any", label: "Surprise Me", value: "Any", icon: "shuffle", color: "#8e8e93" },
   ];
-
-  // Selected meal type state with custom input handling
-  const [selectedMealTypeId, setSelectedMealTypeId] = useState("");
-  const [customMealType, setCustomMealType] = useState("");
-  const customMealTypeRef = useRef("");
 
   const loadingTexts = [
     "Simmering some ideas...",
     "Whisking up creativity...",
     "Adding a pinch of inspiration...",
-    "Sautéing the code...",
+    "Sautéing the perfect recipes...",
     "Grating some fresh ideas...",
-    "Rolling out the flavor...",
-    "Glazing over the details...",
-    "Marinating in the possibilities...",
+    "Rolling out delicious options...",
+    "Marinating in possibilities...",
     "Spicing things up...",
     "Mixing the perfect blend...",
     "Preheating the imagination...",
-    "Frosting the finishing touch...",
-    "Infusing some magic...",
-    "Flipping pancakes of innovation...",
-    "Kneading some creativity...",
-    "Sprinkling joy on top...",
-    "Blending flavors of genius...",
-    "Skewering new ideas...",
-    "Steaming up perfection...",
-    "Dishing out brilliance...",
-    "Cracking open new ideas...",
-    "Rolling sushi-grade concepts...",
-    "Toasting to inspiration...",
-    "Seeding new flavors...",
-    "Stuffing it with creativity...",
-    "Whipping up culinary dreams...",
-    "Layering the goodness...",
-    "Grilling some fresh concepts...",
-    "Drizzling some extra flavor...",
-    "Stirring the pot of genius...",
-    "Tasting for perfection...",
-    "Carving out new ideas...",
-    "Piping hot brilliance incoming...",
-    "Rolling out endless possibilities...",
-    "Firing up the grill of creativity...",
-    "Catching the freshest catch...",
-    "Serving it with style...",
-    "Crafting a recipe for success...",
   ];
+
+  useEffect(() => {
+    // Animate in on mount
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   useEffect(() => {
     if (isLoading) {
@@ -98,42 +84,80 @@ export default function FindRecipes() {
       const textInterval = setInterval(() => {
         setLoadingText(loadingTexts[currentIndex]);
         currentIndex = (currentIndex + 1) % loadingTexts.length;
-      }, 1200);
-
+      }, 1500);
       return () => clearInterval(textInterval);
     }
   }, [isLoading]);
 
-  // Handle meal type selection
-  const handleMealTypeSelect = (id, value) => {
-    setSelectedMealTypeId(id);
-    if (id === "custom") {
-      setCustomMealType(mealType || ""); // Initialize with current value if exists
-    } else {
-      setMealType(value);
-      setCustomMealType("");
-      setMealTypeModalVisible(false);
+  // Modal handlers - completely rewritten
+  const openMealTypeModal = () => {
+    setShowMealTypeModal(true);
+    setShowCustomInput(false);
+    setCustomMealInput("");
+  };
+
+  const closeMealTypeModal = () => {
+    setShowMealTypeModal(false);
+    setShowCustomInput(false);
+    setCustomMealInput("");
+  };
+
+  const selectPredefinedMeal = (value) => {
+    setMealType(value);
+    closeMealTypeModal();
+  };
+
+  const openCustomInput = () => {
+    setShowCustomInput(true);
+    // Focus input after a short delay to ensure modal is fully rendered
+    setTimeout(() => {
+      if (customInputRef.current) {
+        customInputRef.current.focus();
+      }
+    }, 300);
+  };
+
+  const confirmCustomMeal = () => {
+    if (customMealInput.trim()) {
+      setMealType(customMealInput.trim());
+      closeMealTypeModal();
     }
   };
 
-  // Handle custom meal type input
-  const handleCustomMealTypeSubmit = () => {
-    const trimmedValue = customMealTypeRef.current.trim();
-    if (trimmedValue) {
-      setMealType(trimmedValue);
-      setCustomMealType(trimmedValue);
-      setMealTypeModalVisible(false);
+  const cancelCustomInput = () => {
+    setShowCustomInput(false);
+    setCustomMealInput("");
+  };
+
+  // Allergy handlers
+  const openAllergyModal = () => {
+    setShowAllergyModal(true);
+    setNewAllergy("");
+  };
+
+  const closeAllergyModal = () => {
+    setShowAllergyModal(false);
+    setNewAllergy("");
+  };
+
+  const addAllergy = () => {
+    const trimmed = newAllergy.trim();
+    if (trimmed && !allergies.includes(trimmed)) {
+      setAllergies([...allergies, trimmed]);
+      closeAllergyModal();
     }
   };
 
-  // Handler functions
+  const removeAllergy = (allergyToRemove) => {
+    setAllergies(allergies.filter((allergy) => allergy !== allergyToRemove));
+  };
+
+  // Submit handler
   const handleSubmit = async () => {
     if (!mealType) return;
 
     setIsLoading(true);
-
     try {
-      // change this in production, will host backend to a server
       const recipes = await fetchRecipes(mealType, healthy, allergies);
       navigation.navigate("Results", { recipes, mealType, healthy, allergies });
     } catch (error) {
@@ -144,288 +168,308 @@ export default function FindRecipes() {
   };
 
   const getHealthyDescription = () => {
-    if (healthy) {
-      return "Focusing on nutritious, balanced meals";
-    }
-    return "Including all recipe types";
+    return healthy
+      ? "Focusing on nutritious, balanced meals with fresh ingredients"
+      : "Including all recipe types from comfort food to gourmet";
   };
 
-  const addAllergy = () => {
-    if (newAllergy.trim() && !allergies.includes(newAllergy.trim())) {
-      setAllergies([...allergies, newAllergy.trim()]);
-      setNewAllergy("");
-    }
-  };
-
-  const removeAllergy = (allergyToRemove) => {
-    setAllergies(allergies.filter((allergy) => allergy !== allergyToRemove));
-  };
-
-  // Show loading screen
+  // Loading screen
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#008b8b" />
-        <Text style={styles.loadingText}>{loadingText}</Text>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.8)" />
+        <BlurView intensity={90} style={styles.loadingOverlay}>
+          <View style={styles.loadingContent}>
+            <View style={styles.loadingAnimation}>
+              <View style={styles.loadingIconWrapper}>
+                <Ionicons name="restaurant" size={40} color="#008b8b" />
+              </View>
+              <ActivityIndicator size="large" color="#008b8b" style={styles.spinner} />
+            </View>
+            <Text style={styles.loadingText}>{loadingText}</Text>
+            <Text style={styles.loadingSubtext}>Finding the perfect recipes for you</Text>
+          </View>
+        </BlurView>
+      </View>
     );
   }
 
-  // Modal Components
-  const MealTypeModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={mealTypeModalVisible}
-      onRequestClose={() => setMealTypeModalVisible(false)}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.modalOverlay}
-      >
-        <TouchableWithoutFeedback
-          onPress={() => setMealTypeModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalContent}>
-                {/* Header */}
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity
-                    style={styles.modalCloseButton}
-                    onPress={() => setMealTypeModalVisible(false)}
-                  >
-                    <Ionicons name="close" size={24} color="#2c3e50" />
-                  </TouchableOpacity>
-                  <Text style={styles.modalTitle}>Choose Meal Type</Text>
-                  <View style={styles.modalCloseButton} />
-                </View>
-
-                <ScrollView
-                  style={styles.modalBody}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <Text style={styles.modalSubtitle}>
-                    Select a type or create your own
-                  </Text>
-
-                  {/* Quick Select Grid */}
-                  <View style={styles.quickSelectGrid}>
-                    {predefinedMealTypes
-                      .filter((type) => type.id !== "custom")
-                      .map((type) => (
-                        <TouchableOpacity
-                          key={type.id}
-                          style={[
-                            styles.quickSelectButton,
-                            selectedMealTypeId === type.id &&
-                              styles.quickSelectButtonSelected,
-                          ]}
-                          onPress={() =>
-                            handleMealTypeSelect(type.id, type.value)
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.quickSelectText,
-                              selectedMealTypeId === type.id &&
-                                styles.quickSelectTextSelected,
-                            ]}
-                          >
-                            {type.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                  </View>
-
-                  {/* Custom Input Section */}
-                  <View style={styles.customInputSection}>
-                    <Text style={styles.customInputLabel}>
-                      Or type your own
-                    </Text>
-                    <View style={styles.customInputWrapper}>
-                      <TextInput
-                        style={styles.customInput}
-                        defaultValue={customMealTypeRef.current}
-                        onChangeText={(text) => {
-                          customMealTypeRef.current = text;
-                          setSelectedMealTypeId("custom");
-                        }}
-                        placeholder="e.g., Summer BBQ, Italian Night..."
-                        placeholderTextColor="#a0a0a0"
-                        returnKeyType="done"
-                        onFocus={() => setMealTypeModalVisible(true)} // Ensures modal stays open
-                      />
-                      <TouchableOpacity
-                        style={[
-                          styles.customConfirmButton,
-                          !customMealTypeRef.current?.trim() &&
-                            styles.buttonDisabled,
-                        ]}
-                        onPress={handleCustomMealTypeSubmit}
-                        disabled={!customMealTypeRef.current?.trim()}
-                      >
-                        <Ionicons name="checkmark" size={24} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#2c3e50" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Discover New Recipes</Text>
-          <Text style={styles.subtitle}>Find your next culinary adventure</Text>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#008b8b" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Recipe Builder</Text>
+          <Text style={styles.headerSubtitle}>Find your perfect meal</Text>
         </View>
+        <View style={{ width: 44 }} />
+      </View>
 
-        {/* Meal Type Selection */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>What would you like to cook?</Text>
-          <TouchableOpacity
-            style={styles.inputContainer}
-            onPress={() => setMealTypeModalVisible(true)}
-          >
-            <Text style={[styles.input, !mealType && styles.inputPlaceholder]}>
-              {mealType || "Select or type meal type"}
-            </Text>
-            <Ionicons name="chevron-down" size={24} color="#008b8b" />
-          </TouchableOpacity>
-        </View>
-        <MealTypeModal />
-
-        {/* Healthy Switch */}
-        <View style={styles.card}>
-          <View style={styles.switchContainer}>
-            <View>
-              <Text style={styles.sectionTitle}>Healthy Options</Text>
-              <Text style={styles.description}>{getHealthyDescription()}</Text>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <View style={styles.heroIconContainer}>
+              <Ionicons name="restaurant-outline" size={32} color="#008b8b" />
             </View>
-            <Switch
-              value={healthy}
-              onValueChange={setHealthy}
-              trackColor={{ false: "#e0e0e0", true: "#b2dfdb" }}
-              thumbColor={healthy ? "#008b8b" : "#f4f3f4"}
-              ios_backgroundColor="#e0e0e0"
-            />
+            <Text style={styles.heroTitle}>What are you craving?</Text>
+            <Text style={styles.heroSubtitle}>
+              Tell us your preferences and we'll find amazing recipes just for you
+            </Text>
           </View>
-        </View>
 
-        {/* Allergies Section */}
-        <View style={styles.card}>
-          <View style={styles.allergyHeader}>
-            <Text style={styles.sectionTitle}>Dietary Restrictions</Text>
+          {/* Meal Type Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIcon}>
+                <Ionicons name="restaurant" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.cardTitle}>Meal Type</Text>
+            </View>
+            
             <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setAllergyModalVisible(true)}
+              style={styles.selector}
+              onPress={openMealTypeModal}
+              activeOpacity={0.7}
             >
-              <Ionicons name="add-circle" size={24} color="#008b8b" />
+              <Text style={[styles.selectorText, !mealType && styles.selectorPlaceholder]}>
+                {mealType || "Choose what you want to cook"}
+              </Text>
+              <View style={styles.selectorArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#008b8b" />
+              </View>
             </TouchableOpacity>
           </View>
 
-          {allergies.length > 0 ? (
-            <View style={styles.allergyChipsContainer}>
-              {allergies.map((allergy, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.allergyChip}
-                  onPress={() => removeAllergy(allergy)}
-                >
-                  <Text style={styles.allergyChipText}>{allergy}</Text>
-                  <Ionicons name="close-circle" size={18} color="#008b8b" />
-                </TouchableOpacity>
-              ))}
+          {/* Healthy Toggle Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIcon}>
+                <Ionicons name="leaf" size={20} color="#008b8b" />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>Healthy Focus</Text>
+                <Text style={styles.cardDescription}>{getHealthyDescription()}</Text>
+              </View>
+              <Switch
+                value={healthy}
+                onValueChange={setHealthy}
+                trackColor={{ false: "#e5e5ea", true: "#34c759" }}
+                thumbColor={healthy ? "#ffffff" : "#ffffff"}
+                ios_backgroundColor="#e5e5ea"
+              />
             </View>
-          ) : (
-            <Text style={styles.placeholderText}>
-              Tap + to add any dietary restrictions
-            </Text>
-          )}
-        </View>
+          </View>
 
-        {/* Find Recipes Button */}
-        <TouchableOpacity
-          style={[
-            styles.findButton,
-            (!mealType || isLoading) && styles.buttonDisabled,
-          ]}
-          onPress={handleSubmit}
-          disabled={!mealType || isLoading}
-        >
-          <Ionicons name="search" size={24} color="white" />
-          <Text style={styles.buttonText}>Find Recipes</Text>
-        </TouchableOpacity>
-       
-      </ScrollView>
+          {/* Allergies Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIcon}>
+                <Ionicons name="shield-checkmark" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.cardTitle}>Dietary Restrictions</Text>
+              <TouchableOpacity style={styles.addButton} onPress={openAllergyModal}>
+                <Ionicons name="add" size={20} color="#008b8b" />
+              </TouchableOpacity>
+            </View>
 
-      {/* Allergy Modal */}
+            {allergies.length > 0 ? (
+              <View style={styles.tagsContainer}>
+                {allergies.map((allergy, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.tag}
+                    onPress={() => removeAllergy(allergy)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.tagText}>{allergy}</Text>
+                    <Ionicons name="close" size={16} color="#008b8b" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="add-circle-outline" size={24} color="#c7c7cc" />
+                <Text style={styles.emptyStateText}>No restrictions added</Text>
+                <Text style={styles.emptyStateSubtext}>Tap + to add dietary restrictions</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={[styles.submitButton, !mealType && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!mealType}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="search" size={24} color="white" />
+            <Text style={styles.submitButtonText}>Find My Recipes</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </Animated.View>
+
+      {/* Meal Type Modal */}
       <Modal
+        visible={showMealTypeModal}
         animationType="slide"
         transparent={true}
-        visible={allergyModalVisible}
-        onRequestClose={() => setAllergyModalVisible(false)}
+        onRequestClose={closeMealTypeModal}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
-          <View style={styles.modalContent}>
+          <View style={styles.modalContainer}>
+            {/* Modal Header */}
             <View style={styles.modalHeader}>
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setAllergyModalVisible(false)}
-              >
-                <Ionicons name="close" size={24} color="#2c3e50" />
+              <Text style={styles.modalTitle}>Choose Meal Type</Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={closeMealTypeModal}>
+                <Ionicons name="close" size={24} color="#8e8e93" />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Add Dietary Restriction</Text>
-              <View style={styles.modalCloseButton} />
             </View>
 
-            <View style={styles.allergyModalBody}>
-              <Text style={styles.modalSubtitle}>
-                Enter any food allergies or dietary restrictions
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {!showCustomInput ? (
+                <>
+                  {/* Predefined Options */}
+                  <View style={styles.optionsGrid}>
+                    {predefinedMealTypes.map((type) => (
+                      <TouchableOpacity
+                        key={type.id}
+                        style={styles.optionCard}
+                        onPress={() => selectPredefinedMeal(type.value)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.optionIcon, { backgroundColor: `${type.color}15` }]}>
+                          <Ionicons name={type.icon} size={24} color={type.color} />
+                        </View>
+                        <Text style={styles.optionText}>{type.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Custom Option Trigger */}
+                  <TouchableOpacity style={styles.customTrigger} onPress={openCustomInput}>
+                    <View style={styles.customTriggerIcon}>
+                      <Ionicons name="create-outline" size={24} color="#008b8b" />
+                    </View>
+                    <View style={styles.customTriggerContent}>
+                      <Text style={styles.customTriggerTitle}>Custom Meal Type</Text>
+                      <Text style={styles.customTriggerSubtitle}>Create your own meal category</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                /* Custom Input Mode */
+                <View style={styles.customInputSection}>
+                  <View style={styles.customInputHeader}>
+                    <TouchableOpacity onPress={cancelCustomInput}>
+                      <Ionicons name="chevron-back" size={24} color="#008b8b" />
+                    </TouchableOpacity>
+                    <Text style={styles.customInputTitle}>Custom Meal Type</Text>
+                    <View style={{ width: 24 }} />
+                  </View>
+
+                  <Text style={styles.customInputLabel}>What type of meal are you planning?</Text>
+                  
+                  <TextInput
+                    ref={customInputRef}
+                    style={styles.customTextInput}
+                    value={customMealInput}
+                    onChangeText={setCustomMealInput}
+                    placeholder="e.g., Italian Night, Summer BBQ, Holiday Feast..."
+                    placeholderTextColor="#c7c7cc"
+                    returnKeyType="done"
+                    onSubmitEditing={confirmCustomMeal}
+                    autoCapitalize="words"
+                  />
+
+                  <View style={styles.customInputActions}>
+                    <TouchableOpacity
+                      style={styles.customCancelButton}
+                      onPress={cancelCustomInput}
+                    >
+                      <Text style={styles.customCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.customConfirmButton,
+                        !customMealInput.trim() && styles.customConfirmButtonDisabled
+                      ]}
+                      onPress={confirmCustomMeal}
+                      disabled={!customMealInput.trim()}
+                    >
+                      <Text style={[
+                        styles.customConfirmText,
+                        !customMealInput.trim() && styles.customConfirmTextDisabled
+                      ]}>
+                        Use This
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Allergy Modal */}
+      <Modal
+        visible={showAllergyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeAllergyModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.allergyModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Restriction</Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={closeAllergyModal}>
+                <Ionicons name="close" size={24} color="#8e8e93" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.allergyModalContent}>
+              <Text style={styles.allergyInputLabel}>
+                Enter any allergies or dietary preferences
               </Text>
+              
               <TextInput
-                style={[styles.modalInput, styles.allergyInput]}
+                style={styles.allergyTextInput}
                 value={newAllergy}
                 onChangeText={setNewAllergy}
-                placeholder="e.g., Peanuts, Dairy, Gluten"
-                placeholderTextColor="#a0a0a0"
-                autoFocus
+                placeholder="e.g., Peanuts, Dairy, Gluten, Vegetarian"
+                placeholderTextColor="#c7c7cc"
+                returnKeyType="done"
+                onSubmitEditing={addAllergy}
+                autoFocus={true}
+                autoCapitalize="words"
               />
-            </View>
 
-            <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={[
-                  styles.modalAddButton,
-                  !newAllergy.trim() && styles.buttonDisabled,
+                  styles.allergyAddButton,
+                  !newAllergy.trim() && styles.allergyAddButtonDisabled
                 ]}
-                onPress={() => {
-                  addAllergy();
-                  setAllergyModalVisible(false);
-                }}
+                onPress={addAllergy}
                 disabled={!newAllergy.trim()}
               >
-                <Text style={styles.modalAddText}>Add Restriction</Text>
+                <Ionicons name="add" size={20} color="white" />
+                <Text style={styles.allergyAddButtonText}>Add Restriction</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -436,326 +480,221 @@ export default function FindRecipes() {
 }
 
 const styles = StyleSheet.create({
-  // Base Layout
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
   container: {
-    flexGrow: 1,
-    padding: 20,
-  },
-  loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f2f2f7",
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#008b8b',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-
-  // Header Styles
+  
+  // Header
   header: {
-    marginBottom: 32,
-    alignItems: "center",
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5ea',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   backButton: {
-    padding: 4,
-    marginRight: 310,
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 34,
-    marginTop: -5,
-    fontWeight: "800",
-    color: "black", // Deep blue for a premium look
-    textAlign: "center",
-    textTransform: "capitalize",
-    letterSpacing: 0.8,
-  },
-
-  subtitle: {
-    fontSize: 17,
-    fontWeight: "40",
-    color: "#008b8b", // Subtle contrast for hierarchy
-    textAlign: "center",
-    maxWidth: "80%",
-    lineHeight: 22,
-    marginTop: 20,
-    marginBottom: -2,
-    opacity: 0.9,
-    fontStyle: "italic",
-  },
-
-  // Card Styles
-  card: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-
-  // Input Styles
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    borderRadius: 16,
-    backgroundColor: "#f8f9fa",
-    paddingHorizontal: 20,
-    marginTop: 8,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 16,
-    fontSize: 17,
-    color: "#2c3e50",
-  },
-  inputPlaceholder: {
-    color: "#a0a0a0",
-  },
-
-  // Modal Base Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "85%",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#2c3e50",
-    textAlign: "center",
-    flex: 1,
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    color: "#7f8c8d",
-    marginBottom: 24,
-    textAlign: "center",
-    paddingHorizontal: 20,
-    lineHeight: 22,
-  },
-  modalCloseButton: {
     width: 44,
     height: 44,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 22,
+    backgroundColor: '#f2f2f7',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  modalBody: {
-    padding: 20,
-  },
-
-  // Meal Type Selection Styles
-  quickSelectGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 32,
-  },
-  quickSelectButton: {
-    width: "47%",
-    backgroundColor: "#f8f9fa",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  quickSelectButtonSelected: {
-    backgroundColor: "#e6f3f3",
-    borderColor: "#008b8b",
-  },
-  quickSelectText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
-  },
-  quickSelectTextSelected: {
-    color: "#008b8b",
-    fontWeight: "700",
-  },
-  customInputSection: {
-    marginTop: 16,
-  },
-  customInputLabel: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#2c3e50",
-    marginBottom: 12,
-  },
-  customInputWrapper: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  customInput: {
+  headerCenter: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 16,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    color: "#2c3e50",
+    alignItems: 'center',
   },
-  customConfirmButton: {
-    backgroundColor: "#008b8b",
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1c1c1e',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
   },
 
-  // Section Styles
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginBottom: 12,
+  // Content
+  content: {
+    flex: 1,
   },
-  description: {
-    fontSize: 15,
-    color: "#7f8c8d",
-    marginTop: 4,
-    lineHeight: 20,
-  },
-  switchContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 4,
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
 
-  // Allergy Section Styles
-  allergyHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  // Hero Section
+  heroSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingVertical: 20,
+  },
+  heroIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  addButton: {
-    padding: 8,
-    marginRight: -8,
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1c1c1e',
+    marginBottom: 8,
+    textAlign: 'center',
   },
-  allergyChipsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+  heroSubtitle: {
+    fontSize: 16,
+    color: '#8e8e93',
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
   },
-  allergyChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#e6f3f3",
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "#008b8b20",
+
+  // Cards
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     ...Platform.select({
       ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
       },
       android: {
         elevation: 2,
       },
     }),
   },
-  allergyChipText: {
-    color: "#008b8b",
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1c1c1e',
+    flex: 1,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardDescription: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
+    lineHeight: 18,
+  },
+
+  // Selector
+  selector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  selectorText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1c1c1e',
+    fontWeight: '500',
+  },
+  selectorPlaceholder: {
+    color: '#8e8e93',
+    fontWeight: '400',
+  },
+  selectorArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Add Button
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Tags
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  tagText: {
+    fontSize: 14,
+    color: '#008b8b',
+    fontWeight: '500',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  emptyStateText: {
     fontSize: 15,
-    fontWeight: "600",
-  },
-  allergyModalBody: {
-    padding: 20,
-  },
-  allergyInput: {
-    marginBottom: 16,
-  },
-  placeholderText: {
-    color: "#a0a0a0",
-    fontSize: 15,
-    fontStyle: "italic",
-    textAlign: "center",
+    color: '#8e8e93',
+    fontWeight: '500',
     marginTop: 8,
   },
+  emptyStateSubtext: {
+    fontSize: 13,
+    color: '#c7c7cc',
+    marginTop: 4,
+  },
 
-  // Button Styles
-  findButton: {
-    backgroundColor: "#008b8b",
+  // Submit Button
+  submitButton: {
+    backgroundColor: '#008b8b',
     borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 18,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-    marginTop: 12,
-    marginBottom: 20,
+    gap: 8,
+    marginTop: 20,
     ...Platform.select({
       ios: {
-        shadowColor: "#008b8b",
+        shadowColor: '#008b8b',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -765,51 +704,284 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  submitButtonDisabled: {
+    opacity: 0.5,
   },
-  buttonText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "700",
+  submitButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: 'white',
   },
 
-  // Modal Input & Button Styles
-  modalInput: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 17,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    color: "#2c3e50",
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#f2f2f7',
+  },
+  loadingOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    marginHorizontal: 40,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  loadingAnimation: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingIconWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  modalAddButton: {
-    backgroundColor: "#008b8b",
-    padding: 18,
-    borderRadius: 16,
-    alignItems: "center",
-    margin: 20,
-    marginTop: 0,
+  spinner: {
+    transform: [{ scale: 1.2 }],
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#008b8b',
+    textAlign: 'center',
+    marginBottom: 8,
+    minHeight: 22, // Fixed height to prevent size changes
+    lineHeight: 22,
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    color: '#8e8e93',
+    textAlign: 'center',
+  },
+
+  // Modal Base
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.8,
     ...Platform.select({
       ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -5 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
       },
       android: {
-        elevation: 6,
+        elevation: 10,
       },
     }),
   },
-  modalAddText: {
-    color: "white",
-    fontSize: 17,
-    fontWeight: "700",
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f2f2f7',
   },
-  modalFooter: {
-    // Add if needed
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1c1c1e',
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f2f2f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    padding: 20,
+  },
+
+  // Options Grid
+  optionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 24,
+  },
+  optionCard: {
+    width: (width - 64) / 2,
+    backgroundColor: '#f2f2f7',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+  },
+  optionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  optionText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1c1c1e',
+    textAlign: 'center',
+  },
+
+  // Custom Trigger
+  customTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f2f2f7',
+    borderRadius: 16,
+    padding: 16,
+  },
+  customTriggerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  customTriggerContent: {
+    flex: 1,
+  },
+  customTriggerTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1c1c1e',
+  },
+  customTriggerSubtitle: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
+  },
+
+  // Custom Input Section
+  customInputSection: {
+    paddingTop: 8,
+  },
+  customInputHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  customInputTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1c1c1e',
+    flex: 1,
+    textAlign: 'center',
+  },
+  customInputLabel: {
+    fontSize: 16,
+    color: '#1c1c1e',
+    marginBottom: 12,
+  },
+  customTextInput: {
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1c1c1e',
+    marginBottom: 20,
+  },
+  customInputActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  customCancelButton: {
+    flex: 1,
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  customCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#8e8e93',
+  },
+  customConfirmButton: {
+    flex: 1,
+    backgroundColor: '#008b8b',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  customConfirmButtonDisabled: {
+    backgroundColor: '#c7c7cc',
+  },
+  customConfirmText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'white',
+  },
+  customConfirmTextDisabled: {
+    color: '#8e8e93',
+  },
+
+  // Allergy Modal
+  allergyModalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.5,
+  },
+  allergyModalContent: {
+    padding: 20,
+  },
+  allergyInputLabel: {
+    fontSize: 16,
+    color: '#1c1c1e',
+    marginBottom: 12,
+  },
+  allergyTextInput: {
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1c1c1e',
+    marginBottom: 20,
+  },
+  allergyAddButton: {
+    backgroundColor: '#008b8b',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  allergyAddButtonDisabled: {
+    backgroundColor: '#c7c7cc',
+  },
+  allergyAddButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'white',
   },
 });

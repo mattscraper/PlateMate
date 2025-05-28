@@ -423,7 +423,7 @@ Next Recipe Title
         7. Make recipes amazing and think outside the box."""
 
         # Create a single prompt for multiple recipes
-        prompt = f"Create {count} unique {meal_type} recipes, each from different cuisines and cooking styles."
+        prompt = f"Create {count} unique {meal_type} recipes, each from different cuisines and cooking styles. If the meal type is not something valid or usual in the united states (ex: dog, human meat, etc) ignore it and default to any meal type."
         
         if healthy:
             prompt += " Make them healthy and nutritious."
@@ -555,7 +555,7 @@ Next Recipe Title
 
         1. Generate exactly {days} days with {meals_per_day} meals each day
         2. NEVER repeat recipes in the plan
-        3. Each day MUST have exactly {meals_per_day} meals - no skipping!
+        3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
         4. Target {calories_per_day} calories per day total
 
         EXACT FORMAT FOR EACH DAY:
@@ -598,7 +598,7 @@ Next Recipe Title
         """
 
         # Initialize prompt
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day."
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specicfied calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
 
         # Handle optional parameters safely
         if healthy:

@@ -112,6 +112,110 @@ const RecipeScreen = ({ navigation }) => {
     setIsLoginVisible(true);
   };
 
+  // Convert metric measurements to US standard
+  const convertToUSMeasurements = (measure, ingredient) => {
+    if (!measure || !measure.trim()) return measure;
+    
+    let convertedMeasure = measure.toLowerCase().trim();
+    
+    // Temperature conversions
+    if (convertedMeasure.includes('°c') || convertedMeasure.includes('celsius')) {
+      const tempMatch = convertedMeasure.match(/(\d+)/);
+      if (tempMatch) {
+        const celsius = parseInt(tempMatch[1]);
+        const fahrenheit = Math.round((celsius * 9/5) + 32);
+        convertedMeasure = convertedMeasure.replace(/\d+\s*°?c/i, `${fahrenheit}°F`);
+      }
+    }
+    
+    // Weight conversions (grams to ounces/pounds)
+    if (convertedMeasure.includes('g') && !convertedMeasure.includes('kg')) {
+      const gramMatch = convertedMeasure.match(/(\d+)\s*g/);
+      if (gramMatch) {
+        const grams = parseInt(gramMatch[1]);
+        if (grams >= 454) {
+          const pounds = (grams / 454).toFixed(1);
+          convertedMeasure = convertedMeasure.replace(/\d+\s*g/, `${pounds} lbs`);
+        } else {
+          const ounces = (grams / 28.35).toFixed(1);
+          convertedMeasure = convertedMeasure.replace(/\d+\s*g/, `${ounces} oz`);
+        }
+      }
+    }
+    
+    // Kilogram conversions
+    if (convertedMeasure.includes('kg')) {
+      const kgMatch = convertedMeasure.match(/(\d+(?:\.\d+)?)\s*kg/);
+      if (kgMatch) {
+        const kg = parseFloat(kgMatch[1]);
+        const pounds = (kg * 2.205).toFixed(1);
+        convertedMeasure = convertedMeasure.replace(/\d+(?:\.\d+)?\s*kg/, `${pounds} lbs`);
+      }
+    }
+    
+    // Volume conversions (ml to fluid ounces, liters to cups/quarts)
+    if (convertedMeasure.includes('ml')) {
+      const mlMatch = convertedMeasure.match(/(\d+)\s*ml/);
+      if (mlMatch) {
+        const ml = parseInt(mlMatch[1]);
+        if (ml >= 240) {
+          const cups = (ml / 240).toFixed(1);
+          convertedMeasure = convertedMeasure.replace(/\d+\s*ml/, `${cups} cups`);
+        } else {
+          const flOz = (ml / 29.57).toFixed(1);
+          convertedMeasure = convertedMeasure.replace(/\d+\s*ml/, `${flOz} fl oz`);
+        }
+      }
+    }
+    
+    if (convertedMeasure.includes('litre') || convertedMeasure.includes('liter')) {
+      const literMatch = convertedMeasure.match(/(\d+(?:\.\d+)?)\s*(?:litre|liter)/);
+      if (literMatch) {
+        const liters = parseFloat(literMatch[1]);
+        if (liters >= 0.95) {
+          const quarts = (liters * 1.057).toFixed(1);
+          convertedMeasure = convertedMeasure.replace(/\d+(?:\.\d+)?\s*(?:litre|liter)/, `${quarts} quarts`);
+        } else {
+          const cups = (liters * 4.227).toFixed(1);
+          convertedMeasure = convertedMeasure.replace(/\d+(?:\.\d+)?\s*(?:litre|liter)/, `${cups} cups`);
+        }
+      }
+    }
+    
+    // Return original case style
+    return convertedMeasure.charAt(0).toUpperCase() + convertedMeasure.slice(1);
+  };
+
+  // Parse and structure instructions
+  const parseInstructions = (instructionsText) => {
+    if (!instructionsText) return [];
+    
+    // Clean up the text
+    let cleanText = instructionsText.trim();
+    
+    // Split by common delimiters and clean up
+    let steps = cleanText
+      .split(/(?:\r?\n)+|(?:\d+\.)|(?:STEP \d+)|(?:Step \d+)/i)
+      .map(step => step.trim())
+      .filter(step => step.length > 10) // Filter out very short fragments
+      .map(step => {
+        // Remove leading numbers, periods, or step indicators
+        return step.replace(/^[\d\.\s]*/, '').trim();
+      })
+      .filter(step => step.length > 0);
+    
+    // If we don't have clear steps, try splitting by sentences
+    if (steps.length <= 1) {
+      steps = cleanText
+        .split(/\.(?=\s[A-Z])|(?<=\.)\s+(?=[A-Z])/g)
+        .map(step => step.trim())
+        .filter(step => step.length > 15)
+        .map(step => step.endsWith('.') ? step : step + '.');
+    }
+    
+    return steps.length > 0 ? steps : [cleanText];
+  };
+
   // Convert structured recipe to text format for saving
   const convertRecipeToText = (recipe) => {
     let recipeText = `${recipe.strMeal}\n\n`;
@@ -125,32 +229,26 @@ const RecipeScreen = ({ navigation }) => {
     }
     recipeText += '\n';
 
-    // Add ingredients
+    // Add ingredients with US measurements
     recipeText += 'Ingredients:\n';
     for (let i = 1; i <= 20; i++) {
       const ingredient = recipe[`strIngredient${i}`];
       const measure = recipe[`strMeasure${i}`];
       
       if (ingredient && ingredient.trim()) {
-        const measureText = measure && measure.trim() ? `${measure.trim()} ` : '';
+        const convertedMeasure = convertToUSMeasurements(measure, ingredient);
+        const measureText = convertedMeasure && convertedMeasure.trim() ? `${convertedMeasure.trim()} ` : '';
         recipeText += `• ${measureText}${ingredient.trim()}\n`;
       }
     }
     recipeText += '\n';
 
-    // Add instructions
+    // Add structured instructions
     recipeText += 'Instructions:\n';
-    if (recipe.strInstructions) {
-      // Split instructions by periods or new lines and number them
-      const instructions = recipe.strInstructions
-        .split(/\.|(?:\r?\n)+/)
-        .map(inst => inst.trim())
-        .filter(inst => inst.length > 0);
-      
-      instructions.forEach((instruction, index) => {
-        recipeText += `${index + 1}. ${instruction}\n`;
-      });
-    }
+    const structuredInstructions = parseInstructions(recipe.strInstructions);
+    structuredInstructions.forEach((instruction, index) => {
+      recipeText += `${index + 1}. ${instruction}\n`;
+    });
 
     // Add YouTube link if available
     if (recipe.strYoutube) {
@@ -178,7 +276,12 @@ const RecipeScreen = ({ navigation }) => {
           },
           {
             text: "Log In",
-            onPress: () => navi.navigate("LandingPage"),
+            onPress: () => {
+              // Close the current modal first
+              setModalVisible(false);
+              // Navigate to landing page and trigger login modal
+              navigation.navigate("LandingPage", { openLoginModal: true });
+            },
           },
         ]);
         return;
@@ -190,18 +293,14 @@ const RecipeScreen = ({ navigation }) => {
       const recipeText = convertRecipeToText(recipe);
       await saveRecipeToFirebase(recipeText);
 
-      // Show success message
+      // Show simple success message
       Alert.alert(
         "Recipe Saved!",
-        "Recipe saved successfully! You can view it in My Recipes.",
+        "Your recipe has been saved successfully.",
         [
           {
-            text: "View Now",
-            onPress: () => navigation.navigate("MyRecipes"),
-          },
-          {
-            text: "Continue Browsing",
-            style: "cancel",
+            text: "OK",
+            style: "default",
           },
         ]
       );
@@ -216,7 +315,12 @@ const RecipeScreen = ({ navigation }) => {
           },
           {
             text: "Log In",
-            onPress: () => navigate.navigate("LandingPage"),
+            onPress: () => {
+              // Close the current modal first
+              setModalVisible(false);
+              // Navigate to landing page and trigger login modal
+              navigation.navigate("LandingPage", { openLoginModal: true });
+            },
           },
         ]);
       } else {
@@ -275,7 +379,7 @@ const RecipeScreen = ({ navigation }) => {
         const recipe = data.meals[0];
         const ingredients = [];
         
-        // Extract ingredients and measurements
+        // Extract ingredients and measurements with US conversions
         for (let i = 1; i <= 20; i++) {
           const ingredient = recipe[`strIngredient${i}`];
           const measure = recipe[`strMeasure${i}`];
@@ -283,12 +387,19 @@ const RecipeScreen = ({ navigation }) => {
           if (ingredient && ingredient.trim()) {
             ingredients.push({
               ingredient,
-              measure: measure || ''
+              measure: convertToUSMeasurements(measure, ingredient) || ''
             });
           }
         }
         
-        setSelectedRecipe({ ...recipe, ingredients });
+        // Parse instructions
+        const structuredInstructions = parseInstructions(recipe.strInstructions);
+        
+        setSelectedRecipe({
+          ...recipe,
+          ingredients,
+          structuredInstructions
+        });
         setModalVisible(true);
       }
     } catch (error) {
@@ -408,9 +519,16 @@ const RecipeScreen = ({ navigation }) => {
               {/* Instructions Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Instructions</Text>
-                <Text style={styles.instructionsText}>
-                  {selectedRecipe.strInstructions}
-                </Text>
+                <View style={styles.instructionsContainer}>
+                  {selectedRecipe.structuredInstructions.map((instruction, index) => (
+                    <View key={index} style={styles.instructionStep}>
+                      <View style={styles.stepNumber}>
+                        <Text style={styles.stepNumberText}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.instructionText}>{instruction}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
 
               {/* Video Button */}
@@ -775,7 +893,35 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     fontWeight: '500',
   },
-  instructionsText: {
+  instructionsContainer: {
+    gap: 16,
+  },
+  instructionStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#008b8b',
+  },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#008b8b',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    marginTop: 2,
+  },
+  stepNumberText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  instructionText: {
+    flex: 1,
     fontSize: 16,
     lineHeight: 24,
     color: '#2c3e50',

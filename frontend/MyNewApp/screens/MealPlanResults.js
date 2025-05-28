@@ -233,14 +233,15 @@ export default function MealPlanResults() {
       
       if (!trimmedLine || trimmedLine === title) continue;
 
-      // Timing information - be more flexible
-      if (trimmedLine.toLowerCase().includes('preparation') ||
-          trimmedLine.toLowerCase().includes('cooking') ||
-          trimmedLine.toLowerCase().includes('servings') ||
-          trimmedLine.toLowerCase().includes('prep') ||
-          trimmedLine.toLowerCase().includes('cook') ||
-          trimmedLine.match(/\d+\s*min/i) ||
-          trimmedLine.match(/\d+\s*hour/i)) {
+      // Timing information - be more specific and precise
+      if ((trimmedLine.toLowerCase().includes('preparation') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
+          (trimmedLine.toLowerCase().includes('cooking') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
+          (trimmedLine.toLowerCase().includes('servings') && trimmedLine.match(/\d+/)) ||
+          (trimmedLine.toLowerCase().startsWith('prep') && trimmedLine.match(/\d+\s*min/i)) ||
+          (trimmedLine.toLowerCase().startsWith('cook') && trimmedLine.match(/\d+\s*min/i)) ||
+          (trimmedLine.match(/^(prep|cook|preparation|cooking).*time.*\d+/i)) ||
+          (trimmedLine.match(/^servings?\s*:\s*\d+/i)) ||
+          (trimmedLine.match(/^\d+\s*(minute|hour|serving)/i) && !trimmedLine.match(/^\d+\.\s/))) {
         timings.push(trimmedLine);
       }
       // Ingredients (bullet points or dashes)
@@ -701,7 +702,7 @@ export default function MealPlanResults() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'white',
   },
 
   // Loading State

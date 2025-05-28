@@ -11,48 +11,53 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
-  TouchableWithoutFeedback,
+  StatusBar,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchMealPlans } from "../utils/api";
 import { useNavigation } from "@react-navigation/native";
+import { BlurView } from "expo-blur";
+
+const { width, height } = Dimensions.get("window");
 
 export default function MealPlans() {
   const navigation = useNavigation();
 
   // Core state
   const [days, setDays] = useState(7);
-  const [caloriesPerDay, setCaloriesPerDay] = useState(2000); // Default to 2000 calories
+  const [caloriesPerDay, setCaloriesPerDay] = useState(2000);
   const [mealsPerDay, setMealsPerDay] = useState(3);
   const [healthy, setHealthy] = useState(false);
   const [allergies, setAllergies] = useState([]);
   const [dietType, setDietType] = useState("");
 
   // Modal states
-  const [dietTypeModalVisible, setDietTypeModalVisible] = useState(false);
-  const [allergyModalVisible, setAllergyModalVisible] = useState(false);
+  const [showDietTypeModal, setShowDietTypeModal] = useState(false);
+  const [showAllergyModal, setShowAllergyModal] = useState(false);
+  const [showCustomDietInput, setShowCustomDietInput] = useState(false);
+  const [customDietInput, setCustomDietInput] = useState("");
   const [newAllergy, setNewAllergy] = useState("");
 
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
 
+  // Animation
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const customDietInputRef = useRef(null);
+
   // Diet type options
   const predefinedDietTypes = [
-    { id: "custom", label: "Custom...", value: "" },
-    { id: "keto", label: "Keto", value: "Keto" },
-    { id: "paleo", label: "Paleo", value: "Paleo" },
-    { id: "vegan", label: "Vegan", value: "Vegan" },
-    { id: "vegetarian", label: "Vegetarian", value: "Vegetarian" },
-    { id: "lowCarb", label: "Low Carb", value: "Low Carb" },
-    { id: "glutenFree", label: "Gluten Free", value: "Gluten Free" },
+    { id: "keto", label: "Keto", value: "Keto", icon: "nutrition", color: "#ff6b35" },
+    { id: "paleo", label: "Paleo", value: "Paleo", icon: "leaf", color: "#34c759" },
+    { id: "vegan", label: "Vegan", value: "Vegan", icon: "leaf-outline", color: "#30d158" },
+    { id: "vegetarian", label: "Vegetarian", value: "Vegetarian", icon: "flower", color: "#32d74b" },
+    { id: "lowCarb", label: "Low Carb", value: "Low Carb", icon: "barbell", color: "#007aff" },
+    { id: "glutenFree", label: "Gluten Free", value: "Gluten Free", icon: "checkmark-circle", color: "#5856d6" },
   ];
-
-  // Selected diet type state with custom input handling
-  const [selectedDietTypeId, setSelectedDietTypeId] = useState("");
-  const [customDietType, setCustomDietType] = useState("");
-  const customDietTypeRef = useRef("");
 
   const loadingTexts = [
     "Planning your perfect menu...",
@@ -61,21 +66,20 @@ export default function MealPlans() {
     "Adding variety to your diet...",
     "Calculating nutritional balance...",
     "Personalizing your meal plan...",
-    "Making healthy choices...",
     "Creating delicious combinations...",
-    "Designing your food journey...",
-    "Adding finishing touches...",
-    "Balancing proteins and carbs...",
-    "Selecting fresh ingredients...",
     "Optimizing your nutrition...",
-    "Customizing portion sizes...",
-    "Planning prep schedules...",
-    "Matching your preferences...",
-    "Creating shopping lists...",
-    "Timing your meals perfectly...",
     "Building healthy habits...",
     "Finalizing your week ahead...",
   ];
+
+  useEffect(() => {
+    // Animate in on mount
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   useEffect(() => {
     if (isLoading) {
@@ -83,35 +87,76 @@ export default function MealPlans() {
       const textInterval = setInterval(() => {
         setLoadingText(loadingTexts[currentIndex]);
         currentIndex = (currentIndex + 1) % loadingTexts.length;
-      }, 1200);
-
+      }, 1500);
       return () => clearInterval(textInterval);
     }
   }, [isLoading]);
 
-  const handleDietTypeSelect = (id, value) => {
-    setSelectedDietTypeId(id);
-    if (id === "custom") {
-      setCustomDietType(dietType || "");
-    } else {
-      setDietType(value);
-      setCustomDietType("");
-      setDietTypeModalVisible(false);
+  // Modal handlers
+  const openDietTypeModal = () => {
+    setShowDietTypeModal(true);
+    setShowCustomDietInput(false);
+    setCustomDietInput("");
+  };
+
+  const closeDietTypeModal = () => {
+    setShowDietTypeModal(false);
+    setShowCustomDietInput(false);
+    setCustomDietInput("");
+  };
+
+  const selectPredefinedDiet = (value) => {
+    setDietType(value);
+    closeDietTypeModal();
+  };
+
+  const openCustomDietInput = () => {
+    setShowCustomDietInput(true);
+    setTimeout(() => {
+      if (customDietInputRef.current) {
+        customDietInputRef.current.focus();
+      }
+    }, 300);
+  };
+
+  const confirmCustomDiet = () => {
+    if (customDietInput.trim()) {
+      setDietType(customDietInput.trim());
+      closeDietTypeModal();
     }
   };
 
-  const handleCustomDietTypeSubmit = () => {
-    const trimmedValue = customDietTypeRef.current.trim();
-    if (trimmedValue) {
-      setDietType(trimmedValue);
-      setCustomDietType(trimmedValue);
-      setDietTypeModalVisible(false);
+  const cancelCustomDietInput = () => {
+    setShowCustomDietInput(false);
+    setCustomDietInput("");
+  };
+
+  // Allergy handlers
+  const openAllergyModal = () => {
+    setShowAllergyModal(true);
+    setNewAllergy("");
+  };
+
+  const closeAllergyModal = () => {
+    setShowAllergyModal(false);
+    setNewAllergy("");
+  };
+
+  const addAllergy = () => {
+    const trimmed = newAllergy.trim();
+    if (trimmed && !allergies.includes(trimmed)) {
+      setAllergies([...allergies, trimmed]);
+      closeAllergyModal();
     }
   };
 
+  const removeAllergy = (allergyToRemove) => {
+    setAllergies(allergies.filter((allergy) => allergy !== allergyToRemove));
+  };
+
+  // Submit handler
   const handleSubmit = async () => {
     setIsLoading(true);
-
     try {
       const mealPlan = await fetchMealPlans(
         days,
@@ -119,7 +164,7 @@ export default function MealPlans() {
         healthy,
         allergies,
         [dietType],
-        caloriesPerDay // Add this parameter
+        caloriesPerDay
       );
 
       navigation.navigate("MealPlanResults", {
@@ -138,840 +183,973 @@ export default function MealPlans() {
     }
   };
 
-  const addAllergy = () => {
-    if (newAllergy.trim() && !allergies.includes(newAllergy.trim())) {
-      setAllergies([...allergies, newAllergy.trim()]);
-      setNewAllergy("");
-    }
+  const getHealthyDescription = () => {
+    return healthy
+      ? "Focusing on nutritious, balanced meals with fresh ingredients"
+      : "Including all meal types from comfort food to gourmet";
   };
 
-  const removeAllergy = (allergyToRemove) => {
-    setAllergies(allergies.filter((allergy) => allergy !== allergyToRemove));
-  };
-
-  // Show loading screen
+  // Loading screen
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#008b8b" />
-        <Text style={styles.loadingText}>{loadingText}</Text>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.8)" />
+        <BlurView intensity={90} style={styles.loadingOverlay}>
+          <View style={styles.loadingContent}>
+            <View style={styles.loadingAnimation}>
+              <View style={styles.loadingIconWrapper}>
+                <Ionicons name="calendar" size={40} color="#008b8b" />
+              </View>
+              <ActivityIndicator size="large" color="#008b8b" style={styles.spinner} />
+            </View>
+            <Text style={styles.loadingText}>{loadingText}</Text>
+            <Text style={styles.loadingSubtext}>Creating your personalized meal plan</Text>
+          </View>
+        </BlurView>
+      </View>
     );
   }
 
-  // Duration selector component
-  const DurationSelector = ({ value, onChange, min, max, label }) => (
-    <View style={styles.durationSelector}>
-      <Text style={styles.durationLabel}>{label}</Text>
-      <View style={styles.durationControls}>
+  // Counter Component
+  const Counter = ({ label, value, onChange, min, max, unit = "", description }) => (
+    <View style={styles.counterContainer}>
+      <View style={styles.counterHeader}>
+        <Text style={styles.counterLabel}>{label}</Text>
+        {description && <Text style={styles.counterDescription}>{description}</Text>}
+      </View>
+      <View style={styles.counterControls}>
         <TouchableOpacity
-          style={styles.durationButton}
-          onPress={() => onChange(Math.max(min, value - 1))}
+          style={[styles.counterButton, value <= min && styles.counterButtonDisabled]}
+          onPress={() => onChange(Math.max(min, value - (label === "Daily Calories" ? 100 : 1)))}
           disabled={value <= min}
+          activeOpacity={0.7}
         >
-          <Ionicons name="remove" size={24} color="#008b8b" />
+          <Ionicons name="remove" size={20} color={value <= min ? "#c7c7cc" : "#008b8b"} />
         </TouchableOpacity>
-        <Text style={styles.durationValue}>{value}</Text>
+        
+        <View style={styles.counterValueContainer}>
+          <Text style={styles.counterValue}>{value}</Text>
+          {unit && <Text style={styles.counterUnit}>{unit}</Text>}
+        </View>
+        
         <TouchableOpacity
-          style={styles.durationButton}
-          onPress={() => onChange(Math.min(max, value + 1))}
+          style={[styles.counterButton, value >= max && styles.counterButtonDisabled]}
+          onPress={() => onChange(Math.min(max, value + (label === "Daily Calories" ? 100 : 1)))}
           disabled={value >= max}
+          activeOpacity={0.7}
         >
-          <Ionicons name="add" size={24} color="#008b8b" />
+          <Ionicons name="add" size={20} color={value >= max ? "#c7c7cc" : "#008b8b"} />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  // Diet Type Modal Component
-  const DietTypeModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={dietTypeModalVisible}
-      onRequestClose={() => setDietTypeModalVisible(false)}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.modalOverlay}
-      >
-        <TouchableWithoutFeedback
-          onPress={() => setDietTypeModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity
-                    style={styles.modalCloseButton}
-                    onPress={() => setDietTypeModalVisible(false)}
-                  >
-                    <Ionicons name="close" size={24} color="#2c3e50" />
-                  </TouchableOpacity>
-                  <Text style={styles.modalTitle}>Choose Diet Type</Text>
-                  <View style={styles.modalCloseButton} />
-                </View>
-
-                <ScrollView
-                  style={styles.modalBody}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <Text style={styles.modalSubtitle}>
-                    Select a diet type or create your own
-                  </Text>
-
-                  <View style={styles.quickSelectGrid}>
-                    {predefinedDietTypes
-                      .filter((type) => type.id !== "custom")
-                      .map((type) => (
-                        <TouchableOpacity
-                          key={type.id}
-                          style={[
-                            styles.quickSelectButton,
-                            selectedDietTypeId === type.id &&
-                              styles.quickSelectButtonSelected,
-                          ]}
-                          onPress={() =>
-                            handleDietTypeSelect(type.id, type.value)
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.quickSelectText,
-                              selectedDietTypeId === type.id &&
-                                styles.quickSelectTextSelected,
-                            ]}
-                          >
-                            {type.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                  </View>
-
-                  <View style={styles.customInputSection}>
-                    <Text style={styles.customInputLabel}>
-                      Or type your own
-                    </Text>
-                    <View style={styles.customInputWrapper}>
-                      <TextInput
-                        style={styles.customInput}
-                        defaultValue={customDietTypeRef.current}
-                        onChangeText={(text) => {
-                          customDietTypeRef.current = text;
-                          setSelectedDietTypeId("custom");
-                        }}
-                        placeholder="e.g., Low FODMAP, Pescatarian..."
-                        placeholderTextColor="#a0a0a0"
-                        returnKeyType="done"
-                      />
-                      <TouchableOpacity
-                        style={[
-                          styles.customConfirmButton,
-                          !customDietTypeRef.current?.trim() &&
-                            styles.buttonDisabled,
-                        ]}
-                        onPress={handleCustomDietTypeSubmit}
-                        disabled={!customDietTypeRef.current?.trim()}
-                      >
-                        <Ionicons name="checkmark" size={24} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f2f2f7" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#008b8b" />
         </TouchableOpacity>
-        <View style={styles.header}>
-          <Text style={styles.title}>Create Meal Plan</Text>
-          <Text style={styles.subtitle}>
-            Plan your perfect menu for the week
-          </Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Meal Plan Builder</Text>
+          <Text style={styles.headerSubtitle}>Plan your perfect week of meals</Text>
         </View>
+        <View style={{ width: 44 }} />
+      </View>
 
-        {/* Duration Selection */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Plan Duration</Text>
-          <DurationSelector
-            value={days}
-            onChange={setDays}
-            min={1}
-            max={7}
-            label="Days"
-          />
-          <DurationSelector
-            value={mealsPerDay}
-            onChange={setMealsPerDay}
-            min={1}
-            max={5}
-            label="Meals per Day"
-          />
-        </View>
-
-        {/* calorie selector */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Daily Calories</Text>
-          <View style={styles.calorieSelector}>
-            <TouchableOpacity
-              style={styles.calorieButton}
-              onPress={() =>
-                setCaloriesPerDay(Math.max(1000, caloriesPerDay - 100))
-              }
-            >
-              <Ionicons name="remove" size={24} color="#008b8b" />
-            </TouchableOpacity>
-            <View style={styles.calorieInputContainer}>
-              <TextInput
-                style={styles.calorieInput}
-                value={caloriesPerDay.toString()}
-                onChangeText={(text) => {
-                  const value = parseInt(text) || 1000;
-                  setCaloriesPerDay(Math.min(Math.max(value, 1000), 5000));
-                }}
-                keyboardType="numeric"
-                maxLength={4}
-              />
-              <Text style={styles.calorieUnit}>cal</Text>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <View style={styles.heroIconContainer}>
+              <Ionicons name="calendar-outline" size={32} color="#008b8b" />
             </View>
-            <TouchableOpacity
-              style={styles.calorieButton}
-              onPress={() =>
-                setCaloriesPerDay(Math.min(5000, caloriesPerDay + 100))
-              }
-            >
-              <Ionicons name="add" size={24} color="#008b8b" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.calorieDescription}>
-            Target calories per day. Range: 1000-5000 cal
-          </Text>
-        </View>
-
-        {/* Diet Type Selection */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Diet Type</Text>
-          <TouchableOpacity
-            style={styles.inputContainer}
-            onPress={() => setDietTypeModalVisible(true)}
-          >
-            <Text style={[styles.input, !dietType && styles.inputPlaceholder]}>
-              {dietType || "Select or type diet type"}
+            <Text style={styles.heroTitle}>Plan your perfect week</Text>
+            <Text style={styles.heroSubtitle}>
+              Create a personalized meal plan that fits your lifestyle, dietary needs, and nutritional goals
             </Text>
-            <Ionicons name="chevron-down" size={24} color="#008b8b" />
-          </TouchableOpacity>
-        </View>
-        <DietTypeModal />
+          </View>
 
-        {/* Healthy Switch */}
-        <View style={styles.card}>
-          <View style={styles.switchContainer}>
-            <View>
-              <Text style={styles.sectionTitle}>Healthy Options</Text>
-              <Text style={styles.description}>
-                {healthy
-                  ? "Focusing on nutritious, balanced meals"
-                  : "Including all recipe types"}
-              </Text>
+          {/* Plan Settings Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIcon}>
+                <Ionicons name="settings" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.cardTitle}>Plan Settings</Text>
             </View>
-            <Switch
-              value={healthy}
-              onValueChange={setHealthy}
-              trackColor={{ false: "#e0e0e0", true: "#b2dfdb" }}
-              thumbColor={healthy ? "#008b8b" : "#f4f3f4"}
-              ios_backgroundColor="#e0e0e0"
+
+            <Counter
+              label="Plan Duration"
+              value={days}
+              onChange={setDays}
+              min={1}
+              max={7}
+              unit={days === 1 ? "day" : "days"}
+              description="How many days to plan for"
+            />
+
+            <Counter
+              label="Meals Per Day"
+              value={mealsPerDay}
+              onChange={setMealsPerDay}
+              min={1}
+              max={4}
+              unit={mealsPerDay === 1 ? "meal" : "meals"}
+              description="Number of meals each day"
+            />
+
+            <Counter
+              label="Daily Calories"
+              value={caloriesPerDay}
+              onChange={setCaloriesPerDay}
+              min={1000}
+              max={5000}
+              unit="cal"
+              description="Target calories per day"
             />
           </View>
-        </View>
 
-        {/* Allergies Section */}
-        <View style={styles.card}>
-          <View style={styles.allergyHeader}>
-            <Text style={styles.sectionTitle}>Dietary Restrictions</Text>
+          {/* Diet Type Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIcon}>
+                <Ionicons name="leaf" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.cardTitle}>Diet Type</Text>
+            </View>
+            
             <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setAllergyModalVisible(true)}
+              style={styles.selector}
+              onPress={openDietTypeModal}
+              activeOpacity={0.7}
             >
-              <Ionicons name="add-circle" size={24} color="#008b8b" />
+              <Text style={[
+                styles.selectorText,
+                !dietType && styles.selectorPlaceholder
+              ]}>
+                {dietType || "Choose your diet preference"}
+              </Text>
+              <View style={styles.selectorArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#008b8b" />
+              </View>
             </TouchableOpacity>
           </View>
 
-          {allergies.length > 0 ? (
-            <View style={styles.allergyChipsContainer}>
-              {allergies.map((allergy, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.allergyChip}
-                  onPress={() => removeAllergy(allergy)}
-                >
-                  <Text style={styles.allergyChipText}>{allergy}</Text>
-                  <Ionicons name="close-circle" size={18} color="#008b8b" />
-                </TouchableOpacity>
-              ))}
+          {/* Healthy Focus Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIcon}>
+                <Ionicons name="heart" size={20} color="#008b8b" />
+              </View>
+              <View style={styles.switchContent}>
+                <Text style={styles.cardTitle}>Healthy Focus</Text>
+                <Text style={styles.cardDescription}>{getHealthyDescription()}</Text>
+              </View>
+              <Switch
+                value={healthy}
+                onValueChange={setHealthy}
+                trackColor={{ false: "#e5e5ea", true: "#34c759" }}
+                thumbColor={healthy ? "#ffffff" : "#ffffff"}
+                ios_backgroundColor="#e5e5ea"
+              />
             </View>
-          ) : (
-            <Text style={styles.placeholderText}>
-              Tap + to add any dietary restrictions
-            </Text>
-          )}
-        </View>
+          </View>
 
-        {/* Generate Plan Button */}
-        <TouchableOpacity
-          style={[styles.generateButton, isLoading && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={isLoading}
-        >
-          <Ionicons name="calendar" size={24} color="white" />
-          <Text style={styles.buttonText}>Generate Meal Plan</Text>
-        </TouchableOpacity>
+          {/* Dietary Restrictions Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIcon}>
+                <Ionicons name="shield-checkmark" size={20} color="#008b8b" />
+              </View>
+              <Text style={styles.cardTitle}>Dietary Restrictions</Text>
+              <TouchableOpacity style={styles.addButton} onPress={openAllergyModal}>
+                <Ionicons name="add" size={20} color="#008b8b" />
+              </TouchableOpacity>
+            </View>
 
-        {/* Allergy Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={allergyModalVisible}
-          onRequestClose={() => setAllergyModalVisible(false)}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalOverlay}
+            {allergies.length > 0 ? (
+              <View style={styles.tagsContainer}>
+                {allergies.map((allergy, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.tag}
+                    onPress={() => removeAllergy(allergy)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.tagText}>{allergy}</Text>
+                    <Ionicons name="close" size={16} color="#008b8b" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="add-circle-outline" size={24} color="#c7c7cc" />
+                <Text style={styles.emptyStateText}>No restrictions added</Text>
+                <Text style={styles.emptyStateSubtext}>Tap + to add dietary restrictions</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Generate Button */}
+          <TouchableOpacity
+            style={[styles.generateButton, isLoading && styles.generateButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={isLoading}
+            activeOpacity={0.8}
           >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity
-                  style={styles.modalCloseButton}
-                  onPress={() => setAllergyModalVisible(false)}
-                >
-                  <Ionicons name="close" size={24} color="#2c3e50" />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>Add Dietary Restriction</Text>
-                <View style={styles.modalCloseButton} />
-              </View>
+            <Ionicons name="calendar" size={24} color="white" />
+            <Text style={styles.generateButtonText}>Create My Meal Plan</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </Animated.View>
 
-              <View style={styles.allergyModalBody}>
-                <Text style={styles.modalSubtitle}>
-                  Enter any food allergies or dietary restrictions
-                </Text>
-                <TextInput
-                  style={[styles.modalInput, styles.allergyInput]}
-                  value={newAllergy}
-                  onChangeText={setNewAllergy}
-                  placeholder="e.g., Peanuts, Dairy, Gluten"
-                  placeholderTextColor="#a0a0a0"
-                  autoFocus
-                />
-              </View>
-
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  style={[
-                    styles.modalAddButton,
-                    !newAllergy.trim() && styles.buttonDisabled,
-                  ]}
-                  onPress={() => {
-                    addAllergy();
-                    setAllergyModalVisible(false);
-                  }}
-                  disabled={!newAllergy.trim()}
-                >
-                  <Text style={styles.modalAddText}>Add Restriction</Text>
-                </TouchableOpacity>
-              </View>
+      {/* Diet Type Modal */}
+      <Modal
+        visible={showDietTypeModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeDietTypeModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choose Diet Type</Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={closeDietTypeModal}>
+                <Ionicons name="close" size={24} color="#8e8e93" />
+              </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
-        </Modal>
-      </ScrollView>
+
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {!showCustomDietInput ? (
+                <>
+                  <Text style={styles.modalSubtitle}>
+                    Select a diet type that matches your lifestyle
+                  </Text>
+
+                  {/* Predefined Diet Types */}
+                  <View style={styles.dietTypesGrid}>
+                    {predefinedDietTypes.map((diet) => (
+                      <TouchableOpacity
+                        key={diet.id}
+                        style={styles.dietTypeCard}
+                        onPress={() => selectPredefinedDiet(diet.value)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.dietTypeIcon, { backgroundColor: `${diet.color}15` }]}>
+                          <Ionicons name={diet.icon} size={24} color={diet.color} />
+                        </View>
+                        <Text style={styles.dietTypeText}>{diet.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Custom Diet Type Trigger */}
+                  <TouchableOpacity style={styles.customTrigger} onPress={openCustomDietInput}>
+                    <View style={styles.customTriggerIcon}>
+                      <Ionicons name="create-outline" size={24} color="#008b8b" />
+                    </View>
+                    <View style={styles.customTriggerContent}>
+                      <Text style={styles.customTriggerTitle}>Custom Diet Type</Text>
+                      <Text style={styles.customTriggerSubtitle}>Create your own diet category</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                /* Custom Diet Input Mode */
+                <View style={styles.customInputSection}>
+                  <View style={styles.customInputHeader}>
+                    <TouchableOpacity onPress={cancelCustomDietInput}>
+                      <Ionicons name="chevron-back" size={24} color="#008b8b" />
+                    </TouchableOpacity>
+                    <Text style={styles.customInputTitle}>Custom Diet Type</Text>
+                    <View style={{ width: 24 }} />
+                  </View>
+
+                  <Text style={styles.customInputLabel}>What's your diet preference?</Text>
+                  
+                  <TextInput
+                    ref={customDietInputRef}
+                    style={styles.customTextInput}
+                    value={customDietInput}
+                    onChangeText={setCustomDietInput}
+                    placeholder="e.g., Low FODMAP, Pescatarian, Intermittent Fasting..."
+                    placeholderTextColor="#c7c7cc"
+                    returnKeyType="done"
+                    onSubmitEditing={confirmCustomDiet}
+                    autoCapitalize="words"
+                  />
+
+                  <View style={styles.customInputActions}>
+                    <TouchableOpacity
+                      style={styles.customCancelButton}
+                      onPress={cancelCustomDietInput}
+                    >
+                      <Text style={styles.customCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.customConfirmButton,
+                        !customDietInput.trim() && styles.customConfirmButtonDisabled
+                      ]}
+                      onPress={confirmCustomDiet}
+                      disabled={!customDietInput.trim()}
+                    >
+                      <Text style={[
+                        styles.customConfirmText,
+                        !customDietInput.trim() && styles.customConfirmTextDisabled
+                      ]}>
+                        Use This
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Allergy Modal */}
+      <Modal
+        visible={showAllergyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeAllergyModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.allergyModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Restriction</Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={closeAllergyModal}>
+                <Ionicons name="close" size={24} color="#8e8e93" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.allergyModalContent}>
+              <Text style={styles.allergyInputLabel}>
+                Enter any allergies or dietary preferences
+              </Text>
+              
+              <TextInput
+                style={styles.allergyTextInput}
+                value={newAllergy}
+                onChangeText={setNewAllergy}
+                placeholder="e.g., Peanuts, Dairy, Gluten, Shellfish"
+                placeholderTextColor="#c7c7cc"
+                returnKeyType="done"
+                onSubmitEditing={addAllergy}
+                autoFocus={true}
+                autoCapitalize="words"
+              />
+
+              <TouchableOpacity
+                style={[
+                  styles.allergyAddButton,
+                  !newAllergy.trim() && styles.allergyAddButtonDisabled
+                ]}
+                onPress={addAllergy}
+                disabled={!newAllergy.trim()}
+              >
+                <Ionicons name="add" size={20} color="white" />
+                <Text style={styles.allergyAddButtonText}>Add Restriction</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  // Base Layout
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
   container: {
-    flexGrow: 1,
-    padding: 20,
-  },
-  loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f2f2f7",
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#008b8b',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-
-  // Header Styles
+  
+  // Header
   header: {
-    marginBottom: 32,
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)", // Soft glassmorphic effect
-    paddingTop: Platform.OS === "ios" ? 50 : 40,
-    paddingBottom: 18,
+    backgroundColor: 'white',
     paddingHorizontal: 20,
-    borderBottomWidth: 0,
-    borderRadius: 20,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 4, // For Android shadow
-    backdropFilter: "blur(10px)", // Works with some libraries for blur effect
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e5ea',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   backButton: {
-    padding: 4,
-    marginRight: 310,
-    marginBottom: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f2f2f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1c1c1e',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
   },
 
-  title: {
-    fontSize: 34,
-    marginTop: -31,
-    fontWeight: "800",
-    color: "black", // Deep blue for a premium look
-    textAlign: "center",
-    textTransform: "capitalize",
-    letterSpacing: 0.2,
+  // Content
+  content: {
+    flex: 1,
   },
-
-  subtitle: {
-    fontSize: 17,
-    fontWeight: "400",
-    color: "#008b8b", // Subtle contrast for hierarchy
-    textAlign: "center",
-    maxWidth: "80%",
-    lineHeight: 22,
-    marginTop: 22,
-    marginBottom: -10,
-    opacity: 0.9,
-    fontStyle: "italic",
-  },
-
-  headerAccent: {
-    height: 5,
-    width: "55%",
-    backgroundColor: "linear-gradient(90deg, #00c6ff, #0072ff)", // Gradient effect
-    borderRadius: 50,
-    marginTop: 10,
-  },
-
-  // Card Styles
-  card: {
-    backgroundColor: "white",
-    borderRadius: 20,
+  scrollContent: {
     padding: 20,
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
+    paddingBottom: 40,
+  },
+
+  // Hero Section
+  heroSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingVertical: 20,
+  },
+  heroIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1c1c1e',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    fontSize: 16,
+    color: '#8e8e93',
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+
+  // Cards
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
       },
       android: {
-        elevation: 4,
+        elevation: 2,
       },
     }),
   },
-
-  // Duration Selector Styles
-  durationSelector: {
-    marginBottom: 16,
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  durationLabel: {
+  cardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
     fontSize: 16,
-    color: "#2c3e50",
+    fontWeight: '600',
+    color: '#1c1c1e',
+    flex: 1,
+  },
+  cardDescription: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  switchContent: {
+    flex: 1,
+  },
+
+  // Counter Component
+  counterContainer: {
+    marginTop: 16,
     marginBottom: 8,
   },
-  durationControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
+  counterHeader: {
+    marginBottom: 12,
+  },
+  counterLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1c1c1e',
+  },
+  counterDescription: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
+  },
+  counterControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
     padding: 8,
   },
-  durationButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: "#e6f3f3",
-  },
-  durationValue: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#2c3e50",
-    width: 50,
-    textAlign: "center",
-  },
-  calorieSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  calorieButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: "#e6f3f3",
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  calorieInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    paddingHorizontal: 16,
-    flex: 1,
-    marginHorizontal: 12,
-  },
-  calorieInput: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#2c3e50",
-    paddingVertical: 8,
-    textAlign: "center",
-  },
-  calorieUnit: {
-    fontSize: 16,
-    color: "#7f8c8d",
-    marginLeft: 8,
-  },
-  calorieDescription: {
-    fontSize: 14,
-    color: "#7f8c8d",
-    marginTop: 8,
-    textAlign: "center",
-  },
-
-  // Input Styles
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    borderRadius: 16,
-    backgroundColor: "#f8f9fa",
-    paddingHorizontal: 20,
-    marginTop: 8,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 16,
-    fontSize: 17,
-    color: "#2c3e50",
-  },
-  inputPlaceholder: {
-    color: "#a0a0a0",
-  },
-
-  // Modal Base Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "85%",
+  counterButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
       },
       android: {
-        elevation: 8,
+        elevation: 1,
+      },
+    }),
+  },
+  counterButtonDisabled: {
+    backgroundColor: '#f2f2f7',
+  },
+  counterValueContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  counterValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1c1c1e',
+  },
+  counterUnit: {
+    fontSize: 14,
+    color: '#8e8e93',
+    marginLeft: 4,
+  },
+
+  // Selector
+  selector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  selectorText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1c1c1e',
+    fontWeight: '500',
+  },
+  selectorPlaceholder: {
+    color: '#8e8e93',
+    fontWeight: '400',
+  },
+  selectorArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Add Button
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Tags
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  tagText: {
+    fontSize: 14,
+    color: '#008b8b',
+    fontWeight: '500',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    color: '#8e8e93',
+    fontWeight: '500',
+    marginTop: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 13,
+    color: '#c7c7cc',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  // Generate Button
+  generateButton: {
+    backgroundColor: '#008b8b',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 8,
+    marginTop: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  generateButtonDisabled: {
+    opacity: 0.6,
+  },
+  generateButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: 'white',
+  },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#f2f2f7',
+  },
+  loadingOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    marginHorizontal: 40,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  loadingAnimation: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingIconWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  spinner: {
+    transform: [{ scale: 1.2 }],
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#008b8b',
+    textAlign: 'center',
+    marginBottom: 8,
+    minHeight: 22,
+    lineHeight: 22,
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    color: '#8e8e93',
+    textAlign: 'center',
+  },
+
+  // Modal Base
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -5 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 10,
       },
     }),
   },
   modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: '#f2f2f7',
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#2c3e50",
-    textAlign: "center",
-    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1c1c1e',
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f2f2f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    padding: 20,
   },
   modalSubtitle: {
     fontSize: 16,
-    color: "#7f8c8d",
-    marginBottom: 24,
-    textAlign: "center",
-    paddingHorizontal: 20,
-    lineHeight: 22,
-  },
-  modalCloseButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalBody: {
-    padding: 20,
+    color: '#8e8e93',
+    marginBottom: 20,
+    textAlign: 'center',
   },
 
-  // Diet Type Selection Styles
-  quickSelectGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  // Diet Types Grid
+  dietTypesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    marginBottom: 24,
   },
-  quickSelectButton: {
-    width: "47%",
-    backgroundColor: "#f8f9fa",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+  dietTypeCard: {
+    width: (width - 64) / 2,
+    backgroundColor: '#f2f2f7',
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    alignItems: "center",
+    padding: 16,
+    alignItems: 'center',
+  },
+  dietTypeIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  quickSelectButtonSelected: {
-    backgroundColor: "#e6f3f3",
-    borderColor: "#008b8b",
-  },
-  quickSelectText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
-  },
-  quickSelectTextSelected: {
-    color: "#008b8b",
-    fontWeight: "700",
+  dietTypeText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1c1c1e',
+    textAlign: 'center',
   },
 
-  // Section Styles
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginBottom: 12,
-  },
-  description: {
-    fontSize: 15,
-    color: "#7f8c8d",
-    marginTop: 4,
-    lineHeight: 20,
-  },
-  switchContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 4,
-  },
-
-  // Allergy Section Styles
-  allergyHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  addButton: {
-    padding: 8,
-    marginRight: -8,
-  },
-  allergyChipsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  allergyChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#e6f3f3",
-    borderRadius: 24,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "#008b8b20",
-  },
-  allergyChipText: {
-    color: "#008b8b",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  placeholderText: {
-    color: "#a0a0a0",
-    fontSize: 15,
-    fontStyle: "italic",
-    textAlign: "center",
-    marginTop: 8,
-  },
-
-  // Button Styles
-  generateButton: {
-    backgroundColor: "#008b8b",
+  // Custom Diet Input
+  customTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f2f2f7',
     borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-    marginTop: 12,
-    marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    padding: 16,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  customTriggerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
-  buttonText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "700",
+  customTriggerContent: {
+    flex: 1,
+  },
+  customTriggerTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#1c1c1e',
+  },
+  customTriggerSubtitle: {
+    fontSize: 13,
+    color: '#8e8e93',
+    marginTop: 2,
   },
 
-  // Custom Input Section Styles
+  // Custom Input Section
   customInputSection: {
-    marginTop: 16,
-    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  customInputHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  customInputTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1c1c1e',
+    flex: 1,
+    textAlign: 'center',
   },
   customInputLabel: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#2c3e50",
+    fontSize: 16,
+    color: '#1c1c1e',
     marginBottom: 12,
   },
-  customInputWrapper: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  customInput: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
+  customTextInput: {
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    color: "#2c3e50",
+    color: '#1c1c1e',
+    marginBottom: 20,
+  },
+  customInputActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  customCancelButton: {
+    flex: 1,
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  customCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#8e8e93',
   },
   customConfirmButton: {
-    backgroundColor: "#008b8b",
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    flex: 1,
+    backgroundColor: '#008b8b',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  customConfirmButtonDisabled: {
+    backgroundColor: '#c7c7cc',
+  },
+  customConfirmText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'white',
+  },
+  customConfirmTextDisabled: {
+    color: '#8e8e93',
   },
 
-  // Modal Input & Button Styles
-  modalInput: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 17,
-    borderWidth: 2,
-    borderColor: "#f0f0f0",
-    color: "#2c3e50",
+  // Allergy Modal
+  allergyModalContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.5,
   },
-  modalAddButton: {
-    backgroundColor: "#008b8b",
-    padding: 18,
-    borderRadius: 16,
-    alignItems: "center",
-    margin: 20,
-    marginTop: 0,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  modalAddText: {
-    color: "white",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-  allergyModalBody: {
+  allergyModalContent: {
     padding: 20,
   },
-  allergyInput: {
-    marginBottom: 16,
+  allergyInputLabel: {
+    fontSize: 16,
+    color: '#1c1c1e',
+    marginBottom: 12,
   },
-  modalFooter: {
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+  allergyTextInput: {
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1c1c1e',
+    marginBottom: 20,
+  },
+  allergyAddButton: {
+    backgroundColor: '#008b8b',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  allergyAddButtonDisabled: {
+    backgroundColor: '#c7c7cc',
+  },
+  allergyAddButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: 'white',
   },
 });

@@ -15,14 +15,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authService } from "../services/auth";
-import {
-  getCurrentUser,
-  saveRecipe,
-  removeRecipe,
-  removeMealPlan,
-  getSavedRecipes,
-  checkPremiumStatus,
-} from "../services/authService";
 
 const { width } = Dimensions.get("window");
 
@@ -84,14 +76,25 @@ export default function MyRecipesScreen({ navigation }) {
     navigation.navigate("MealPlanDetail", { mealPlan });
   };
 
-  const handleDelete = (item,type) => {
-    if (type == "recipe") {
-      removeRecipe(item)
-
-    } else {
-      removeMealPlan(item)
+  const handleDelete = async (item, type) => {
+    try {
+      if (type === "recipe") {
+        await authService.removeRecipe(item.id);
+        // Update local state to remove the deleted recipe
+        setRecipes(prevRecipes => prevRecipes.filter(recipe => recipe.id !== item.id));
+        Alert.alert("Success", "Recipe removed successfully!");
+      } else {
+        await authService.removeMealPlan(item.id);
+        // Update local state to remove the deleted meal plan
+        setMealPlans(prevMealPlans => prevMealPlans.filter(plan => plan.id !== item.id));
+        Alert.alert("Success", "Meal plan removed successfully!");
+      }
+    } catch (error) {
+      console.error(`Error deleting ${type}:`, error);
+      Alert.alert("Error", `Failed to remove ${type}. Please try again.`);
     }
-  } 
+  };
+
   const renderRecipeItem = ({ item }) => (
     <TouchableOpacity
       style={styles.recipeCard}
@@ -145,7 +148,7 @@ export default function MyRecipesScreen({ navigation }) {
               { text: "Cancel", style: "cancel" },
               {
                 text: "Remove",
-                onPress: () => handleDelete(item.id, "recipe"),
+                onPress: () => handleDelete(item, "recipe"),
                 style: "destructive",
               },
             ]
@@ -210,7 +213,7 @@ export default function MyRecipesScreen({ navigation }) {
               { text: "Cancel", style: "cancel" },
               {
                 text: "Remove",
-                onPress: () => handleDelete(item.id, "mealPlan"),
+                onPress: () => handleDelete(item, "mealPlan"),
                 style: "destructive",
               },
             ]

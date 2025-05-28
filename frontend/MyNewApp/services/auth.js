@@ -7,7 +7,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig"; // Import from the centralized file
 
 export const authService = {
@@ -171,25 +171,32 @@ export const authService = {
       const user = auth.currentUser;
       if (!user) throw new Error("User not logged in");
 
+      // Ensure recipe has an ID
+      if (!recipeData.id) {
+        recipeData.id = `recipe_${Date.now()}`;
+      }
+
+      // Add saved timestamp
+      recipeData.savedAt = new Date().toISOString();
+
       const userRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userRef);
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        // Check if recipe already exists
         const savedRecipes = userData.savedRecipes || [];
         const recipeExists = savedRecipes.some(
           (recipe) => recipe.id === recipeData.id
         );
 
         if (!recipeExists) {
-          savedRecipes.push(recipeData);
+          // Using arrayUnion for Firestore
           await updateDoc(userRef, {
-            savedRecipes: savedRecipes,
+            savedRecipes: arrayUnion(recipeData),
           });
         }
 
-        return savedRecipes;
+        return await this.getSavedRecipes();
       } else {
         throw new Error("User document does not exist");
       }
@@ -211,6 +218,110 @@ export const authService = {
       return [];
     } catch (error) {
       console.error("Error getting saved recipes:", error);
+      throw error;
+    }
+  },
+
+  async removeRecipe(recipeId) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const savedRecipes = userData.savedRecipes || [];
+
+        const recipeToRemove = savedRecipes.find(
+          (recipe) => recipe.id === recipeId
+        );
+
+        if (recipeToRemove) {
+          await updateDoc(userRef, {
+            savedRecipes: arrayRemove(recipeToRemove),
+          });
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error removing recipe:", error);
+      throw error;
+    }
+  },
+
+  // Meal plan operations
+  async saveMealPlan(mealPlanData) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      // Ensure meal plan has an ID
+      if (!mealPlanData.id) {
+        mealPlanData.id = `mealplan_${Date.now()}`;
+      }
+
+      // Add saved timestamp
+      mealPlanData.savedAt = new Date().toISOString();
+
+      const userRef = doc(db, "users", user.uid);
+
+      // Using arrayUnion for Firestore
+      await updateDoc(userRef, {
+        mealPlans: arrayUnion(mealPlanData),
+      });
+
+      return await this.getMealPlans();
+    } catch (error) {
+      console.error("Error saving meal plan:", error);
+      throw error;
+    }
+  },
+
+  async getMealPlans() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        return userDoc.data().mealPlans || [];
+      }
+      return [];
+    } catch (error) {
+      console.error("Error getting meal plans:", error);
+      throw error;
+    }
+  },
+
+  async removeMealPlan(mealPlanId) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const mealPlans = userData.mealPlans || [];
+
+        const mealPlanToRemove = mealPlans.find(
+          (plan) => plan.id === mealPlanId
+        );
+
+        if (mealPlanToRemove) {
+          await updateDoc(userRef, {
+            mealPlans: arrayRemove(mealPlanToRemove),
+          });
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error removing meal plan:", error);
       throw error;
     }
   },
