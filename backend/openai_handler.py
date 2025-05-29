@@ -155,7 +155,7 @@ class RecipeGenerator:
             print(f"❌ Error saving meal plan recipes: {str(e)}")
     
     def _extract_titles_from_meal_plan(self, meal_plan_content):
-        """Extract all recipe titles from a meal plan - IMPROVED LOGIC"""
+        """IMPROVED title extraction with better parsing"""
         if not meal_plan_content:
             print("⚠️ No meal plan content to extract titles from")
             return []
@@ -165,53 +165,69 @@ class RecipeGenerator:
         
         print(f"🔍 Processing {len(lines)} lines to extract titles...")
         
-        expecting_title = False
-        
-        for i, line in enumerate(lines):
-            line = line.strip()
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
             
             # Skip empty lines
             if not line:
+                i += 1
                 continue
             
-            # After seeing "Day X", the next non-empty line should be a title
+            # If we find a "Day X" line, look for recipes after it
             if line.startswith('Day '):
-                expecting_title = True
-                continue
-            
-            # After seeing "=====", we might get another title
-            if line.startswith('====='):
-                expecting_title = True
-                continue
-            
-            # If we're expecting a title, check if this line looks like one
-            if expecting_title:
-                if (len(line) > 3 and len(line) < 100 and
-                    not line.startswith('•') and
-                    not line.startswith('Preparation') and
-                    not line.startswith('Cooking') and
-                    not line.startswith('Instructions') and
-                    not line.startswith('Nutritional') and
-                    not line.startswith('Calories') and
-                    not line.startswith('Protein') and
-                    not re.match(r'^\d+\.', line) and
-                    ':' not in line[:15] and  # Avoid "Preparation Time:" etc
-                    not any(word in line.lower() for word in ['minutes', 'servings', 'cups', 'tablespoons', 'heat', 'cook', 'add', 'mix', 'stir'])):
+                print(f"📅 Found {line}")
+                i += 1
+                
+                # Look for recipe titles after the day marker
+                while i < len(lines):
+                    line = lines[i].strip()
+                    i += 1
                     
-                    titles.append(line)
-                    print(f"📝 Extracted title #{len(titles)}: '{line}'")
-                    expecting_title = False
+                    # Skip empty lines
+                    if not line:
+                        continue
+                    
+                    # If we hit another "Day" line, break to outer loop
+                    if line.startswith('Day '):
+                        i -= 1  # Back up to process this day line
+                        break
+                    
+                    # If this looks like a recipe title
+                    if (len(line) > 3 and len(line) < 100 and
+                        not line.startswith('•') and
+                        not line.startswith('Preparation') and
+                        not line.startswith('Cooking') and
+                        not line.startswith('Instructions') and
+                        not line.startswith('Nutritional') and
+                        not line.startswith('Calories') and
+                        not line.startswith('Protein') and
+                        not line.startswith('=====') and
+                        not re.match(r'^\d+\.', line) and
+                        'minutes' not in line.lower() and
+                        'servings' not in line.lower() and
+                        ':' not in line[:20]):  # Avoid "Preparation Time:" etc
+                        
+                        titles.append(line)
+                        print(f"📝 Extracted title #{len(titles)}: '{line}'")
+                        
+                        # Skip to next separator or day
+                        while i < len(lines) and not lines[i].strip().startswith('=====') and not lines[i].strip().startswith('Day '):
+                            i += 1
+            else:
+                i += 1
         
         print(f"✅ Total titles extracted: {len(titles)}")
         return titles
     
-    def _make_meal_plan_request(self, system_prompt, user_prompt, max_retries=2):
-        """Make meal plan request with retry logic and better error handling"""
+    def _make_meal_plan_request_with_validation(self, system_prompt, user_prompt, expected_recipes, max_retries=3):
+        """Make meal plan request with validation to ensure complete generation"""
         
         for attempt in range(max_retries):
             try:
                 print(f"🤖 OpenAI meal plan request - Attempt {attempt + 1}/{max_retries}")
                 print(f"📏 Prompt length: {len(user_prompt)} characters")
+                print(f"🎯 Expecting {expected_recipes} recipes")
                 
                 response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -219,33 +235,43 @@ class RecipeGenerator:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    temperature=0.8,  # Balanced for consistency and creativity
-                    max_tokens=4000,  # Reduced to prevent timeouts
-                    top_p=0.85,      # Balanced
-                    timeout=150       # 2.5 minutes
+                    temperature=0.7,  # Lower for more consistent format following
+                    max_tokens=4000,  # Adequate for full meal plans
+                    top_p=0.8,       # More focused
+                    timeout=180      # 3 minutes
                 )
                 
                 content = response.choices[0].message.content
-                if content and len(content.strip()) > 200:  # Minimum viable meal plan
+                if not content or len(content.strip()) < 500:
+                    print(f"⚠️ Response too short: {len(content) if content else 0} characters")
+                    continue
+                    
+                # Quick validation - count recipe separators
+                separator_count = content.count("=====")
+                print(f"📊 Found {separator_count} recipe separators (expecting ~{expected_recipes})")
+                
+                # If we have at least half the expected recipes, consider it acceptable
+                if separator_count >= expected_recipes // 2:
                     print(f"✅ Received meal plan content ({len(content)} characters)")
                     return content.strip()
                 else:
-                    print(f"⚠️ Response too short: {len(content) if content else 0} characters")
+                    print(f"⚠️ Too few recipes generated: {separator_count} separators, expected ~{expected_recipes}")
+                    # Continue to retry
                     
             except Exception as e:
                 print(f"❌ Attempt {attempt + 1} failed: {str(e)}")
-                if attempt < max_retries - 1:
-                    sleep_time = (attempt + 1) * 3  # 3s, 6s backoff
-                    print(f"⏱️ Waiting {sleep_time}s before retry...")
-                    sleep(sleep_time)
-                else:
-                    print(f"❌ All attempts failed. Last error: {str(e)}")
-                    
+                
+            if attempt < max_retries - 1:
+                sleep_time = (attempt + 1) * 3  # 3s, 6s, 9s backoff
+                print(f"⏱️ Waiting {sleep_time}s before retry...")
+                sleep(sleep_time)
+        
+        print(f"❌ All attempts failed to generate complete meal plan")
         return None
 
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, user_id=None):
         """FIXED meal plan generation - ensures all recipes are generated"""
-    
+        
         print(f"\n🚀 STARTING MEAL PLAN GENERATION")
         print(f"   📊 Parameters: {days} days, {meals_per_day} meals/day, {calories_per_day} cal/day")
         print(f"   👤 User ID: {user_id}")
@@ -275,87 +301,87 @@ class RecipeGenerator:
         # ENHANCED system prompt - more explicit about requirements
         system_prompt = f"""You are a meal planning expert. You MUST create a complete {days}-day meal plan with exactly {meals_per_day} meals per day.
 
-    CRITICAL REQUIREMENTS:
-    1. Generate EXACTLY {days} days
-    2. Each day MUST have EXACTLY {meals_per_day} complete recipes
-    3. Total recipes required: {expected_recipes}
-    4. Each recipe MUST be complete with all sections
-    5. Target {calories_per_day} calories per day total
+CRITICAL REQUIREMENTS:
+1. Generate EXACTLY {days} days
+2. Each day MUST have EXACTLY {meals_per_day} complete recipes
+3. Total recipes required: {expected_recipes}
+4. Each recipe MUST be complete with all sections
+5. Target {calories_per_day} calories per day total
 
-    MANDATORY FORMAT FOR EACH DAY:
-    Day 1
+MANDATORY FORMAT FOR EACH DAY:
+Day 1
 
-    [RECIPE 1 TITLE]
+[RECIPE 1 TITLE]
 
-    Preparation Time: X minutes
-    Cooking Time: X minutes
-    Servings: X
+Preparation Time: X minutes
+Cooking Time: X minutes
+Servings: X
 
-    • Ingredient 1
-    • Ingredient 2
-    • Ingredient 3
+• Ingredient 1
+• Ingredient 2
+• Ingredient 3
 
-    Instructions:
-    1. Step one
-    2. Step two
-    3. Step three
+Instructions:
+1. Step one
+2. Step two
+3. Step three
 
-    Nutritional Information:
-    Calories: X
-    Protein: Xg
-    Carbs: Xg
-    Fat: Xg
+Nutritional Information:
+Calories: X
+Protein: Xg
+Carbs: Xg
+Fat: Xg
 
-    =====
+=====
 
-    [RECIPE 2 TITLE]
+[RECIPE 2 TITLE]
 
-    Preparation Time: X minutes
-    Cooking Time: X minutes
-    Servings: X
+Preparation Time: X minutes
+Cooking Time: X minutes
+Servings: X
 
-    • Ingredient 1
-    • Ingredient 2
+• Ingredient 1
+• Ingredient 2
 
-    Instructions:
-    1. Step one
-    2. Step two
+Instructions:
+1. Step one
+2. Step two
 
-    Nutritional Information:
-    Calories: X
-    Protein: Xg
-    Carbs: Xg
-    Fat: Xg
+Nutritional Information:
+Calories: X
+Protein: Xg
+Carbs: Xg
+Fat: Xg
 
-    =====
+=====
 
-    [RECIPE 3 TITLE]
+[RECIPE 3 TITLE]
 
-    (... continue for all {meals_per_day} meals)
+(... continue for all {meals_per_day} meals)
 
-    =====
+=====
 
-    Day 2
+Day 2
 
-    [RECIPE 1 TITLE]
-    (... continue for all days)
+[RECIPE 1 TITLE]
+(... continue for all days)
 
-    CRITICAL RULES:
-    - You MUST generate {expected_recipes} complete recipes total
-    - Every recipe needs: title, times, ingredients with •, numbered instructions, nutrition
-    - Use different cuisines: Italian, Mexican, Asian, Mediterranean, Indian, etc.
-    - Never repeat recipes
-    - Separate each recipe with exactly "====="
-    - Recipe titles must be descriptive and unique"""
+CRITICAL RULES:
+- You MUST generate {expected_recipes} complete recipes total
+- Every recipe needs: title, times, ingredients with •, numbered instructions, nutrition
+- Use different cuisines: Italian, Mexican, Asian, Mediterranean, Indian, etc.
+- Never repeat recipes
+- Separate each recipe with exactly "====="
+- Recipe titles must be descriptive and unique"""
         
         # Build user prompt with explicit requirements
         prompt = f"""Create a complete {days}-day meal plan with {meals_per_day} meals per day.
 
-    REQUIREMENTS:
-    - EXACTLY {expected_recipes} different recipes total
-    - Target {calories_per_day} calories per day
-    - Use diverse cuisines and cooking methods
-    - Each recipe must be complete with all sections"""
+REQUIREMENTS:
+- EXACTLY {expected_recipes} different recipes total
+- Target {calories_per_day} calories per day
+- Use diverse cuisines and cooking methods
+- Each recipe must be complete with all sections"""
         
         # Only include TITLE exclusions to save tokens
         if excluded_titles:
@@ -406,121 +432,6 @@ class RecipeGenerator:
                 print(f"⚠️ Title extraction/saving failed: {e}")
         
         return meal_plan_content
-
-def _make_meal_plan_request_with_validation(self, system_prompt, user_prompt, expected_recipes, max_retries=3):
-    """Make meal plan request with validation to ensure complete generation"""
-    
-    for attempt in range(max_retries):
-        try:
-            print(f"🤖 OpenAI meal plan request - Attempt {attempt + 1}/{max_retries}")
-            print(f"📏 Prompt length: {len(user_prompt)} characters")
-            print(f"🎯 Expecting {expected_recipes} recipes")
-            
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.7,  # Lower for more consistent format following
-                max_tokens=4000,  # Adequate for full meal plans
-                top_p=0.8,       # More focused
-                timeout=180      # 3 minutes
-            )
-            
-            content = response.choices[0].message.content
-            if not content or len(content.strip()) < 500:
-                print(f"⚠️ Response too short: {len(content) if content else 0} characters")
-                continue
-                
-            # Quick validation - count recipe separators
-            separator_count = content.count("=====")
-            print(f"📊 Found {separator_count} recipe separators (expecting ~{expected_recipes})")
-            
-            # If we have at least half the expected recipes, consider it acceptable
-            if separator_count >= expected_recipes // 2:
-                print(f"✅ Received meal plan content ({len(content)} characters)")
-                return content.strip()
-            else:
-                print(f"⚠️ Too few recipes generated: {separator_count} separators, expected ~{expected_recipes}")
-                # Continue to retry
-                
-        except Exception as e:
-            print(f"❌ Attempt {attempt + 1} failed: {str(e)}")
-            
-        if attempt < max_retries - 1:
-            sleep_time = (attempt + 1) * 3  # 3s, 6s, 9s backoff
-            print(f"⏱️ Waiting {sleep_time}s before retry...")
-            sleep(sleep_time)
-    
-    print(f"❌ All attempts failed to generate complete meal plan")
-    return None
-
-def _extract_titles_from_meal_plan(self, meal_plan_content):
-    """IMPROVED title extraction with better parsing"""
-    if not meal_plan_content:
-        print("⚠️ No meal plan content to extract titles from")
-        return []
-        
-    titles = []
-    lines = meal_plan_content.split('\n')
-    
-    print(f"🔍 Processing {len(lines)} lines to extract titles...")
-    
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        
-        # Skip empty lines
-        if not line:
-            i += 1
-            continue
-        
-        # If we find a "Day X" line, look for recipes after it
-        if line.startswith('Day '):
-            print(f"📅 Found {line}")
-            i += 1
-            
-            # Look for recipe titles after the day marker
-            while i < len(lines):
-                line = lines[i].strip()
-                i += 1
-                
-                # Skip empty lines
-                if not line:
-                    continue
-                
-                # If we hit another "Day" line, break to outer loop
-                if line.startswith('Day '):
-                    i -= 1  # Back up to process this day line
-                    break
-                
-                # If this looks like a recipe title
-                if (len(line) > 3 and len(line) < 100 and
-                    not line.startswith('•') and
-                    not line.startswith('Preparation') and
-                    not line.startswith('Cooking') and
-                    not line.startswith('Instructions') and
-                    not line.startswith('Nutritional') and
-                    not line.startswith('Calories') and
-                    not line.startswith('Protein') and
-                    not line.startswith('=====') and
-                    not re.match(r'^\d+\.', line) and
-                    'minutes' not in line.lower() and
-                    'servings' not in line.lower() and
-                    ':' not in line[:20]):  # Avoid "Preparation Time:" etc
-                    
-                    titles.append(line)
-                    print(f"📝 Extracted title #{len(titles)}: '{line}'")
-                    
-                    # Skip to next separator or day
-                    while i < len(lines) and not lines[i].strip().startswith('=====') and not lines[i].strip().startswith('Day '):
-                        i += 1
-        else:
-            i += 1
-    
-    print(f"✅ Total titles extracted: {len(titles)}")
-    return titles
     
     # Keep all your existing methods for individual recipes
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
