@@ -125,9 +125,19 @@ def get_meal_plan():
     try:
         if not request.is_json:
             return jsonify({
-                "Error": "Response Content-Type must be application/json"}), 400
+                "Error": "Response Content-Type must be application/json"
+            }), 400
 
         data = request.json
+        
+        # Extract user_id from request - REQUIRED for meal plans
+        user_id = data.get("user_id")
+        if not user_id:
+            return jsonify({
+                "Error": "user_id is required for personalized meal plans"
+            }), 400
+        
+        # Existing parameter validation
         days = min(max(int(data.get("days", 7)), 1), 14)
         meals_per_day = min(max(int(data.get("meals_per_day", 3)), 1), 5)
         healthy = bool(data.get("healthy", False))
@@ -135,17 +145,21 @@ def get_meal_plan():
         preferences = list(set(preference.lower().strip() for preference in data.get("preferences", [])))
         calories_per_day = min(max(int(data.get("calories_per_day", 2000)), 1000), 5000)
 
+        # Generate meal plan with user_id for duplicate prevention
         meal_plan = recipe_generator.generate_meal_plan(
             days=days,
             meals_per_day=meals_per_day,
             healthy=healthy,
             allergies=allergies,
             preferences=preferences,
-            calories_per_day=calories_per_day
+            calories_per_day=calories_per_day,
+            user_id=user_id  # Pass user_id to prevent duplicates
         )
 
         if not meal_plan:
-            return jsonify({"Error": "No meal plan could be generated. Please try again."}), 404
+            return jsonify({
+                "Error": "No meal plan could be generated. Please try again."
+            }), 404
 
         return jsonify({
             "success": True,

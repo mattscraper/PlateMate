@@ -178,22 +178,29 @@ export default function ResultsIngredientsScreen({ route }) {
     return timeMatch ? timeMatch[0] : "30 min";
   };
 
-  const extractMacros = (recipeText) => {
-    if (!recipeText) return { calories: "250", protein: "15g", carbs: "30g", fat: "8g" };
-    
-    // Try to extract macros from the text
-    const caloriesMatch = recipeText.match(/(\d+)\s*calories/i);
-    const proteinMatch = recipeText.match(/(\d+)\s*g?\s*protein/i);
-    const carbsMatch = recipeText.match(/(\d+)\s*g?\s*carb/i);
-    const fatMatch = recipeText.match(/(\d+)\s*g?\s*fat/i);
-    
-    return {
-      calories: caloriesMatch ? caloriesMatch[1] : Math.floor(Math.random() * 200) + 200,
-      protein: proteinMatch ? `${proteinMatch[1]}g` : `${Math.floor(Math.random() * 15) + 10}g`,
-      carbs: carbsMatch ? `${carbsMatch[1]}g` : `${Math.floor(Math.random() * 25) + 20}g`,
-      fat: fatMatch ? `${fatMatch[1]}g` : `${Math.floor(Math.random() * 10) + 5}g`,
+    const extractMacros = (recipeText) => {
+      if (!recipeText) return { calories: "250", protein: "15g", carbs: "30g", fat: "8g" };
+
+      // Regex patterns
+      const caloriesMatch = recipeText.match(/(\d{2,4})\s*(?:k?cal(?:ories)?)\b/i);
+      const proteinMatch = recipeText.match(/(\d{1,3})\s*(?:g\s*)?(?:protein)\b/i);
+      const carbsMatch = recipeText.match(/(\d{1,3})\s*(?:g\s*)?(?:carb(?:s)?)/i);
+      const fatMatch = recipeText.match(/(\d{1,3})\s*(?:g\s*)?(?:fat)\b/i);
+
+      // Helper to validate numeric range
+      const safeGrams = (val, min = 0, max = 100) => {
+        const num = parseInt(val, 10);
+        return (num >= min && num <= max) ? `${num}g` : `${Math.floor(Math.random() * (max - min + 1)) + min}g`;
+      };
+
+      return {
+        calories: caloriesMatch ? caloriesMatch[1] : `${Math.floor(Math.random() * 201) + 200}`,
+        protein: proteinMatch ? safeGrams(proteinMatch[1], 5, 50) : `${Math.floor(Math.random() * 15) + 10}g`,
+        carbs: carbsMatch ? safeGrams(carbsMatch[1], 10, 100) : `${Math.floor(Math.random() * 25) + 20}g`,
+        fat: fatMatch ? safeGrams(fatMatch[1], 3, 40) : `${Math.floor(Math.random() * 10) + 5}g`,
+      };
     };
-  };
+
 
   const extractDifficulty = (recipeText) => {
     if (!recipeText) return "Easy";
