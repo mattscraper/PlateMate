@@ -489,7 +489,7 @@ Next Recipe Title
         - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "="
         - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
         - Numbered instructions(specific)
-        - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK 
+        - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK make sure this is accurate!
         - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
         5. Separate each recipe with ===== on its own line and leave space below for title!
         6. No bold letters or asterisks
