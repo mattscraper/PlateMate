@@ -130,12 +130,8 @@ def get_meal_plan():
 
         data = request.json
         
-        # Extract user_id from request - REQUIRED for meal plans
-        user_id = data.get("user_id")
-        if not user_id:
-            return jsonify({
-                "Error": "user_id is required for personalized meal plans"
-            }), 400
+        
+       
         
         # Existing parameter validation
         days = min(max(int(data.get("days", 7)), 1), 14)
@@ -153,7 +149,7 @@ def get_meal_plan():
             allergies=allergies,
             preferences=preferences,
             calories_per_day=calories_per_day,
-            user_id=user_id  # Pass user_id to prevent duplicates
+            
         )
 
         if not meal_plan:
