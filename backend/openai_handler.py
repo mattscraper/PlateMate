@@ -745,8 +745,8 @@ Next Recipe Title
                 ],
                 temperature=0.9,  # Higher temperature for more variety
                 max_tokens=4050,
-                top_p=0.9,  # Higher for more creativity
-                timeout=80
+                top_p=0.7,  # Higher for more creativity
+                timeout=120
             )
 
             meal_plan_content = response.choices[0].message.content.strip()

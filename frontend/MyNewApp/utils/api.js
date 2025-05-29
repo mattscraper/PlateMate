@@ -1,3 +1,4 @@
+import { authService } from '../services/auth';
 const API_URL = "https://platemate-6.onrender.com"; // make sure this is changed during production to backends url
 
 // Helper function to get current user ID
