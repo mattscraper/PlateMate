@@ -5,8 +5,8 @@ import random
 from time import sleep
 from dotenv import load_dotenv
 import re
-import hashlib  # Add this import
-from datetime import datetime, timedelta  # Add these imports
+import hashlib
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -89,83 +89,283 @@ class RecipeGenerator:
             
             conn.commit()
             conn.close()
+            print("✅ Meal plan history table initialized")
             
         except Exception as e:
-            print(f"Error initializing meal plan history table: {str(e)}")
+            print(f"❌ Error initializing meal plan history table: {str(e)}")
     
     def _get_user_meal_plan_recipes(self, user_id, days_back=100):
-        """Get recipes user has seen in meal plans in the last 100 days"""
+        """Get recipes user has seen in meal plans in the last 100 days - TITLES ONLY"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Get meal plan recipes from last 100 days
+            # Get meal plan recipes from last 100 days - LIMIT to prevent token overflow
             cutoff_date = datetime.now() - timedelta(days=days_back)
             cursor.execute('''
                 SELECT DISTINCT recipe_title 
                 FROM meal_plan_history 
                 WHERE user_id = ? AND created_at > ?
                 ORDER BY created_at DESC
+                LIMIT 30
             ''', (user_id, cutoff_date))
             
             recent_recipes = [row[0] for row in cursor.fetchall()]
             conn.close()
             
-            print(f"Found {len(recent_recipes)} recipes in user's meal plan history (last {days_back} days)")
+            print(f"📊 Found {len(recent_recipes)} recent recipe TITLES for user {user_id}")
+            if recent_recipes:
+                print(f"🚫 Sample excluded titles: {recent_recipes[:3]}...")
+            
             return recent_recipes
             
         except Exception as e:
-            print(f"Error getting user meal plan history: {str(e)}")
+            print(f"❌ Error getting user meal plan history: {str(e)}")
             return []
     
     def _save_meal_plan_recipes(self, user_id, recipe_titles, meal_plan_id):
-        """Save meal plan recipes to history"""
+        """Save meal plan recipes to history - TITLES ONLY"""
         try:
+            if not recipe_titles:
+                print("⚠️ No recipe titles to save")
+                return
+            
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            saved_count = 0
             for title in recipe_titles:
-                cursor.execute('''
-                    INSERT INTO meal_plan_history (user_id, recipe_title, meal_plan_id)
-                    VALUES (?, ?, ?)
-                ''', (user_id, title, meal_plan_id))
+                if title and len(title.strip()) > 2:  # Only save valid titles
+                    try:
+                        cursor.execute('''
+                            INSERT INTO meal_plan_history (user_id, recipe_title, meal_plan_id)
+                            VALUES (?, ?, ?)
+                        ''', (user_id, title.strip(), meal_plan_id))
+                        saved_count += 1
+                    except Exception as e:
+                        print(f"⚠️ Error saving title '{title}': {e}")
+                        continue
             
             conn.commit()
             conn.close()
             
-            print(f"Saved {len(recipe_titles)} recipes to meal plan history for user {user_id}")
+            print(f"✅ Saved {saved_count} recipe titles to history for user {user_id}")
             
         except Exception as e:
-            print(f"Error saving meal plan recipes: {str(e)}")
+            print(f"❌ Error saving meal plan recipes: {str(e)}")
     
     def _extract_titles_from_meal_plan(self, meal_plan_content):
-        """Extract all recipe titles from a meal plan for history tracking"""
+        """Extract all recipe titles from a meal plan - IMPROVED LOGIC"""
+        if not meal_plan_content:
+            print("⚠️ No meal plan content to extract titles from")
+            return []
+            
         titles = []
         lines = meal_plan_content.split('\n')
         
-        for line in lines:
-            line = line.strip()
-            # Look for lines that are recipe titles
-            if (line and
-                not line.startswith('Day ') and
-                not line.startswith('•') and
-                not line.startswith('Preparation') and
-                not line.startswith('Instructions') and
-                not line.startswith('Nutritional') and
-                not line.startswith('Calories') and
-                not line.startswith('Protein') and
-                not line.startswith('=====') and
-                not line.isdigit() and
-                not re.match(r'^\d+\.', line) and
-                len(line) < 80 and
-                not any(word in line.lower() for word in ['minutes', 'servings', 'heat', 'cook', 'add', 'mix', 'stir'])):
-                titles.append(line)
+        print(f"🔍 Processing {len(lines)} lines to extract titles...")
         
-        return titles
+        expecting_title = False
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
             
+            # Skip empty lines
+            if not line:
+                continue
+            
+            # After seeing "Day X", the next non-empty line should be a title
+            if line.startswith('Day '):
+                expecting_title = True
+                continue
+            
+            # After seeing "=====", we might get another title
+            if line.startswith('====='):
+                expecting_title = True
+                continue
+            
+            # If we're expecting a title, check if this line looks like one
+            if expecting_title:
+                if (len(line) > 3 and len(line) < 100 and
+                    not line.startswith('•') and
+                    not line.startswith('Preparation') and
+                    not line.startswith('Cooking') and
+                    not line.startswith('Instructions') and
+                    not line.startswith('Nutritional') and
+                    not line.startswith('Calories') and
+                    not line.startswith('Protein') and
+                    not re.match(r'^\d+\.', line) and
+                    ':' not in line[:15] and  # Avoid "Preparation Time:" etc
+                    not any(word in line.lower() for word in ['minutes', 'servings', 'cups', 'tablespoons', 'heat', 'cook', 'add', 'mix', 'stir'])):
+                    
+                    titles.append(line)
+                    print(f"📝 Extracted title #{len(titles)}: '{line}'")
+                    expecting_title = False
+        
+        print(f"✅ Total titles extracted: {len(titles)}")
+        return titles
+    
+    def _make_meal_plan_request(self, system_prompt, user_prompt, max_retries=2):
+        """Make meal plan request with retry logic and better error handling"""
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"🤖 OpenAI meal plan request - Attempt {attempt + 1}/{max_retries}")
+                print(f"📏 Prompt length: {len(user_prompt)} characters")
+                
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.8,  # Balanced for consistency and creativity
+                    max_tokens=4000,  # Reduced to prevent timeouts
+                    top_p=0.85,      # Balanced
+                    timeout=150       # 2.5 minutes
+                )
+                
+                content = response.choices[0].message.content
+                if content and len(content.strip()) > 200:  # Minimum viable meal plan
+                    print(f"✅ Received meal plan content ({len(content)} characters)")
+                    return content.strip()
+                else:
+                    print(f"⚠️ Response too short: {len(content) if content else 0} characters")
+                    
+            except Exception as e:
+                print(f"❌ Attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:
+                    sleep_time = (attempt + 1) * 3  # 3s, 6s backoff
+                    print(f"⏱️ Waiting {sleep_time}s before retry...")
+                    sleep(sleep_time)
+                else:
+                    print(f"❌ All attempts failed. Last error: {str(e)}")
+                    
+        return None
+
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, user_id=None):
+        """OPTIMIZED meal plan generation - using titles only to prevent token overflow"""
+        
+        print(f"\n🚀 STARTING MEAL PLAN GENERATION")
+        print(f"   📊 Parameters: {days} days, {meals_per_day} meals/day, {calories_per_day} cal/day")
+        print(f"   👤 User ID: {user_id}")
+        print(f"   🥗 Healthy: {healthy}, Allergies: {allergies}, Preferences: {preferences}")
+        
+        # Input validation
+        if not isinstance(days, int) or days < 1 or days > 14:
+            print(f"❌ Invalid days parameter: {days}")
+            return None
+        if not isinstance(meals_per_day, int) or meals_per_day < 1 or meals_per_day > 5:
+            print(f"❌ Invalid meals_per_day parameter: {meals_per_day}")
+            return None
+        
+        # Get user's recent recipe TITLES (not full recipes)
+        excluded_titles = []
+        if user_id:
+            excluded_titles = self._get_user_meal_plan_recipes(user_id, days_back=100)
+        
+        # Generate unique meal plan ID for tracking
+        meal_plan_id = hashlib.md5(f"{user_id}_{datetime.now().isoformat()}".encode()).hexdigest()[:8]
+        print(f"🆔 Meal plan ID: {meal_plan_id}")
+        
+        # SIMPLIFIED system prompt for better reliability
+        system_prompt = f"""You are a meal planning expert. Create a {days}-day meal plan with {meals_per_day} meals per day.
+
+STRICT FORMAT:
+1. Start each day with "Day 1", "Day 2", etc.
+2. Each recipe needs:
+   - Recipe title (creative and descriptive)
+   - Preparation Time: X minutes
+   - Cooking Time: X minutes  
+   - Servings: X
+   - Ingredients (each with • bullet)
+   - Instructions: (numbered 1., 2., 3.)
+   - Nutritional Information (Calories, Protein, Carbs, Fat)
+3. Separate recipes with "====="
+4. Target {calories_per_day} calories per day total
+5. Use different cuisines and cooking methods
+6. Never repeat recipes within the plan
+
+EXAMPLE FORMAT:
+Day 1
+
+Mediterranean Grilled Chicken
+
+Preparation Time: 15 minutes
+Cooking Time: 25 minutes
+Servings: 1
+
+• 1 chicken breast
+• 2 tbsp olive oil
+• 1 tsp oregano
+• Salt and pepper
+
+Instructions:
+1. Season chicken with salt, pepper, and oregano.
+2. Heat olive oil in a pan over medium-high heat.
+3. Cook chicken 6-7 minutes per side until golden.
+4. Let rest 5 minutes before serving.
+
+Nutritional Information:
+Calories: 350
+Protein: 45g
+Carbs: 2g
+Fat: 16g
+
+====="""
+        
+        # Build user prompt - OPTIMIZED to prevent token overflow
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day targeting {calories_per_day} calories per day."
+        
+        # Only include TITLE exclusions to save tokens
+        if excluded_titles:
+            # Limit to most recent 15 titles to prevent token overflow
+            recent_titles = excluded_titles[:15]
+            titles_text = ", ".join(f'"{title}"' for title in recent_titles)
+            prompt += f" IMPORTANT: Create completely different recipes from these recent ones: {titles_text}."
+            print(f"🚫 Excluding {len(recent_titles)} recent titles")
+        
+        # Add other constraints concisely
+        constraints = []
+        if healthy:
+            constraints.append("healthy and nutritious meals")
+        if allergies:
+            allergy_str = ', '.join(allergies) if isinstance(allergies, list) else str(allergies)
+            constraints.append(f"no {allergy_str}")
+        if preferences:
+            pref_str = ', '.join(preferences) if isinstance(preferences, list) else str(preferences)
+            constraints.append(f"consider {pref_str}")
+        
+        if constraints:
+            prompt += f" Requirements: {', '.join(constraints)}."
+        
+        # Make the request
+        meal_plan_content = self._make_meal_plan_request(system_prompt, prompt)
+        
+        if not meal_plan_content:
+            print("❌ MEAL PLAN GENERATION FAILED")
+            return None
+        
+        print("✅ MEAL PLAN GENERATED SUCCESSFULLY")
+        
+        # Extract and save titles (but don't fail if this fails)
+        if user_id:
+            try:
+                recipe_titles = self._extract_titles_from_meal_plan(meal_plan_content)
+                if recipe_titles:
+                    self._save_meal_plan_recipes(user_id, recipe_titles, meal_plan_id)
+                    print(f"💾 Saved {len(recipe_titles)} new titles to history")
+                else:
+                    print("⚠️ No titles extracted - check meal plan format")
+            except Exception as e:
+                print(f"⚠️ Title extraction/saving failed: {e}")
+        
+        return meal_plan_content
+    
+    # Keep all your existing methods for individual recipes
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
-        # If there are allergies, use the original method to generate recipes
-        meal_type_valid = ["breakfast","lunch","dinner","snack","dessert"]  # Fix typo: "dinenr" -> "dinner"
+        """Generate individual recipe ideas"""
+        meal_type_valid = ["breakfast","lunch","dinner","snack","dessert"]
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
@@ -581,7 +781,7 @@ Next Recipe Title
             return []
         
     def get_recipe_ingredients(self, ingredients, allergies, count=5):
-        # This method remains unchanged from the original
+        """Generate recipes from available ingredients"""
         system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
         1. Generate exactly {count} different recipes
         . only generate recipes based on users available ingredients
@@ -652,116 +852,6 @@ Next Recipe Title
         except Exception as e:
             print(f"Error generating recipes: {str(e)}")
             return []
-
-    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, user_id=None):
-        # Get user's meal plan history for the last 100 days
-        excluded_recipes = []
-        if user_id:
-            excluded_recipes = self._get_user_meal_plan_recipes(user_id, days_back=100)
-        
-        # Generate unique meal plan ID for tracking
-        meal_plan_id = hashlib.md5(f"{user_id}_{datetime.now().isoformat()}".encode()).hexdigest()[:8]
-        
-        # Enhanced system prompt with exclusion instructions
-        system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
-
-        1. Generate exactly {days} days with {meals_per_day} meals each day
-        2. NEVER repeat recipes in the plan
-        3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
-        4. Target {calories_per_day} calories per day total
-        5. CRITICAL: Use completely different recipes from different cuisines and cooking styles
-        6. VARIETY REQUIREMENTS:
-           - Use different cuisines across days (Italian, Asian, Mexican, Mediterranean, etc.)
-           - Vary protein sources throughout the plan
-           - Include different cooking methods each day
-           - Mix quick meals (under 30 min) with more elaborate ones
-           - Ensure no repeated ingredients as main components
-
-        EXACT FORMAT FOR EACH DAY:
-        Day X (where X is 1, 2, 3, etc.)
-        
-        [RECIPE TITLE]
-        
-        Preparation Time: X minutes
-        Cooking Time: X minutes  
-        Servings: X
-        
-        • [Ingredient 1]
-        • [Ingredient 2]
-        • [Ingredient 3]
-        
-        Instructions:
-        1. [First step]
-        2. [Second step]
-        3. [Third step]
-        
-        Nutritional Information:
-        Calories: X
-        Protein: Xg
-        Carbs: Xg
-        Fat: Xg
-        
-        =====
-        
-        CRITICAL RULES:
-        - Recipe title MUST be on its own line after meal type
-        - Recipe title CANNOT contain ingredients or measurements
-        - Recipe title CANNOT be "-----" or "====="
-        - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
-        - NEVER put ingredients in the title line
-        - Each meal type: Breakfast, Lunch, Dinner, or Snack
-        - Separate days with ===== ONLY
-        - NO bold text, asterisks, or special formatting
-        - Ingredients MUST start with • symbol
-        - Instructions MUST be numbered 1., 2., 3., etc.
-        """
-
-        # Initialize prompt
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specified calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
-
-        # Add exclusion for recent meal plan recipes (CRITICAL)
-        if excluded_recipes:
-            excluded_text = ", ".join(excluded_recipes[:20])  # Limit for token management
-            prompt += f" CRITICAL REQUIREMENT: Make this meal plan completely different from these recent recipes the user has already seen: {excluded_text}. DO NOT include any of these recipes or similar variations."
-
-        # Handle optional parameters safely
-        if healthy:
-            prompt += " Make all meals healthy and nutritious."
-
-        if allergies:
-            allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-            prompt += f" Ensure all recipes are completely free of: {allergies_list}."
-
-        if preferences:
-            preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
-            prompt += f" Consider these preferences: {preferences_list}."
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.9,  # Higher temperature for more variety
-                max_tokens=4050,
-                top_p=0.7,  # Higher for more creativity
-                timeout=120
-            )
-
-            meal_plan_content = response.choices[0].message.content.strip()
-            
-            # Extract recipe titles from meal plan and save to history
-            if user_id:
-                recipe_titles = self._extract_titles_from_meal_plan(meal_plan_content)
-                if recipe_titles:
-                    self._save_meal_plan_recipes(user_id, recipe_titles, meal_plan_id)
-
-            return meal_plan_content
-
-        except Exception as e:
-            print(f"Error generating meal plan: {str(e)}")
-            return None
     
     # Optional: Clean up old meal plan history
     def clear_old_meal_plan_history(self, user_id, days_to_keep=100):
