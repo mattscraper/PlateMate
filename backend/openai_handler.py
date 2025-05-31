@@ -628,6 +628,7 @@ Next Recipe Title
         2. NEVER repeat recipes in the plan
         3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
         4. Target {calories_per_day} calories per day total
+        5. Make sure ALL recipes are generated! this is the most important part
 
         VARIETY REQUIREMENTS (Seed: {randomness['unique_seed']}):
         - Emphasize {randomness['cuisine_focus']} cuisines for this meal plan
@@ -705,7 +706,7 @@ Next Recipe Title
                 temperature=0.85,  # Higher temperature for more variety
                 max_tokens=4050,
                 top_p=0.9,   # Higher for more diverse output
-                timeout=80
+                timeout=120
             )
 
             result = response.choices[0].message.content.strip()
