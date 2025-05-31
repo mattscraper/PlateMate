@@ -5,8 +5,7 @@ import random
 from time import sleep
 from dotenv import load_dotenv
 import re
-import hashlib
-from datetime import datetime
+import time
 
 # Load environment variables
 load_dotenv()
@@ -60,187 +59,16 @@ class RecipeGenerator:
                 
         except Exception as e:
             print(f"Database error: {str(e)}")
-
-    def _get_diet_specific_constraints(self, diet_type):
-        """Get diet-specific ingredient and protein constraints"""
-        
-        diet_constraints = {
-            "keto": {
-                "proteins": ["salmon", "chicken thighs", "beef", "eggs", "cheese", "avocado", "nuts"],
-                "carb_sources": ["cauliflower", "zucchini", "spinach", "broccoli", "asparagus"],
-                "fats": ["olive oil", "coconut oil", "butter", "heavy cream", "MCT oil"],
-                "forbidden": ["rice", "pasta", "bread", "potatoes", "beans", "quinoa", "oats"]
-            },
-            "low carb": {
-                "proteins": ["chicken", "turkey", "fish", "lean beef", "eggs", "Greek yogurt"],
-                "carb_sources": ["leafy greens", "bell peppers", "cucumber", "tomatoes", "berries"],
-                "allowed_carbs": ["sweet potato (small)", "quinoa (small portions)"],
-                "forbidden": ["white rice", "pasta", "bread", "regular potatoes"]
-            },
-            "vegan": {
-                "proteins": ["tofu", "tempeh", "lentils", "chickpeas", "black beans", "quinoa", "nuts", "seeds"],
-                "bases": ["brown rice", "whole wheat pasta", "sweet potatoes", "oats"],
-                "vegetables": ["kale", "spinach", "broccoli", "bell peppers", "mushrooms"],
-                "forbidden": ["meat", "fish", "dairy", "eggs", "honey"]
-            },
-            "vegetarian": {
-                "proteins": ["eggs", "cheese", "Greek yogurt", "tofu", "lentils", "beans", "quinoa"],
-                "bases": ["brown rice", "whole grain pasta", "potatoes", "oats"],
-                "vegetables": ["seasonal vegetables", "leafy greens", "root vegetables"],
-                "forbidden": ["meat", "fish", "poultry"]
-            },
-            "paleo": {
-                "proteins": ["grass-fed beef", "free-range chicken", "wild salmon", "eggs"],
-                "vegetables": ["sweet potatoes", "broccoli", "spinach", "bell peppers"],
-                "fats": ["coconut oil", "olive oil", "avocado", "nuts"],
-                "forbidden": ["grains", "legumes", "dairy", "processed foods", "sugar"]
-            },
-            "mediterranean": {
-                "proteins": ["fish", "seafood", "chicken", "eggs", "legumes"],
-                "bases": ["whole grains", "brown rice", "quinoa", "farro"],
-                "fats": ["olive oil", "nuts", "olives", "avocado"],
-                "vegetables": ["tomatoes", "cucumbers", "peppers", "leafy greens"]
-            },
-            "whole30": {
-                "proteins": ["compliant meat", "fish", "eggs"],
-                "vegetables": ["all vegetables except corn"],
-                "fats": ["olive oil", "coconut oil", "avocado"],
-                "forbidden": ["grains", "legumes", "dairy", "sugar", "alcohol", "processed foods"]
-            },
-            "gluten free": {
-                "grains": ["rice", "quinoa", "corn", "oats (certified GF)"],
-                "proteins": ["any naturally gluten-free proteins"],
-                "forbidden": ["wheat", "barley", "rye", "standard pasta", "regular bread"]
-            }
-        }
-        
-        return diet_constraints.get(diet_type.lower(), {})
-
-    def _generate_diversity_constraints(self, days, meals_per_day, diet_type=None, allergies=None):
-        """Generate randomized constraints to ensure meal plan diversity, adapted for diet types"""
-        
-        # Get diet-specific constraints first
-        diet_constraints = {}
-        if diet_type and diet_type.lower() != "none":
-            diet_constraints = self._get_diet_specific_constraints(diet_type)
-        
-        # Base cuisine pools (can be adapted for any diet)
-        cuisine_pools = [
-            ["Italian", "Mediterranean", "Mexican", "Thai", "Indian"],
-            ["Japanese", "Korean", "Chinese", "Vietnamese", "French"],
-            ["American", "British", "German", "Greek", "Spanish"],
-            ["Middle Eastern", "Moroccan", "Brazilian", "Caribbean", "Turkish"],
-            ["Fusion", "Modern", "Comfort Food", "Southern", "Cajun"]
-        ]
-        
-        # Diet-specific protein pools or default
-        if diet_constraints.get("proteins"):
-            protein_pools = [diet_constraints["proteins"]]
-        else:
-            protein_pools = [
-                ["chicken", "salmon", "beef", "turkey", "shrimp"],
-                ["tofu", "tempeh", "lentils", "chickpeas", "black beans"],
-                ["pork", "lamb", "cod", "tuna", "eggs"],
-                ["quinoa", "nuts", "cheese", "yogurt", "cottage cheese"]
-            ]
-        
-        # Cooking method pools (universal)
-        cooking_pools = [
-            ["grilled", "roasted", "sautéed", "baked", "steamed"],
-            ["stir-fried", "braised", "poached", "broiled", "pan-seared"],
-            ["slow-cooked", "pressure-cooked", "air-fried", "smoked", "raw/fresh"]
-        ]
-        
-        # Generate time-based seed for consistency within same request
-        time_seed = int(datetime.now().timestamp()) // 3600  # Changes every hour
-        random.seed(time_seed)
-        
-        # Select random pools
-        selected_cuisines = random.choice(cuisine_pools)
-        selected_proteins = random.choice(protein_pools) if protein_pools else []
-        selected_cooking = random.choice(cooking_pools)
-        
-        # Add randomization factor that changes with each request
-        randomization_key = random.randint(10000, 99999)
-        
-        constraints = {
-            "cuisines": selected_cuisines,
-            "proteins": selected_proteins,
-            "cooking_methods": selected_cooking,
-            "randomization_key": randomization_key,
-            "total_meals": days * meals_per_day,
-            "diet_type": diet_type,
-            "diet_constraints": diet_constraints
-        }
-        
-        # Add allergy constraints
-        if allergies:
-            constraints["allergies"] = allergies
             
-        return constraints
-
-    def _create_diversity_prompt_section(self, constraints):
-        """Create the diversity constraint section for the AI prompt"""
-        
-        diet_type = constraints.get("diet_type")
-        diet_constraints = constraints.get("diet_constraints", {})
-        
-        # Start with base diversity rules - make them more flexible
-        diversity_rules = f"""
-        DIVERSITY GUIDELINES (Randomization Key: {constraints['randomization_key']}):
-
-        1. CUISINE VARIETY: Try to use different cuisines like: {', '.join(constraints['cuisines'])}
-           - Vary cuisines when possible across the meal plan
-
-        2. PROTEIN VARIETY: Include proteins such as: {', '.join(constraints['proteins'])}
-           - Use different proteins throughout the meal plan
-
-        3. COOKING METHOD VARIETY: Use different cooking methods like: {', '.join(constraints['cooking_methods'])}
-           - Vary preparation styles when possible"""
-
-        # Add diet-specific constraints - make them guidelines not absolute rules
-        if diet_type and diet_type.lower() != "none":
-            diversity_rules += f"\n\n4. DIET REQUIREMENTS ({diet_type.upper()}):"
-            
-            if diet_constraints.get("forbidden"):
-                diversity_rules += f"\n   - AVOID: {', '.join(diet_constraints['forbidden'])}"
-            
-            if diet_constraints.get("carb_sources"):
-                diversity_rules += f"\n   - PREFER CARBS: {', '.join(diet_constraints['carb_sources'])}"
-            
-            if diet_constraints.get("fats"):
-                diversity_rules += f"\n   - INCLUDE FATS: {', '.join(diet_constraints['fats'])}"
-            
-            if diet_constraints.get("bases"):
-                diversity_rules += f"\n   - GOOD BASES: {', '.join(diet_constraints['bases'])}"
-        
-        # Add allergy constraints - keep these strict
-        if constraints.get("allergies"):
-            diversity_rules += f"\n\n5. ALLERGY RESTRICTIONS:"
-            diversity_rules += f"\n   - NEVER USE: {', '.join(constraints['allergies'])}"
-        
-        # Add general diversity rules - make them suggestions
-        diversity_rules += f"""
-
-        {6 if diet_type or constraints.get("allergies") else 4}. GENERAL VARIETY:
-           - Try to vary ingredients and cooking styles
-           - Include different textures and flavors
-           - Make each recipe feel unique and interesting
-
-        IMPORTANT: Generate ALL requested recipes even if some variety guidelines can't be perfectly followed. Completeness is more important than perfect diversity.
-        """
-        
-        return diversity_rules
-    
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         # If there are allergies, use the original method to generate recipes
-        meal_type_valid = ["breakfast", "lunch", "dinner", "snack", "dessert"]
+        meal_type_valid = ["breakfast","lunch","dinner","snack","dessert"]
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
         if meal_type not in meal_type_valid:
             print(f"meal type is custom, default to original method: {meal_type}")
-            return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
+            return self._generate_recipes_with_openai(meal_type,healthy,allergies,count)
         # Otherwise, use recipes from the database
         print(f"Using titles from database for meal type: {meal_type}")
         return self._generate_recipes_from_database(meal_type, healthy, count)
@@ -346,12 +174,12 @@ class RecipeGenerator:
         • 2 tablespoons ingredient two
         • 3 teaspoons ingredient three
 
-        Instructions:
+        (make sure instructions is in its own little category)
         1. First step instruction details.
         2. Second step with more details.
         3. Third step with final instructions.
 
-        Nutritional Information:
+        (make sure nutrition is in its own little category)
         Calories: 350
         Protein: 15g
         Fat: 12g
@@ -375,7 +203,7 @@ class RecipeGenerator:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.85,
-                max_tokens=2500,
+                max_tokens=2500,  # Increased to accommodate multiple recipes
                 top_p=0.8
             )
             
@@ -405,7 +233,7 @@ class RecipeGenerator:
                 )
                 processed_recipes.extend(remaining_recipes)
             
-            return processed_recipes[:count]
+            return processed_recipes[:count]  # Ensure we only return the requested number
                 
         except Exception as e:
             print(f"Error generating multiple recipes: {str(e)}")
@@ -460,7 +288,7 @@ class RecipeGenerator:
             random.shuffle(titles)
             
             # Generate recipes in batches to save tokens
-            batch_size = min(5, count)
+            batch_size = min(5, count)  # Process 5 recipes at a time, or fewer if requested
             all_recipes = []
             
             for i in range(0, len(titles), batch_size):
@@ -470,7 +298,7 @@ class RecipeGenerator:
                     
                 # Add rate limiting to avoid API limits
                 if i > 0:
-                    sleep(1)
+                    sleep(1)  # Sleep between batches
                     
                 batch_recipes = self._generate_multiple_recipes_from_titles(batch_titles, healthy, len(batch_titles))
                 all_recipes.extend(batch_recipes)
@@ -520,7 +348,6 @@ class RecipeGenerator:
         • Ingredient 2
         • Ingredient 3
         
-        Instructions:
         1. Instruction step one
         2. Instruction step two
         3. Instruction step three
@@ -560,7 +387,7 @@ class RecipeGenerator:
             for i, line in enumerate(lines):
                 if not line.strip():
                     # We've hit a blank line
-                    if current_section:
+                    if current_section:  # If we have content, add it as a section
                         sections.append("\n".join(current_section))
                         current_section = []
                 else:
@@ -651,7 +478,7 @@ class RecipeGenerator:
             return []
         
     def get_recipe_ingredients(self, ingredients, allergies, count=5):
-        """Generate recipes based on available ingredients"""
+        # This method remains unchanged from the original
         system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
         1. Generate exactly {count} different recipes
         . only generate recipes based on users available ingredients
@@ -670,9 +497,11 @@ class RecipeGenerator:
         7. Make recipes amazing and creative
         8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this."""
         
+
         # Create a single prompt for multiple recipes
         prompt = f"Create {count} unique recipes, based on the users available ingredients DO not include extra ingredients (except for spices): {','.join(ingredients)}."
         
+            
         if allergies:
             if "vegan" in allergies:
                 prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
@@ -687,7 +516,7 @@ class RecipeGenerator:
                 ],
                 temperature=0.95,
                 max_tokens=2500,
-                top_p=0.85
+                top_p = 0.85
             )
             
             # Split response into individual recipes
@@ -699,7 +528,7 @@ class RecipeGenerator:
             if len(recipes) < count:
                 remaining = count - len(recipes)
                 recipes_list = ', '.join([r.split('\n')[0] for r in recipes])
-                second_prompt = f"Create {remaining} more unique recipes, based on available {ingredients} different from: {recipes_list}"
+                second_prompt = f"Create {remaining} more unique  recipes, based on available {ingredients} different from: {recipes_list}"
                 
                 second_response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -709,7 +538,7 @@ class RecipeGenerator:
                     ],
                     temperature=0.95,
                     max_tokens=2000,
-                    top_p=0.85
+                    top_p = 0.85
                 )
                 
                 additional_recipes = second_response.choices[0].message.content.strip().split("=====")
@@ -721,53 +550,107 @@ class RecipeGenerator:
             print(f"Error generating recipes: {str(e)}")
             return []
 
-    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, diet_type=None):
-        """Generate meal plan - back to working original approach with simple diversity"""
+    def _generate_randomization_elements(self):
+        """Generate random elements to make meal plans unique"""
         
-        # Add simple randomization for variety without complex constraints
-        randomization_key = random.randint(10000, 99999)
+        # Create randomization based on current time + random seed
+        current_time = int(time.time())
+        random_seed = random.randint(1000, 9999)
         
-        # Simple system prompt similar to your original working version
-        system_prompt = f"""You are a meal planning expert. Create exactly {days} days with {meals_per_day} meals each day.
+        # Random cuisine focus (rotates every few hours)
+        cuisine_groups = [
+            ["Italian", "Mediterranean", "French"],
+            ["Asian", "Thai", "Japanese", "Korean"],
+            ["Mexican", "Spanish", "Latin American"],
+            ["Indian", "Middle Eastern", "Moroccan"],
+            ["American", "Southern", "BBQ"],
+            ["British", "German", "Eastern European"],
+            ["Fusion", "Modern", "International"]
+        ]
+        
+        # Random cooking style focus
+        cooking_styles = [
+            ["grilled", "roasted", "baked"],
+            ["stir-fried", "sautéed", "pan-seared"],
+            ["slow-cooked", "braised", "steamed"],
+            ["fresh", "raw", "no-cook"],
+            ["one-pot", "sheet-pan", "quick"],
+            ["comfort-food", "hearty", "warming"],
+            ["light", "fresh", "summery"]
+        ]
+        
+        # Random protein rotation
+        protein_focuses = [
+            ["chicken", "turkey", "poultry"],
+            ["fish", "seafood", "salmon"],
+            ["beef", "pork", "red meat"],
+            ["plant-based", "legumes", "tofu"],
+            ["mixed", "variety", "diverse"]
+        ]
+        
+        # Select random elements (changes every few hours)
+        hour_group = (current_time // 3600) % len(cuisine_groups)
+        
+        selected_cuisines = cuisine_groups[hour_group]
+        selected_cooking = random.choice(cooking_styles)
+        selected_proteins = random.choice(protein_focuses)
+        
+        return {
+            "cuisines": selected_cuisines,
+            "cooking_styles": selected_cooking,
+            "proteins": selected_proteins,
+            "randomization_key": f"{current_time}-{random_seed}",
+            "variety_focus": random.choice(["international", "comfort", "healthy", "quick", "gourmet"])
+        }
+            
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
+        """Generate meal plan with added randomization for variety"""
+        
+        # Generate randomization elements
+        randomization = self._generate_randomization_elements()
+        
+        # Updated system prompt with randomization hints
+        system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
-        CRITICAL FORMAT REQUIREMENTS:
         1. Generate exactly {days} days with {meals_per_day} meals each day
         2. NEVER repeat recipes in the plan
-        3. Each day MUST have exactly {meals_per_day} meals - no skipping
+        3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
         4. Target {calories_per_day} calories per day total
-        5. Make recipes diverse and varied
+
+        VARIETY GUIDELINES (Randomization Key: {randomization['randomization_key']}):
+        - Emphasize these cuisines when possible: {', '.join(randomization['cuisines'])}
+        - Focus on these cooking styles: {', '.join(randomization['cooking_styles'])}
+        - Protein variety: {', '.join(randomization['proteins'])}
+        - Overall theme: {randomization['variety_focus']} style meals
+        - Make each meal plan feel unique and different from typical meal plans
 
         EXACT FORMAT FOR EACH DAY:
         Day X (where X is 1, 2, 3, etc.)
-
+        
         [RECIPE TITLE]
-
+        
         Preparation Time: X minutes
         Cooking Time: X minutes  
         Servings: X
-
+        
         • [Ingredient 1]
         • [Ingredient 2]
         • [Ingredient 3]
-
+        
         Instructions:
         1. [First step]
         2. [Second step]
         3. [Third step]
-
+        
         Nutritional Information:
         Calories: X
         Protein: Xg
         Carbs: Xg
         Fat: Xg
-
+        
         =====
-
+        
         CRITICAL RULES:
-        - Generate exactly {days} days with {meals_per_day} meals each day
-        - NEVER repeat recipes or similar dishes in the plan
-        - Each day MUST have exactly {meals_per_day} meals - no skipping
-        - Target {calories_per_day} calories per day total
         - Recipe title MUST be on its own line after meal type
         - Recipe title CANNOT contain ingredients or measurements
         - Recipe title CANNOT be "-----" or "====="
@@ -780,15 +663,15 @@ class RecipeGenerator:
         - Instructions MUST be numbered 1., 2., 3., etc.
         """
 
-        # Build the main prompt
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specified calories (make sure they are accurate though). The macros should be accurate with the meal (dont cut corners to make it exact)!"
+        # Initialize prompt with randomization
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specified calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
+        
+        # Add variety instructions
+        prompt += f" IMPORTANT: Create a {randomization['variety_focus']}-themed meal plan with emphasis on {', '.join(randomization['cuisines'])} cuisines and {', '.join(randomization['cooking_styles'])} cooking methods. Make this meal plan feel unique and different from standard meal plans."
 
         # Handle optional parameters safely
         if healthy:
             prompt += " Make all meals healthy and nutritious."
-
-        if diet_type and diet_type.lower() != "none":
-            prompt += f" This meal plan MUST follow {diet_type.upper()} diet requirements."
 
         if allergies:
             allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
@@ -798,8 +681,8 @@ class RecipeGenerator:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
             prompt += f" Consider these preferences: {preferences_list}."
 
-        # Add randomization to prevent repetition
-        prompt += f" Randomization seed: {randomization_key} - use this to ensure unique diverse recipes."
+        # Add final randomization instruction
+        prompt += f" Randomization seed: {randomization['randomization_key']} - use this to create a unique, varied meal plan."
 
         try:
             response = self.client.chat.completions.create(
@@ -808,9 +691,9 @@ class RecipeGenerator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,  # Reduced for more consistent formatting
+                temperature=0.8,  # Slightly higher for more variety
                 max_tokens=4050,
-                top_p=0.8,  # Reduced for more consistent output
+                top_p=0.85,  # Higher for more variety
                 timeout=80
             )
 
