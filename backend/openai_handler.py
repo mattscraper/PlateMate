@@ -246,14 +246,10 @@ CRITICAL DIVERSITY REQUIREMENTS (Randomization Key: {constraints['randomization_
 """
         
         return diversity_rules
-
-    # [Keep all your existing methods unchanged: get_recipe_ideas, _ensure_recipe_formatting,
-    # _generate_multiple_recipes_from_titles, _generate_recipes_from_database,
-    # _generate_single_recipe_from_title, _generate_recipes_with_openai, get_recipe_ingredients]
     
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         # If there are allergies, use the original method to generate recipes
-        meal_type_valid = ["breakfast","lunch","dinenr","snack","dessert"]
+        meal_type_valid = ["breakfast","lunch","dinner","snack","dessert"]
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
@@ -365,12 +361,12 @@ Servings: 4
 • 2 tablespoons ingredient two
 • 3 teaspoons ingredient three
 
-(make sure instructions is in its own little category)
+Instructions:
 1. First step instruction details.
 2. Second step with more details.
 3. Third step with final instructions.
 
-(make sure nutrition is in its own little category)
+Nutritional Information:
 Calories: 350
 Protein: 15g
 Fat: 12g
@@ -393,17 +389,7 @@ Next Recipe Title
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,  # Higher temperature for more creativity with constraints
-                max_tokens=4050,
-                top_p=0.9,  # Higher for more diverse vocabulary
-                timeout=80
-            )
-
-            return response.choices[0].message.content.strip()
-
-        except Exception as e:
-            print(f"Error generating meal plan: {str(e)}")
-            return None0.85,
+                temperature=0.85,
                 max_tokens=2500,  # Increased to accommodate multiple recipes
                 top_p=0.8
             )
@@ -549,6 +535,7 @@ Next Recipe Title
         • Ingredient 2
         • Ingredient 3
         
+        Instructions:
         1. Instruction step one
         2. Instruction step two
         3. Instruction step three
@@ -633,6 +620,147 @@ Next Recipe Title
         if allergies:
             if "vegan" in allergies:
                 prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
+            prompt += f" Ensure they are completely free of these allergens or restrictions(example:vegan, vegetarian): {', '.join(allergies)}."
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt.format(count=count)},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.95,
+                max_tokens=2500,
+                top_p=0.85
+            )
+            
+            # Split response into individual recipes
+            recipe_text = response.choices[0].message.content.strip()
+            recipes = recipe_text.split("=====")
+            recipes = [r.strip() for r in recipes if r.strip()]
+            
+            # If we didn't get enough recipes, make a second call for the remainder
+            if len(recipes) < count:
+                remaining = count - len(recipes)
+                recipes_list = ', '.join([r.split('\n')[0] for r in recipes])
+                second_prompt = f"Create {remaining} more unique recipes, based on available {ingredients} different from: {recipes_list}"
+                
+                second_response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_prompt.format(count=remaining)},
+                        {"role": "user", "content": second_prompt}
+                    ],
+                    temperature=0.95,
+                    max_tokens=2000,
+                    top_p=0.85
+                )
+                
+                additional_recipes = second_response.choices[0].message.content.strip().split("=====")
+                recipes.extend([r.strip() for r in additional_recipes if r.strip()])
+
+            return recipes[:count]
+            
+        except Exception as e:
+            print(f"Error generating recipes: {str(e)}")
+            return []
+
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, diet_type=None):
+        """Generate meal plan with built-in diversity constraints to prevent repetition"""
+        
+        # Generate diversity constraints with diet considerations
+        constraints = self._generate_diversity_constraints(days, meals_per_day, diet_type, allergies)
+        diversity_section = self._create_diversity_prompt_section(constraints)
+        
+        # Updated system prompt with diversity constraints
+        system_prompt = f"""You are a meal planning expert that creates highly diverse, non-repetitive meal plans.
+
+        {diversity_section}
+
+        EXACT FORMAT FOR EACH DAY:
+        Day X (where X is 1, 2, 3, etc.)
+        
+        [RECIPE TITLE]
+        
+        Preparation Time: X minutes
+        Cooking Time: X minutes  
+        Servings: X
+        
+        • [Ingredient 1]
+        • [Ingredient 2]
+        • [Ingredient 3]
+        
+        Instructions:
+        1. [First step]
+        2. [Second step]
+        3. [Third step]
+        
+        Nutritional Information:
+        Calories: X
+        Protein: Xg
+        Carbs: Xg
+        Fat: Xg
+        
+        =====
+        
+        CRITICAL RULES:
+        - Generate exactly {days} days with {meals_per_day} meals each day
+        - NEVER repeat recipes or similar dishes in the plan
+        - Each day MUST have exactly {meals_per_day} meals - no skipping
+        - Target {calories_per_day} calories per day total
+        - Recipe title MUST be on its own line after meal type
+        - Recipe title CANNOT contain ingredients or measurements
+        - Recipe title CANNOT be "-----" or "====="
+        - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
+        - NEVER put ingredients in the title line
+        - Each meal type: Breakfast, Lunch, Dinner, or Snack
+        - Separate days with ===== ONLY
+        - NO bold text, asterisks, or special formatting
+        - Ingredients MUST start with • symbol
+        - Instructions MUST be numbered 1., 2., 3., etc.
+        """
+
+        # Build the main prompt with diversity emphasis
+        prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day.
+
+CRITICAL: Follow ALL diversity constraints above. Every meal must be completely different in cuisine, protein, cooking method, and ingredients."""
+
+        # Add diet-specific emphasis
+        if diet_type and diet_type.lower() != "none":
+            prompt += f" This meal plan MUST strictly follow {diet_type.upper()} diet requirements."
+        
+        prompt += f" Make this meal plan feel like a culinary adventure with maximum variety!\n\nRandomization Seed: {constraints['randomization_key']} - Use this to ensure unique generation."
+
+        # Handle optional parameters safely
+        if healthy:
+            prompt += " Make all meals healthy and nutritious."
+
+        if allergies:
+            allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
+            prompt += f" Ensure all recipes are completely free of: {allergies_list}."
+
+        if preferences:
+            preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
+            prompt += f" Consider these preferences: {preferences_list}."
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.9,  # Higher temperature for more creativity with constraints
+                max_tokens=4050,
+                top_p=0.9,  # Higher for more diverse vocabulary
+                timeout=80
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            print(f"Error generating meal plan: {str(e)}")
+            return None vegan and free these allergens or restrictions: {', '.join(allergies)}."
             prompt += f" Ensure they are completely free of these allergens or restrictions (example: vegan, vegetarian): {', '.join(allergies)}."
 
         try:
@@ -700,136 +828,9 @@ Next Recipe Title
         
 
         # Create a single prompt for multiple recipes
-        prompt = f"Create {count} unique recipes, based on the users available ingridients DO not include extra ingredients (except for spices): {','.join(ingredients)}."
+        prompt = f"Create {count} unique recipes, based on the users available ingredients DO not include extra ingredients (except for spices): {','.join(ingredients)}."
         
             
         if allergies:
             if "vegan" in allergies:
-                prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
-            prompt += f" Ensure they are completely free of these allergens or restrctions(example:vegan, vegitarian): {', '.join(allergies)}."
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt.format(count=count)},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.95,
-                max_tokens=2500,
-                top_p = 0.85
-            )
-            
-            # Split response into individual recipes
-            recipe_text = response.choices[0].message.content.strip()
-            recipes = recipe_text.split("=====")
-            recipes = [r.strip() for r in recipes if r.strip()]
-            
-            # If we didn't get enough recipes, make a second call for the remainder
-            if len(recipes) < count:
-                remaining = count - len(recipes)
-                recipes_list = ', '.join([r.split('\n')[0] for r in recipes])
-                second_prompt = f"Create {remaining} more unique  recipes, based on available {ingredients} different from: {recipes_list}"
-                
-                second_response = self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": system_prompt.format(count=remaining)},
-                        {"role": "user", "content": second_prompt}
-                    ],
-                    temperature=0.95,
-                    max_tokens=2000,
-                    top_p = 0.85
-                )
-                
-                additional_recipes = second_response.choices[0].message.content.strip().split("=====")
-                recipes.extend([r.strip() for r in additional_recipes if r.strip()])
-
-            return recipes[:count]
-            
-        except Exception as e:
-            print(f"Error generating recipes: {str(e)}")
-            return []
-
-    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-        """Generate meal plan with built-in diversity constraints to prevent repetition"""
-        
-        # Generate diversity constraints
-        constraints = self._generate_diversity_constraints(days, meals_per_day)
-        diversity_section = self._create_diversity_prompt_section(constraints)
-        
-        # Updated system prompt with diversity constraints
-        system_prompt = f"""You are a meal planning expert that creates highly diverse, non-repetitive meal plans.
-
-        {diversity_section}
-
-        EXACT FORMAT FOR EACH DAY:
-        Day X (where X is 1, 2, 3, etc.)
-        
-        [RECIPE TITLE]
-        
-        Preparation Time: X minutes
-        Cooking Time: X minutes  
-        Servings: X
-        
-        • [Ingredient 1]
-        • [Ingredient 2]
-        • [Ingredient 3]
-        
-        Instructions:
-        1. [First step]
-        2. [Second step]
-        3. [Third step]
-        
-        Nutritional Information:
-        Calories: X
-        Protein: Xg
-        Carbs: Xg
-        Fat: Xg
-        
-        =====
-        
-        CRITICAL RULES:
-        - Generate exactly {days} days with {meals_per_day} meals each day
-        - NEVER repeat recipes or similar dishes in the plan
-        - Each day MUST have exactly {meals_per_day} meals - no skipping
-        - Target {calories_per_day} calories per day total
-        - Recipe title MUST be on its own line after meal type
-        - Recipe title CANNOT contain ingredients or measurements
-        - Recipe title CANNOT be "-----" or "====="
-        - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
-        - NEVER put ingredients in the title line
-        - Each meal type: Breakfast, Lunch, Dinner, or Snack
-        - Separate days with ===== ONLY
-        - NO bold text, asterisks, or special formatting
-        - Ingredients MUST start with • symbol
-        - Instructions MUST be numbered 1., 2., 3., etc.
-        """
-
-        # Build the main prompt with diversity emphasis
-        prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day.
-
-CRITICAL: Follow ALL diversity constraints above. Every meal must be completely different in cuisine, protein, cooking method, and ingredients. Make this meal plan feel like a culinary adventure with maximum variety!
-
-Randomization Seed: {constraints['randomization_key']} - Use this to ensure unique generation."""
-
-        # Handle optional parameters safely
-        if healthy:
-            prompt += " Make all meals healthy and nutritious."
-
-        if allergies:
-            allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-            prompt += f" Ensure all recipes are completely free of: {allergies_list}."
-
-        if preferences:
-            preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
-            prompt += f" Consider these preferences: {preferences_list}."
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=
+                prompt += f" Ensure the meal is completely
