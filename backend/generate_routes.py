@@ -157,22 +157,21 @@ def get_meal_plan():
             
             if diet_type_lower == "vegan":
                 # For vegan: add all animal products to allergies
-                allergies.extend(["meat", "fish", "seafood", "chicken", "beef", "pork", "lamb", "turkey", "dairy", "milk", "cheese", "butter", "eggs", "honey", "gelatin"])
-                preferences.append("vegan plant-based diet")
+                                preferences.append("vegan plant-based diet")
                 
             elif diet_type_lower == "vegetarian":
                 # For vegetarian: add meat/fish to allergies
-                allergies.extend(["meat", "fish", "seafood", "chicken", "beef", "pork", "lamb", "turkey", "poultry"])
+              
                 preferences.append("vegetarian diet")
                 
             elif diet_type_lower == "keto":
                 # For keto: strict low carb requirements
-                allergies.extend(["bread", "pasta", "rice", "potatoes", "sugar", "grains", "wheat", "oats", "quinoa"])
+               
                 preferences.append("ketogenic low carb high fat diet")
                 
             elif diet_type_lower == "paleo":
                 # For paleo: no grains, legumes, dairy, processed
-                allergies.extend(["grains", "wheat", "rice", "oats", "legumes", "beans", "lentils", "dairy", "milk", "cheese", "processed foods", "sugar"])
+                
                 preferences.append("paleo diet")
                 
             elif "gluten free" in diet_type_lower or "gluten-free" in diet_type_lower:
@@ -182,7 +181,7 @@ def get_meal_plan():
                 
             elif "low carb" in diet_type_lower:
                 # For low carb: limit high-carb foods
-                allergies.extend(["bread", "pasta", "rice", "potatoes", "sugar"])
+         
                 preferences.append("low carb diet")
                 
             else:
