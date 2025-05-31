@@ -690,7 +690,7 @@ Next Recipe Title
 
         if preferences:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
-            prompt += f" Consider these preferences: {preferences_list}."
+            prompt += f" Consider these preferences: (this is the diet type ex: vegan, low carb, keto) {preferences_list}."
 
         # Add final uniqueness instruction
         prompt += f" Randomization seed: {randomness['unique_seed']} - use this to create a completely unique meal plan that feels fresh and different."
