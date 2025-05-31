@@ -624,17 +624,18 @@ Next Recipe Title
         # Updated system prompt with randomness elements
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
-        1. Generate exactly {days} days with {meals_per_day} meals each day
+        1. Generate exactly {days} days with {meals_per_day} meals each day.. This is the most important part! all recipes need to be generated.
         2. NEVER repeat recipes in the plan
         3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
         4. Target {calories_per_day} calories per day total
         5. Make sure ALL recipes are generated! this is the most important part
+        6. dont make the reecipes too simple (there can be more than 3 ingredients)
 
         VARIETY REQUIREMENTS (Seed: {randomness['unique_seed']}):
         - Emphasize {randomness['cuisine_focus']} cuisines for this meal plan
         - Focus on {randomness['cooking_focus']} cooking methods
         - Feature {randomness['flavor_focus']} throughout the recipes
-        - Make this meal plan feel unique and different from typical meal plans
+        
 
         EXACT FORMAT FOR EACH DAY:
         Day X (where X is 1, 2, 3, etc.)
@@ -703,9 +704,8 @@ Next Recipe Title
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.85,  # Higher temperature for more variety
+                temperature=0.80,  # Higher temperature for more variety
                 max_tokens=4050,
-                top_p=0.9,   # Higher for more diverse output
                 timeout=120
             )
 
