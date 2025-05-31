@@ -146,50 +146,50 @@ class RecipeGenerator:
         
         system_prompt = """You are a culinary expert creating multiple recipes. Follow these formatting instructions precisely:
 
-        CRITICAL FORMAT RULES:
-        1. Each recipe must have these sections IN THIS ORDER:
-           - Title (first line)
-           - Time/Servings information (in one paragraph)
-           - Ingredients (with bullet points •)
-           - Instructions (with numbers 1., 2., etc. ALL UNDER ONE "Instructions" HEADER)
-           - Nutritional information
+CRITICAL FORMAT RULES:
+1. Each recipe must have these sections IN THIS ORDER:
+   - Title (first line)
+   - Time/Servings information (in one paragraph)
+   - Ingredients (with bullet points •)
+   - Instructions (with numbers 1., 2., etc. ALL UNDER ONE "Instructions" HEADER)
+   - Nutritional information
 
-        2. Section spacing:
-           - EXACTLY ONE blank line between sections
-           - NO extra blank lines within sections
-           - NEVER use bullet points (•) except for ingredients
+2. Section spacing:
+   - EXACTLY ONE blank line between sections
+   - NO extra blank lines within sections
+   - NEVER use bullet points (•) except for ingredients
 
-        3. Recipe separation:
-           - Separate each recipe with exactly five equals signs: =====
-           - Always put a blank line before and after the separator
+3. Recipe separation:
+   - Separate each recipe with exactly five equals signs: =====
+   - Always put a blank line before and after the separator
 
-        FORMAT EXAMPLE:
-        Delicious Recipe Title
+FORMAT EXAMPLE:
+Delicious Recipe Title
 
-        Preparation Time: 15 minutes
-        Cooking Time: 30 minutes
-        Servings: 4
+Preparation Time: 15 minutes
+Cooking Time: 30 minutes
+Servings: 4
 
-        • 1 cup ingredient one
-        • 2 tablespoons ingredient two
-        • 3 teaspoons ingredient three
+• 1 cup ingredient one
+• 2 tablespoons ingredient two
+• 3 teaspoons ingredient three
 
-        (make sure instructions is in its own little category)
-        1. First step instruction details.
-        2. Second step with more details.
-        3. Third step with final instructions.
+(make sure instructions is in its own little category)
+1. First step instruction details.
+2. Second step with more details.
+3. Third step with final instructions.
 
-        (make sure nutrition is in its own little category)
-        Calories: 350
-        Protein: 15g
-        Fat: 12g
-        Carbohydrates: 45g
+(make sure nutrition is in its own little category)
+Calories: 350
+Protein: 15g
+Fat: 12g
+Carbohydrates: 45g
 
-        =====
+=====
 
-        Next Recipe Title
-        ...and so on.
-        """
+Next Recipe Title
+...and so on.
+"""
 
         prompt = f"Create {len(selected_titles)} detailed recipes for these titles: {titles_str}. Each recipe must strictly follow my format requirements."
         if healthy:
@@ -603,12 +603,13 @@ class RecipeGenerator:
             "variety_focus": random.choice(["international", "comfort", "healthy", "quick", "gourmet"])
         }
             
-    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, diet_type=None):
         """Generate meal plan with added randomization for variety"""
         
         print(f"=== MEAL PLAN GENERATION START ===")
         print(f"Request: {days} days, {meals_per_day} meals per day, {calories_per_day} calories")
         print(f"Healthy: {healthy}, Allergies: {allergies}, Preferences: {preferences}")
+        print(f"Diet Type: {diet_type}")
         
         # Generate randomization elements
         randomization = self._generate_randomization_elements()
@@ -673,6 +674,10 @@ class RecipeGenerator:
         
         # Add variety instructions
         prompt += f" IMPORTANT: Create a {randomization['variety_focus']}-themed meal plan with emphasis on {', '.join(randomization['cuisines'])} cuisines and {', '.join(randomization['cooking_styles'])} cooking methods. Make this meal plan feel unique and different from standard meal plans."
+
+        # Handle diet type
+        if diet_type and diet_type.lower() not in ["none", ""]:
+            prompt += f" IMPORTANT: This meal plan must follow {diet_type.upper()} diet requirements strictly."
 
         # Handle optional parameters safely
         if healthy:
