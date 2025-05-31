@@ -606,8 +606,13 @@ class RecipeGenerator:
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
         """Generate meal plan with added randomization for variety"""
         
+        print(f"=== MEAL PLAN GENERATION START ===")
+        print(f"Request: {days} days, {meals_per_day} meals per day, {calories_per_day} calories")
+        print(f"Healthy: {healthy}, Allergies: {allergies}, Preferences: {preferences}")
+        
         # Generate randomization elements
         randomization = self._generate_randomization_elements()
+        print(f"Randomization: {randomization}")
         
         # Updated system prompt with randomization hints
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
@@ -684,6 +689,9 @@ class RecipeGenerator:
         # Add final randomization instruction
         prompt += f" Randomization seed: {randomization['randomization_key']} - use this to create a unique, varied meal plan."
 
+        print(f"=== SENDING TO OPENAI ===")
+        print(f"Prompt length: {len(prompt)} characters")
+
         try:
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -697,8 +705,32 @@ class RecipeGenerator:
                 timeout=80
             )
 
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
+            
+            print(f"=== OPENAI RESPONSE ===")
+            print(f"Response length: {len(result)} characters")
+            print(f"Number of recipe separators (=====): {result.count('=====')}")
+            print(f"Expected meals: {days * meals_per_day}")
+            
+            # Print first 500 characters to see the format
+            print(f"=== FIRST 500 CHARACTERS ===")
+            print(result[:500])
+            print("...")
+            
+            # Print last 300 characters to see how it ends
+            print(f"=== LAST 300 CHARACTERS ===")
+            print("...")
+            print(result[-300:])
+            
+            # Count days and meals
+            days_found = result.count('Day ')
+            print(f"Days found in response: {days_found}")
+            
+            print(f"=== MEAL PLAN GENERATION COMPLETE ===")
+            
+            return result
 
         except Exception as e:
-            print(f"Error generating meal plan: {str(e)}")
+            print(f"=== ERROR GENERATING MEAL PLAN ===")
+            print(f"Error: {str(e)}")
             return None
