@@ -185,64 +185,49 @@ class RecipeGenerator:
         diet_type = constraints.get("diet_type")
         diet_constraints = constraints.get("diet_constraints", {})
         
-        # Start with base diversity rules
+        # Start with base diversity rules - make them more flexible
         diversity_rules = f"""
-CRITICAL DIVERSITY REQUIREMENTS (Randomization Key: {constraints['randomization_key']}):
+DIVERSITY GUIDELINES (Randomization Key: {constraints['randomization_key']}):
 
-1. CUISINE DIVERSITY: Use these cuisines and rotate through them: {', '.join(constraints['cuisines'])}
-   - Never repeat the same cuisine on the same day
-   - Distribute cuisines evenly across all days
+1. CUISINE VARIETY: Try to use different cuisines like: {', '.join(constraints['cuisines'])}
+   - Vary cuisines when possible across the meal plan
 
-2. PROTEIN DIVERSITY: Primary proteins to use: {', '.join(constraints['proteins'])}
-   - No protein should appear more than once per day
-   - Try to use each protein at least once across the meal plan
+2. PROTEIN VARIETY: Include proteins such as: {', '.join(constraints['proteins'])}
+   - Use different proteins throughout the meal plan
 
-3. COOKING METHOD DIVERSITY: Vary cooking methods: {', '.join(constraints['cooking_methods'])}
-   - Use different cooking methods for each meal of the day
-   - Avoid repetitive preparation styles"""
+3. COOKING METHOD VARIETY: Use different cooking methods like: {', '.join(constraints['cooking_methods'])}
+   - Vary preparation styles when possible"""
 
-        # Add diet-specific constraints
+        # Add diet-specific constraints - make them guidelines not absolute rules
         if diet_type and diet_type.lower() != "none":
-            diversity_rules += f"\n\n4. DIET-SPECIFIC REQUIREMENTS ({diet_type.upper()}):"
+            diversity_rules += f"\n\n4. DIET REQUIREMENTS ({diet_type.upper()}):"
             
             if diet_constraints.get("forbidden"):
-                diversity_rules += f"\n   - ABSOLUTELY FORBIDDEN: {', '.join(diet_constraints['forbidden'])}"
+                diversity_rules += f"\n   - AVOID: {', '.join(diet_constraints['forbidden'])}"
             
             if diet_constraints.get("carb_sources"):
-                diversity_rules += f"\n   - ALLOWED CARB SOURCES: {', '.join(diet_constraints['carb_sources'])}"
+                diversity_rules += f"\n   - PREFER CARBS: {', '.join(diet_constraints['carb_sources'])}"
             
             if diet_constraints.get("fats"):
-                diversity_rules += f"\n   - REQUIRED HEALTHY FATS: {', '.join(diet_constraints['fats'])}"
+                diversity_rules += f"\n   - INCLUDE FATS: {', '.join(diet_constraints['fats'])}"
             
             if diet_constraints.get("bases"):
-                diversity_rules += f"\n   - PREFERRED BASES: {', '.join(diet_constraints['bases'])}"
-            
-            if diet_constraints.get("vegetables"):
-                diversity_rules += f"\n   - EMPHASIZED VEGETABLES: {', '.join(diet_constraints['vegetables'])}"
+                diversity_rules += f"\n   - GOOD BASES: {', '.join(diet_constraints['bases'])}"
         
-        # Add allergy constraints
+        # Add allergy constraints - keep these strict
         if constraints.get("allergies"):
             diversity_rules += f"\n\n5. ALLERGY RESTRICTIONS:"
-            diversity_rules += f"\n   - COMPLETELY AVOID: {', '.join(constraints['allergies'])}"
-            diversity_rules += f"\n   - Double-check ALL ingredients for hidden allergens"
+            diversity_rules += f"\n   - NEVER USE: {', '.join(constraints['allergies'])}"
         
-        # Add general diversity rules
+        # Add general diversity rules - make them suggestions
         diversity_rules += f"""
 
-{6 if diet_type or constraints.get("allergies") else 4}. INGREDIENT DIVERSITY:
-   - No repeated vegetables/grains within the same day
-   - Vary spices and seasonings significantly
-   - Use different base ingredients across meals
+{6 if diet_type or constraints.get("allergies") else 4}. GENERAL VARIETY:
+   - Try to vary ingredients and cooking styles
+   - Include different textures and flavors
+   - Make each recipe feel unique and interesting
 
-{7 if diet_type or constraints.get("allergies") else 5}. MEAL STRUCTURE DIVERSITY:
-   - Vary meal complexities (some simple, some elaborate)
-   - Mix hot and cold preparations
-   - Include different textures and flavor profiles
-
-{8 if diet_type or constraints.get("allergies") else 6}. FORBIDDEN REPETITIONS:
-   - NEVER use the same main ingredient twice in one day
-   - NEVER repeat similar flavor combinations
-   - NEVER use the same cuisine style for consecutive meals
+IMPORTANT: Generate ALL requested recipes even if some variety guidelines can't be perfectly followed. Completeness is more important than perfect diversity.
 """
         
         return diversity_rules
@@ -743,14 +728,22 @@ Next Recipe Title
         constraints = self._generate_diversity_constraints(days, meals_per_day, diet_type, allergies)
         diversity_section = self._create_diversity_prompt_section(constraints)
         
-        # Updated system prompt with diversity constraints
-        system_prompt = f"""You are a meal planning expert that creates highly diverse, non-repetitive meal plans.
+        # Simplified system prompt focused on completion
+        system_prompt = f"""You are a meal planning expert. Your PRIMARY GOAL is to generate COMPLETE meal plans with ALL requested recipes.
 
         {diversity_section}
+
+        CRITICAL COMPLETION REQUIREMENTS:
+        - You MUST generate exactly {days} days with {meals_per_day} meals each day
+        - NEVER skip meals or days - completeness is essential
+        - If you can't follow all diversity guidelines perfectly, still generate all recipes
+        - Each recipe must be complete with title, timing, ingredients, instructions, and nutrition
+        - add the amounts for ingredients (United states standards)
 
         EXACT FORMAT FOR EACH DAY:
         Day X (where X is 1, 2, 3, etc.)
         
+        [MEAL TYPE: Breakfast/Lunch/Dinner/Snack]
         [RECIPE TITLE]
         
         Preparation Time: X minutes
@@ -774,45 +767,37 @@ Next Recipe Title
         
         =====
         
-        CRITICAL RULES:
-        - Generate exactly {days} days with {meals_per_day} meals each day
-        - NEVER repeat recipes or similar dishes in the plan
-        - Each day MUST have exactly {meals_per_day} meals - no skipping
-        - Target {calories_per_day} calories per day total
-        - Recipe title MUST be on its own line after meal type
-        - Recipe title CANNOT contain ingredients or measurements
-        - Recipe title CANNOT be "-----" or "====="
+        FORMATTING RULES:
         - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
-        - NEVER put ingredients in the title line
-        - Each meal type: Breakfast, Lunch, Dinner, or Snack
         - Separate days with ===== ONLY
-        - NO bold text, asterisks, or special formatting
+        - NO bold text or special formatting
         - Ingredients MUST start with • symbol
         - Instructions MUST be numbered 1., 2., 3., etc.
         """
 
-        # Build the main prompt with diversity emphasis
-        prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day.
+        # Simplified prompt focused on completion
+        prompt = f"""Create a complete {days}-day meal plan with {meals_per_day} meals per day.
 
-CRITICAL: Follow ALL diversity constraints above. Every meal must be completely different in cuisine, protein, cooking method, and ingredients."""
+Target: {calories_per_day} calories per day total.
+
+MOST IMPORTANT: Generate ALL {days * meals_per_day} recipes. Do not stop early or skip any meals."""
 
         # Add diet-specific emphasis
         if diet_type and diet_type.lower() != "none":
-            prompt += f" This meal plan MUST strictly follow {diet_type.upper()} diet requirements."
+            prompt += f" Follow {diet_type.upper()} diet guidelines when possible."
         
-        prompt += f" Make this meal plan feel like a culinary adventure with maximum variety!\n\nRandomization Seed: {constraints['randomization_key']} - Use this to ensure unique generation."
-
-        # Handle optional parameters safely
         if healthy:
-            prompt += " Make all meals healthy and nutritious."
+            prompt += " Make meals healthy and nutritious."
 
         if allergies:
             allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-            prompt += f" Ensure all recipes are completely free of: {allergies_list}."
+            prompt += f" CRITICAL: Avoid these allergens completely: {allergies_list}."
 
         if preferences:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
             prompt += f" Consider these preferences: {preferences_list}."
+
+        prompt += f"\n\nRandomization Seed: {constraints['randomization_key']}"
 
         try:
             response = self.client.chat.completions.create(
@@ -821,14 +806,86 @@ CRITICAL: Follow ALL diversity constraints above. Every meal must be completely 
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,
+                temperature=0.7,  # Lower temperature for more reliable completion
                 max_tokens=4050,
-                top_p=0.9,
+                top_p=0.8,
                 timeout=80
+            )
+
+            result = response.choices[0].message.content.strip()
+            
+            # Check if we got a complete response - count the number of recipes
+            recipe_count = result.count('=====') + 1 if result else 0
+            expected_count = days * meals_per_day
+            
+            # If we didn't get enough recipes, try a simpler approach
+            if recipe_count < expected_count * 0.8:  # If we got less than 80% of expected recipes
+                print(f"Got {recipe_count} recipes, expected {expected_count}. Trying fallback approach...")
+                return self._generate_simple_meal_plan(days, meals_per_day, healthy, allergies, preferences, calories_per_day, diet_type)
+            
+            return result
+
+        except Exception as e:
+            print(f"Error generating meal plan: {str(e)}")
+            # Fallback to simple approach
+            return self._generate_simple_meal_plan(days, meals_per_day, healthy, allergies, preferences, calories_per_day, diet_type)
+
+    def _generate_simple_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, diet_type=None):
+        """Fallback method with minimal constraints to ensure completion"""
+        
+        system_prompt = f"""You are a meal planning expert. Generate a complete {days}-day meal plan with {meals_per_day} meals per day.
+
+        CRITICAL: You MUST generate exactly {days * meals_per_day} complete recipes. Do not stop early.
+
+        FORMAT:
+        Day X
+        
+        [Meal Type]
+        [Recipe Title]
+        
+        Preparation Time: X minutes
+        Cooking Time: X minutes
+        Servings: X
+        
+        • Ingredient 1
+        • Ingredient 2
+        • Ingredient 3
+        
+        Instructions:
+        1. Step one
+        2. Step two
+        3. Step three
+        
+        Nutritional Information:
+        Calories: X
+        Protein: Xg
+        Carbs: Xg
+        Fat: Xg
+        
+        ====="""
+
+        prompt = f"Create a complete {days}-day meal plan with {meals_per_day} meals per day. Target {calories_per_day} calories per day."
+        
+        if diet_type and diet_type.lower() != "none":
+            prompt += f" Follow {diet_type} diet."
+        
+        if allergies:
+            prompt += f" Avoid: {', '.join(allergies)}."
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,  # Very low temperature for reliability
+                max_tokens=4050,
+                top_p=0.7
             )
 
             return response.choices[0].message.content.strip()
 
         except Exception as e:
-            print(f"Error generating meal plan: {str(e)}")
+            print(f"Error in fallback meal plan generation: {str(e)}")
             return None
