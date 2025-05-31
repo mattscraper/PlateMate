@@ -550,71 +550,78 @@ Next Recipe Title
             print(f"Error generating recipes: {str(e)}")
             return []
 
-    def _generate_randomization_elements(self):
-        """Generate random elements to make meal plans unique"""
+    def _generate_randomness_elements(self):
+        """Generate random elements to make meal plans unique and different each time"""
         
-        # Create randomization based on current time + random seed
+        # Get current timestamp for time-based variation
         current_time = int(time.time())
-        random_seed = random.randint(1000, 9999)
         
-        # Random cuisine focus (rotates every few hours)
-        cuisine_groups = [
-            ["Italian", "Mediterranean", "French"],
-            ["Asian", "Thai", "Japanese", "Korean"],
-            ["Mexican", "Spanish", "Latin American"],
-            ["Indian", "Middle Eastern", "Moroccan"],
-            ["American", "Southern", "BBQ"],
-            ["British", "German", "Eastern European"],
-            ["Fusion", "Modern", "International"]
+        # Random cuisine emphasis (changes every few hours)
+        cuisine_focuses = [
+            "Mediterranean and Italian",
+            "Asian and fusion",
+            "Mexican and Latin American",
+            "Middle Eastern and North African",
+            "American comfort food",
+            "European and French",
+            "Indian and South Asian",
+            "international and diverse"
         ]
         
-        # Random cooking style focus
-        cooking_styles = [
-            ["grilled", "roasted", "baked"],
-            ["stir-fried", "sautéed", "pan-seared"],
-            ["slow-cooked", "braised", "steamed"],
-            ["fresh", "raw", "no-cook"],
-            ["one-pot", "sheet-pan", "quick"],
-            ["comfort-food", "hearty", "warming"],
-            ["light", "fresh", "summery"]
+        # Random cooking style emphasis
+        cooking_focuses = [
+            "grilled and roasted dishes",
+            "one-pot and sheet pan meals",
+            "fresh and light preparations",
+            "slow-cooked and braised",
+            "quick and easy recipes",
+            "hearty and warming meals",
+            "creative and modern techniques"
         ]
         
-        # Random protein rotation
-        protein_focuses = [
-            ["chicken", "turkey", "poultry"],
-            ["fish", "seafood", "salmon"],
-            ["beef", "pork", "red meat"],
-            ["plant-based", "legumes", "tofu"],
-            ["mixed", "variety", "diverse"]
+        # Random flavor profiles
+        flavor_focuses = [
+            "bold and spicy flavors",
+            "fresh and herbaceous",
+            "rich and savory",
+            "bright and citrusy",
+            "smoky and earthy",
+            "sweet and savory combinations",
+            "classic and comforting"
         ]
         
-        # Select random elements (changes every few hours)
-        hour_group = (current_time // 3600) % len(cuisine_groups)
+        # Select random elements based on time (changes every hour)
+        hour_index = (current_time // 3600) % len(cuisine_focuses)
+        cuisine_focus = cuisine_focuses[hour_index]
         
-        selected_cuisines = cuisine_groups[hour_group]
-        selected_cooking = random.choice(cooking_styles)
-        selected_proteins = random.choice(protein_focuses)
+        # Add some randomness within the hour
+        random.seed(current_time + random.randint(1, 1000))
+        cooking_focus = random.choice(cooking_focuses)
+        flavor_focus = random.choice(flavor_focuses)
+        
+        # Generate unique seed for this request
+        unique_seed = f"{current_time}-{random.randint(1000, 9999)}"
         
         return {
-            "cuisines": selected_cuisines,
-            "cooking_styles": selected_cooking,
-            "proteins": selected_proteins,
-            "randomization_key": f"{current_time}-{random_seed}",
-            "variety_focus": random.choice(["international", "comfort", "healthy", "quick", "gourmet"])
+            "cuisine_focus": cuisine_focus,
+            "cooking_focus": cooking_focus,
+            "flavor_focus": flavor_focus,
+            "unique_seed": unique_seed
         }
             
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-        """Generate meal plan with added randomization for variety"""
+        """Generate meal plan with randomness to prevent similarity"""
         
-        print(f"=== MEAL PLAN GENERATION START ===")
-        print(f"Request: {days} days, {meals_per_day} meals per day, {calories_per_day} calories")
-        print(f"Healthy: {healthy}, Allergies: {allergies}, Preferences: {preferences}")
+        # Generate randomness elements for this meal plan
+        randomness = self._generate_randomness_elements()
         
-        # Generate randomization elements
-        randomization = self._generate_randomization_elements()
-        print(f"Randomization: {randomization}")
+        print(f"=== MEAL PLAN RANDOMNESS ===")
+        print(f"Cuisine focus: {randomness['cuisine_focus']}")
+        print(f"Cooking focus: {randomness['cooking_focus']}")
+        print(f"Flavor focus: {randomness['flavor_focus']}")
+        print(f"Unique seed: {randomness['unique_seed']}")
         
-        # Updated system prompt with randomization hints
+        # Updated system prompt with randomness elements
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
         1. Generate exactly {days} days with {meals_per_day} meals each day
@@ -622,12 +629,11 @@ Next Recipe Title
         3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
         4. Target {calories_per_day} calories per day total
 
-        VARIETY GUIDELINES (Randomization Key: {randomization['randomization_key']}):
-        - Emphasize these cuisines when possible: {', '.join(randomization['cuisines'])}
-        - Focus on these cooking styles: {', '.join(randomization['cooking_styles'])}
-        - Protein variety: {', '.join(randomization['proteins'])}
-        - Overall theme: {randomization['variety_focus']} style meals
-        - Make each meal plan feel unique and different from typical meal plans
+        VARIETY REQUIREMENTS (Seed: {randomness['unique_seed']}):
+        - Emphasize {randomness['cuisine_focus']} cuisines for this meal plan
+        - Focus on {randomness['cooking_focus']} cooking methods
+        - Feature {randomness['flavor_focus']} throughout the recipes
+        - Make this meal plan feel unique and different from typical meal plans
 
         EXACT FORMAT FOR EACH DAY:
         Day X (where X is 1, 2, 3, etc.)
@@ -668,11 +674,11 @@ Next Recipe Title
         - Instructions MUST be numbered 1., 2., 3., etc.
         """
 
-        # Initialize prompt with randomization
+        # Initialize prompt with randomness
         prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specified calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
         
-        # Add variety instructions
-        prompt += f" IMPORTANT: Create a {randomization['variety_focus']}-themed meal plan with emphasis on {', '.join(randomization['cuisines'])} cuisines and {', '.join(randomization['cooking_styles'])} cooking methods. Make this meal plan feel unique and different from standard meal plans."
+        # Add randomness instructions
+        prompt += f" IMPORTANT: This meal plan should emphasize {randomness['cuisine_focus']} with {randomness['cooking_focus']} and {randomness['flavor_focus']}. Make this feel completely different from a standard meal plan."
 
         # Handle optional parameters safely
         if healthy:
@@ -686,11 +692,8 @@ Next Recipe Title
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
             prompt += f" Consider these preferences: {preferences_list}."
 
-        # Add final randomization instruction
-        prompt += f" Randomization seed: {randomization['randomization_key']} - use this to create a unique, varied meal plan."
-
-        print(f"=== SENDING TO OPENAI ===")
-        print(f"Prompt length: {len(prompt)} characters")
+        # Add final uniqueness instruction
+        prompt += f" Randomization seed: {randomness['unique_seed']} - use this to create a completely unique meal plan that feels fresh and different."
 
         try:
             response = self.client.chat.completions.create(
@@ -699,38 +702,106 @@ Next Recipe Title
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.8,  # Slightly higher for more variety
+                temperature=0.85,  # Higher temperature for more variety
                 max_tokens=4050,
-                top_p=0.85,  # Higher for more variety
+                top_p=0.9,   # Higher for more diverse output
                 timeout=80
             )
 
             result = response.choices[0].message.content.strip()
-            
-            print(f"=== OPENAI RESPONSE ===")
-            print(f"Response length: {len(result)} characters")
-            print(f"Number of recipe separators (=====): {result.count('=====')}")
-            print(f"Expected meals: {days * meals_per_day}")
-            
-            # Print first 500 characters to see the format
-            print(f"=== FIRST 500 CHARACTERS ===")
-            print(result[:500])
-            print("...")
-            
-            # Print last 300 characters to see how it ends
-            print(f"=== LAST 300 CHARACTERS ===")
-            print("...")
-            print(result[-300:])
-            
-            # Count days and meals
-            days_found = result.count('Day ')
-            print(f"Days found in response: {days_found}")
-            
-            print(f"=== MEAL PLAN GENERATION COMPLETE ===")
+            print(f"=== MEAL PLAN GENERATED ===")
+            print(f"Length: {len(result)} characters")
+            print(f"Separators found: {result.count('=====')}")
             
             return result
 
         except Exception as e:
-            print(f"=== ERROR GENERATING MEAL PLAN ===")
-            print(f"Error: {str(e)}")
+            print(f"Error generating meal plan: {str(e)}")
             return None
+# meal plan generation api route - fixed to match current code
+@recipe_routes.route('/api/mealplans', methods=["POST"])
+@cross_origin()
+def get_meal_plan():
+    try:
+        if not request.is_json:
+            return jsonify({
+                "Error": "Response Content-Type must be application/json"
+            }), 400
+
+        data = request.json
+        
+        # Existing parameter validation
+        days = min(max(int(data.get("days", 7)), 1), 14)
+        meals_per_day = min(max(int(data.get("meals_per_day", 3)), 1), 5)
+        healthy = bool(data.get("healthy", False))
+        allergies = list(set(allergy.lower().strip() for allergy in data.get("allergies", [])))
+        preferences = list(set(preference.lower().strip() for preference in data.get("preferences", [])))
+        calories_per_day = min(max(int(data.get("calories_per_day", 2000)), 1000), 5000)
+        
+        # Diet type parameter - but don't pass it to generate_meal_plan since it doesn't accept it
+        diet_type = data.get("diet_type", "none")
+        if diet_type:
+            diet_type = diet_type.lower().strip()
+
+        # Handle diet type by adding it to allergies/preferences instead
+        if diet_type and diet_type != "none":
+            if diet_type == "vegan":
+                allergies.extend(["meat", "fish", "dairy", "eggs", "honey"])
+            elif diet_type == "vegetarian":
+                allergies.extend(["meat", "fish", "poultry"])
+            elif diet_type == "keto":
+                preferences.append("low carb high fat keto diet")
+            elif diet_type == "paleo":
+                allergies.extend(["grains", "legumes", "dairy", "processed foods"])
+                preferences.append("paleo diet")
+            elif diet_type == "gluten free":
+                allergies.extend(["wheat", "gluten", "barley", "rye"])
+            else:
+                # For any other diet type, add it as a preference
+                preferences.append(f"{diet_type} diet")
+
+        # Remove duplicates
+        allergies = list(set(allergies))
+        preferences = list(set(preferences))
+
+        print(f"=== ROUTE DEBUG ===")
+        print(f"Original diet_type: {data.get('diet_type')}")
+        print(f"Processed diet_type: {diet_type}")
+        print(f"Final allergies: {allergies}")
+        print(f"Final preferences: {preferences}")
+
+        # Generate meal plan with current method signature (no diet_type parameter)
+        meal_plan = recipe_generator.generate_meal_plan(
+            days=days,
+            meals_per_day=meals_per_day,
+            healthy=healthy,
+            allergies=allergies,
+            preferences=preferences,
+            calories_per_day=calories_per_day
+            # Note: NOT passing diet_type since current method doesn't accept it
+        )
+
+        if not meal_plan:
+            return jsonify({
+                "Error": "No meal plan could be generated. Please try again."
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "meal_plan": meal_plan,
+            "days": days,
+            "meals_per_day": meals_per_day,
+            "calories_per_day": calories_per_day,
+            "diet_type": diet_type,
+            "diversity_enabled": True,  # Flag to indicate diversity system is active
+            "diet_specific": diet_type != "none",  # Flag to indicate diet-specific constraints
+            "processed_allergies": allergies,  # Debug info
+            "processed_preferences": preferences  # Debug info
+        })
+
+    except Exception as e:
+        print(f"Error generating meal plans: {str(e)}")
+        return jsonify({
+            "Error": "An unexpected error occurred while generating meal plans",
+            "details": str(e)
+        }), 500
