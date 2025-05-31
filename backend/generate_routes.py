@@ -118,7 +118,7 @@ def get_recipes_ingredients():
             "details": str(e)
         }), 500
 
-# meal plan generation api route
+# meal plan generation api route with diversity system and diet support
 @recipe_routes.route('/api/mealplans', methods=["POST"])
 @cross_origin()
 def get_meal_plan():
@@ -130,9 +130,6 @@ def get_meal_plan():
 
         data = request.json
         
-        
-       
-        
         # Existing parameter validation
         days = min(max(int(data.get("days", 7)), 1), 14)
         meals_per_day = min(max(int(data.get("meals_per_day", 3)), 1), 5)
@@ -140,8 +137,13 @@ def get_meal_plan():
         allergies = list(set(allergy.lower().strip() for allergy in data.get("allergies", [])))
         preferences = list(set(preference.lower().strip() for preference in data.get("preferences", [])))
         calories_per_day = min(max(int(data.get("calories_per_day", 2000)), 1000), 5000)
+        
+        # NEW: Diet type parameter
+        diet_type = data.get("diet_type", "none")  # Can be "keto", "vegan", "paleo", etc.
+        if diet_type:
+            diet_type = diet_type.lower().strip()
 
-        # Generate meal plan with user_id for duplicate prevention
+        # Generate meal plan with built-in diversity system and diet support
         meal_plan = recipe_generator.generate_meal_plan(
             days=days,
             meals_per_day=meals_per_day,
@@ -149,7 +151,7 @@ def get_meal_plan():
             allergies=allergies,
             preferences=preferences,
             calories_per_day=calories_per_day,
-            
+            diet_type=diet_type  # Pass the diet type
         )
 
         if not meal_plan:
@@ -162,7 +164,10 @@ def get_meal_plan():
             "meal_plan": meal_plan,
             "days": days,
             "meals_per_day": meals_per_day,
-            "calories_per_day": calories_per_day
+            "calories_per_day": calories_per_day,
+            "diet_type": diet_type,
+            "diversity_enabled": True,  # Flag to indicate diversity system is active
+            "diet_specific": diet_type != "none"  # Flag to indicate diet-specific constraints
         })
 
     except Exception as e:
@@ -171,7 +176,6 @@ def get_meal_plan():
             "Error": "An unexpected error occurred while generating meal plans",
             "details": str(e)
         }), 500
-
 
 # we need to add a route for reciept management.... store in database? send to data display?
 

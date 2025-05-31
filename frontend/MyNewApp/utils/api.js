@@ -2,7 +2,8 @@ const API_URL = "https://platemate-6.onrender.com"; // make sure this is changed
 export const fetchRecipes = async (mealType, healthy, allergies) => {
   try {
     console.log("Fetching from:", API_URL); // Debug log
-    const response = await fetch(${API_URL}/api/recipes, {
+      const response = await fetch(`${API_URL}/api/recipes`, {
+
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -29,7 +30,7 @@ export const fetchRecipes = async (mealType, healthy, allergies) => {
 export const fetchRecipesByIngredients = async (ingredients, allergies) => {
   try {
     console.log("Fetching from:", API_URL); // Debug log
-    const response = await fetch(${API_URL}/api/recipes/ingredients, {
+    const response = await fetch(`${API_URL}/api/recipes/ingredients`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -61,7 +62,7 @@ export const fetchMealPlans = async (
   caloriesPerDay
 ) => {
   try {
-    const response = await fetch(${API_URL}/api/mealplans, {
+    const response = await fetch(`${API_URL}/api/mealplans`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -431,7 +431,7 @@ export default function LandingScreen({ navigation }) {
           resizeMode="contain"
         />
         <View style={styles.headerTextContainer}>
-          <Text style={styles.dashboardTitle}>Kitch AI</Text>
+          <Text style={styles.dashboardTitle}>Kitchly</Text>
           <Text style={styles.dashboardSubtitle}>Recipe Assistant</Text>
         </View>
       </View>
