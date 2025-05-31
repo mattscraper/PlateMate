@@ -603,13 +603,12 @@ Next Recipe Title
             "variety_focus": random.choice(["international", "comfort", "healthy", "quick", "gourmet"])
         }
             
-    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, diet_type=None):
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
         """Generate meal plan with added randomization for variety"""
         
         print(f"=== MEAL PLAN GENERATION START ===")
         print(f"Request: {days} days, {meals_per_day} meals per day, {calories_per_day} calories")
         print(f"Healthy: {healthy}, Allergies: {allergies}, Preferences: {preferences}")
-        print(f"Diet Type: {diet_type}")
         
         # Generate randomization elements
         randomization = self._generate_randomization_elements()
@@ -674,10 +673,6 @@ Next Recipe Title
         
         # Add variety instructions
         prompt += f" IMPORTANT: Create a {randomization['variety_focus']}-themed meal plan with emphasis on {', '.join(randomization['cuisines'])} cuisines and {', '.join(randomization['cooking_styles'])} cooking methods. Make this meal plan feel unique and different from standard meal plans."
-
-        # Handle diet type
-        if diet_type and diet_type.lower() not in ["none", ""]:
-            prompt += f" IMPORTANT: This meal plan must follow {diet_type.upper()} diet requirements strictly."
 
         # Handle optional parameters safely
         if healthy:

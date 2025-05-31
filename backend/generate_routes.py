@@ -118,7 +118,7 @@ def get_recipes_ingredients():
             "details": str(e)
         }), 500
 
-# meal plan generation api route with diversity system and diet support
+# meal plan generation api route - fixed to match current code
 @recipe_routes.route('/api/mealplans', methods=["POST"])
 @cross_origin()
 def get_meal_plan():
@@ -138,20 +138,47 @@ def get_meal_plan():
         preferences = list(set(preference.lower().strip() for preference in data.get("preferences", [])))
         calories_per_day = min(max(int(data.get("calories_per_day", 2000)), 1000), 5000)
         
-        # NEW: Diet type parameter
-        diet_type = data.get("diet_type", "none")  # Can be "keto", "vegan", "paleo", etc.
+        # Diet type parameter - but don't pass it to generate_meal_plan since it doesn't accept it
+        diet_type = data.get("diet_type", "none")
         if diet_type:
             diet_type = diet_type.lower().strip()
 
-        # Generate meal plan with built-in diversity system and diet support
+        # Handle diet type by adding it to allergies/preferences instead
+        if diet_type and diet_type != "none":
+            if diet_type == "vegan":
+                allergies.extend(["meat", "fish", "dairy", "eggs", "honey"])
+            elif diet_type == "vegetarian":
+                allergies.extend(["meat", "fish", "poultry"])
+            elif diet_type == "keto":
+                preferences.append("low carb high fat keto diet")
+            elif diet_type == "paleo":
+                allergies.extend(["grains", "legumes", "dairy", "processed foods"])
+                preferences.append("paleo diet")
+            elif diet_type == "gluten free":
+                allergies.extend(["wheat", "gluten", "barley", "rye"])
+            else:
+                # For any other diet type, add it as a preference
+                preferences.append(f"{diet_type} diet")
+
+        # Remove duplicates
+        allergies = list(set(allergies))
+        preferences = list(set(preferences))
+
+        print(f"=== ROUTE DEBUG ===")
+        print(f"Original diet_type: {data.get('diet_type')}")
+        print(f"Processed diet_type: {diet_type}")
+        print(f"Final allergies: {allergies}")
+        print(f"Final preferences: {preferences}")
+
+        # Generate meal plan with current method signature (no diet_type parameter)
         meal_plan = recipe_generator.generate_meal_plan(
             days=days,
             meals_per_day=meals_per_day,
             healthy=healthy,
             allergies=allergies,
             preferences=preferences,
-            calories_per_day=calories_per_day,
-            diet_type=diet_type  # Pass the diet type
+            calories_per_day=calories_per_day
+            # Note: NOT passing diet_type since current method doesn't accept it
         )
 
         if not meal_plan:
@@ -167,7 +194,9 @@ def get_meal_plan():
             "calories_per_day": calories_per_day,
             "diet_type": diet_type,
             "diversity_enabled": True,  # Flag to indicate diversity system is active
-            "diet_specific": diet_type != "none"  # Flag to indicate diet-specific constraints
+            "diet_specific": diet_type != "none",  # Flag to indicate diet-specific constraints
+            "processed_allergies": allergies,  # Debug info
+            "processed_preferences": preferences  # Debug info
         })
 
     except Exception as e:
@@ -176,7 +205,6 @@ def get_meal_plan():
             "Error": "An unexpected error occurred while generating meal plans",
             "details": str(e)
         }), 500
-
 # we need to add a route for reciept management.... store in database? send to data display?
 
 def init_recipe_routes(app):
