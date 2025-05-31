@@ -249,13 +249,13 @@ CRITICAL DIVERSITY REQUIREMENTS (Randomization Key: {constraints['randomization_
     
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         # If there are allergies, use the original method to generate recipes
-        meal_type_valid = ["breakfast","lunch","dinner","snack","dessert"]
+        meal_type_valid = ["breakfast", "lunch", "dinner", "snack", "dessert"]
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
         if meal_type not in meal_type_valid:
             print(f"meal type is custom, default to original method: {meal_type}")
-            return self._generate_recipes_with_openai(meal_type,healthy,allergies,count)
+            return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
         # Otherwise, use recipes from the database
         print(f"Using titles from database for meal type: {meal_type}")
         return self._generate_recipes_from_database(meal_type, healthy, count)
@@ -390,7 +390,7 @@ Next Recipe Title
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.85,
-                max_tokens=2500,  # Increased to accommodate multiple recipes
+                max_tokens=2500,
                 top_p=0.8
             )
             
@@ -420,7 +420,7 @@ Next Recipe Title
                 )
                 processed_recipes.extend(remaining_recipes)
             
-            return processed_recipes[:count]  # Ensure we only return the requested number
+            return processed_recipes[:count]
                 
         except Exception as e:
             print(f"Error generating multiple recipes: {str(e)}")
@@ -475,7 +475,7 @@ Next Recipe Title
             random.shuffle(titles)
             
             # Generate recipes in batches to save tokens
-            batch_size = min(5, count)  # Process 5 recipes at a time, or fewer if requested
+            batch_size = min(5, count)
             all_recipes = []
             
             for i in range(0, len(titles), batch_size):
@@ -485,7 +485,7 @@ Next Recipe Title
                     
                 # Add rate limiting to avoid API limits
                 if i > 0:
-                    sleep(1)  # Sleep between batches
+                    sleep(1)
                     
                 batch_recipes = self._generate_multiple_recipes_from_titles(batch_titles, healthy, len(batch_titles))
                 all_recipes.extend(batch_recipes)
@@ -575,7 +575,7 @@ Next Recipe Title
             for i, line in enumerate(lines):
                 if not line.strip():
                     # We've hit a blank line
-                    if current_section:  # If we have content, add it as a section
+                    if current_section:
                         sections.append("\n".join(current_section))
                         current_section = []
                 else:
@@ -617,6 +617,77 @@ Next Recipe Title
         if healthy:
             prompt += " Make them healthy and nutritious."
             
+        if allergies:
+            if "vegan" in allergies:
+                prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
+            prompt += f" Ensure they are completely free of these allergens or restrictions (example: vegan, vegetarian): {', '.join(allergies)}."
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt.format(count=count)},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.95,
+                max_tokens=2500,
+                top_p=0.85
+            )
+            
+            # Split response into individual recipes
+            recipe_text = response.choices[0].message.content.strip()
+            recipes = recipe_text.split("=====")
+            recipes = [r.strip() for r in recipes if r.strip()]
+            
+            # If we didn't get enough recipes, make a second call for the remainder
+            if len(recipes) < count:
+                remaining = count - len(recipes)
+                recipes_list = ', '.join([r.split('\n')[0] for r in recipes])
+                second_prompt = f"Create {remaining} more unique {meal_type} recipes, different from: {recipes_list}"
+                
+                second_response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_prompt.format(count=remaining)},
+                        {"role": "user", "content": second_prompt}
+                    ],
+                    temperature=0.95,
+                    max_tokens=2000,
+                    top_p=0.85
+                )
+                
+                additional_recipes = second_response.choices[0].message.content.strip().split("=====")
+                recipes.extend([r.strip() for r in additional_recipes if r.strip()])
+
+            return recipes[:count]
+            
+        except Exception as e:
+            print(f"Error generating recipes: {str(e)}")
+            return []
+        
+    def get_recipe_ingredients(self, ingredients, allergies, count=5):
+        """Generate recipes based on available ingredients"""
+        system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
+        1. Generate exactly {count} different recipes
+        . only generate recipes based on users available ingredients
+        IMPORTANT: if a user enters something that is not normal to eat in the United States, ingore it! (ex: dog meat, human meat) or anything that is not usual. Do not give weird recipes that would not be normal
+        2. Never repeat recipe ideas or cuisines in the batch
+        3. Vary cooking methods, ingredients, and cuisine styles
+        4. Format each recipe exactly as follows:
+        - Make sure the title is far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
+        - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "="
+        - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
+        - Numbered instructions(specific)
+        - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK make sure this is accurate!
+        - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
+        5. Separate each recipe with ===== on its own line and leave space below for title!
+        6. No bold letters or asterisks
+        7. Make recipes amazing and creative
+        8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this."""
+        
+        # Create a single prompt for multiple recipes
+        prompt = f"Create {count} unique recipes, based on the users available ingredients DO not include extra ingredients (except for spices): {','.join(ingredients)}."
+        
         if allergies:
             if "vegan" in allergies:
                 prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
@@ -750,9 +821,9 @@ CRITICAL: Follow ALL diversity constraints above. Every meal must be completely 
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,  # Higher temperature for more creativity with constraints
+                temperature=0.9,
                 max_tokens=4050,
-                top_p=0.9,  # Higher for more diverse vocabulary
+                top_p=0.9,
                 timeout=80
             )
 
@@ -760,77 +831,4 @@ CRITICAL: Follow ALL diversity constraints above. Every meal must be completely 
 
         except Exception as e:
             print(f"Error generating meal plan: {str(e)}")
-            return None vegan and free these allergens or restrictions: {', '.join(allergies)}."
-            prompt += f" Ensure they are completely free of these allergens or restrictions (example: vegan, vegetarian): {', '.join(allergies)}."
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt.format(count=count)},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.95,
-                max_tokens=2500,
-                top_p=0.85
-            )
-            
-            # Split response into individual recipes
-            recipe_text = response.choices[0].message.content.strip()
-            recipes = recipe_text.split("=====")
-            recipes = [r.strip() for r in recipes if r.strip()]
-            
-            # If we didn't get enough recipes, make a second call for the remainder
-            if len(recipes) < count:
-                remaining = count - len(recipes)
-                recipes_list = ', '.join([r.split('\n')[0] for r in recipes])
-                second_prompt = f"Create {remaining} more unique {meal_type} recipes, different from: {recipes_list}"
-                
-                second_response = self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": system_prompt.format(count=remaining)},
-                        {"role": "user", "content": second_prompt}
-                    ],
-                    temperature=0.95,
-                    max_tokens=2000,
-                    top_p=0.85
-                )
-                
-                additional_recipes = second_response.choices[0].message.content.strip().split("=====")
-                recipes.extend([r.strip() for r in additional_recipes if r.strip()])
-
-            return recipes[:count]
-            
-        except Exception as e:
-            print(f"Error generating recipes: {str(e)}")
-            return []
-        
-    def get_recipe_ingredients(self, ingredients, allergies, count=5):
-        # This method remains unchanged from the original
-        system_prompt = """You are a culinary expert that creates diverse recipes quickly. Format requirements:
-        1. Generate exactly {count} different recipes
-        . only generate recipes based on users available ingredients
-        IMPORTANT: if a user enters something that is not normal to eat in the United States, ingore it! (ex: dog meat, human meat) or anything that is not usual. Do not give weird recipes that would not be normal
-        2. Never repeat recipe ideas or cuisines in the batch
-        3. Vary cooking methods, ingredients, and cuisine styles
-        4. Format each recipe exactly as follows:
-        - Make sure the title is far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
-        - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "="
-        - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the titile)
-        - Numbered instructions(specific)
-        - Nutritional information per serving (united states standards... example(calories not kc)) in OWN BLOCK make sure this is accurate!
-        - Preparation Time, Cooking Time, Servings  in its own little section below nutrition
-        5. Separate each recipe with ===== on its own line and leave space below for title!
-        6. No bold letters or asterisks
-        7. Make recipes amazing and creative
-        8. Be very specific with instructions and do not leave anything out... even if you have to add more instructions to achieve this."""
-        
-
-        # Create a single prompt for multiple recipes
-        prompt = f"Create {count} unique recipes, based on the users available ingredients DO not include extra ingredients (except for spices): {','.join(ingredients)}."
-        
-            
-        if allergies:
-            if "vegan" in allergies:
-                prompt += f" Ensure the meal is completely
+            return None
