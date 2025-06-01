@@ -550,7 +550,7 @@ Next Recipe Title
             print(f"Error generating recipes: {str(e)}")
             return []
             
-    def randomize_mealplan():
+    def randomize_mealplan(self):
         rand_options = ["protein focused", "quick and easy", "refreshing and healthy", "chef-inspired", "italian and american", "chinese and american mix"]
         
         selected = random.choice(rand_options)
@@ -560,7 +560,7 @@ Next Recipe Title
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
         # Updated system prompt with stricter formatting rules
-        inspiration = randomize_mealplan()
+        inspiration = self.randomize_mealplan()
         
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
