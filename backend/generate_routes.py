@@ -4,6 +4,7 @@ from typing import Optional, List
 from dataclasses import dataclass
 from backend.openai_handler import RecipeGenerator
 
+
 # we need to make a seperate route for the meal plans/ different file?
 
 # Create a Blueprint for recipes
@@ -117,6 +118,7 @@ def get_recipes_ingredients():
             "error": "An unexpected error occurred while generating recipes",
             "details": str(e)
         }), 500
+
 
 # meal plan generation api route
 @recipe_routes.route('/api/mealplans', methods=["POST"])

@@ -5,6 +5,7 @@ import random
 from time import sleep
 from dotenv import load_dotenv
 import re
+import random
 
 # Load environment variables
 load_dotenv()
@@ -549,9 +550,18 @@ Next Recipe Title
             print(f"Error generating recipes: {str(e)}")
             return []
             
+    def randomize_mealplan():
+        rand_options = ["protein focused", "quick and easy", "refreshing and healthy", "chef-inspired", "italian and american", "chinese and american mix"]
+        
+        selected = random.choice(rand_options)
+        
+        return selected
+
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
         # Updated system prompt with stricter formatting rules
+        inspiration = randomize_mealplan()
+        
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
         1. Generate exactly {days} days with {meals_per_day} meals each day
@@ -586,6 +596,7 @@ Next Recipe Title
         =====
         
         CRITICAL RULES:
+        - The most important part of this is generating all recipes for each day
         - Recipe title MUST be on its own line after meal type
         - Recipe title CANNOT contain ingredients or measurements
         - Recipe title CANNOT be "-----" or "====="
@@ -599,7 +610,7 @@ Next Recipe Title
         """
 
         # Initialize prompt
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specicfied calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. This meal plan's  theme is {inspiration} Make sure the meals add up to the specified calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
 
         # Handle optional parameters safely
         if healthy:
@@ -627,6 +638,7 @@ Next Recipe Title
             )
 
             return response.choices[0].message.content.strip()
+            print (inspiration)
 
         except Exception as e:
             print(f"Error generating meal plan: {str(e)}")
