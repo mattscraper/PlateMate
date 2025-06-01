@@ -607,7 +607,7 @@ Next Recipe Title
         """
 
         # Initialize prompt
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day with the theme {inspiration}. Make sure the meals add up to the specicfied calories. MOST IMPORTANT: GENERATE ALL RECIPES FOR EACH DAY
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day with the theme {inspiration}. Make sure the meals add up to the specicfied calories. MOST IMPORTANT: GENERATE ALL RECIPES FOR EACH DAY"
 
         # Handle optional parameters safely
         if healthy:
