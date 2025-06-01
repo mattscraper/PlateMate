@@ -557,7 +557,7 @@ Next Recipe Title
     
         random_themes = ["quick and easy", "chef-inspired", "american and italian","greek and american","mexican and american", "chinese and american","protein packed"]
             
-        inspiration = random.choice(randon_themes)
+        inspiration = random.choice(random_themes)
         
         # Updated system prompt with stricter formatting rules
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
