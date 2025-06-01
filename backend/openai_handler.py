@@ -564,10 +564,13 @@ Next Recipe Title
         calories_per_meal = calories_per_day // meals_per_day
         print(f"Target calories per meal: {calories_per_meal}")
         
+        total_meals = meals_per_day * days
+        
         # Updated system prompt with stricter formatting and calorie guidance
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
         1. Generate exactly {days} days with {meals_per_day} meals each day
+        - this means you are to generate {total_meals} recipes!
         2. NEVER repeat recipes in the plan
         3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
         4. Target {calories_per_day} calories per day total - aim for approximately {calories_per_meal} calories per meal
