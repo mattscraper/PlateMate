@@ -551,23 +551,23 @@ Next Recipe Title
             return []
             
     def randomize_mealplan(self):
-    """Generate a random meal plan theme for variety"""
-    rand_options = [
-        "Mediterranean inspired",
-        "Quick and easy weekday meals",
-        "High protein fitness focused",
-        "Comfort food classics",
-        "Fresh and light summer meals",
-        "Hearty winter warmers",
-        "Asian fusion favorites",
-        "One-pot wonder meals",
-        "Meal prep friendly dishes",
-        "Family-style comfort food"
-    ]
-    
-    selected = random.choice(rand_options)
-    print(f"Selected meal plan theme: {selected}")
-    return selected
+        """Generate a random meal plan theme for variety"""
+        rand_options = [
+            "Mediterranean inspired",
+            "Quick and easy weekday meals",
+            "High protein fitness focused",
+            "Comfort food classics",
+            "Fresh and light summer meals",
+            "Hearty winter warmers",
+            "Asian fusion favorites",
+            "One-pot wonder meals",
+            "Meal prep friendly dishes",
+            "Family-style comfort food"
+        ]
+        
+        selected = random.choice(rand_options)
+        print(f"Selected meal plan theme: {selected}")
+        return selected
 
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
         """Generate a complete meal plan with consistent formatting"""
