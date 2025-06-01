@@ -558,32 +558,23 @@ Next Recipe Title
         random_themes = ["quick and easy", "chef-inspired", "american and italian","greek and american","mexican and american", "chinese and american","protein packed"]
             
         inspiration = random.choice(random_themes)
-        print(f"Meal Plan Inspiration: {inspiration}")
+        print (f"Meal Plan Inspiration: {inspiration}")
         
-        # Calculate calories per meal for better distribution
-        calories_per_meal = calories_per_day // meals_per_day
-        print(f"Target calories per meal: {calories_per_meal}")
-        
-        total_meals = meals_per_day * days
-        
-        # Updated system prompt with stricter formatting and calorie guidance
+        # Updated system prompt with stricter formatting rules
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
         1. Generate exactly {days} days with {meals_per_day} meals each day
-        - this means you are to generate {total_meals} recipes!
         2. NEVER repeat recipes in the plan
         3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
-        4. Target {calories_per_day} calories per day total - aim for approximately {calories_per_meal} calories per meal
-        5. CALORIE ACCURACY: Each meal should be within 50-100 calories of {calories_per_meal} to ensure daily total reaches {calories_per_day}
+        4. Target {calories_per_day} calories per day total (each of the meals should add to this every single time)
 
         EXACT FORMAT FOR EACH DAY:
         Day X (where X is 1, 2, 3, etc.)
         
-        Breakfast
         [RECIPE TITLE]
         
         Preparation Time: X minutes
-        Cooking Time: X minutes
+        Cooking Time: X minutes  
         Servings: X
         
         • [Ingredient 1]
@@ -596,7 +587,7 @@ Next Recipe Title
         3. [Third step]
         
         Nutritional Information:
-        Calories: X (target: ~{calories_per_meal})
+        Calories: X
         Protein: Xg
         Carbs: Xg
         Fat: Xg
@@ -604,75 +595,46 @@ Next Recipe Title
         =====
         
         CRITICAL RULES:
-        - Always include meal type (Breakfast, Lunch, Dinner, or Snack) before recipe title
         - Recipe title MUST be on its own line after meal type
         - Recipe title CANNOT contain ingredients or measurements
         - Recipe title CANNOT be "-----" or "====="
         - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
         - NEVER put ingredients in the title line
-        - Separate RECIPES with ===== (not days)
+        - Each meal type: Breakfast, Lunch, Dinner, or Snack
+        - Separate days with ===== ONLY
         - NO bold text, asterisks, or special formatting
         - Ingredients MUST start with • symbol
         - Instructions MUST be numbered 1., 2., 3., etc.
-        - ALWAYS verify calories add up to approximately {calories_per_day} per day
         """
 
-        # Initialize prompt with more specific calorie guidance
-        prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day, targeting EXACTLY {calories_per_day} calories per day with the theme '{inspiration}'. 
-
-        CALORIE DISTRIBUTION GUIDANCE:
-        - Each meal should contain approximately {calories_per_meal} calories
-        - Daily total must add up to {calories_per_day} calories
-        - Adjust portion sizes if needed to hit calorie targets
-        
-        MOST IMPORTANT: 
-        1. GENERATE ALL {meals_per_day} RECIPES FOR EACH OF THE {days} DAYS
-        2. Ensure calories are accurate and add up correctly
-        3. Never skip or abbreviate any recipe"""
+        # Initialize prompt
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day with the theme {inspiration}. Make sure the meals add up to the specicfied calories. MOST IMPORTANT: GENERATE ALL RECIPES FOR EACH DAY"
 
         # Handle optional parameters safely
         if healthy:
-            prompt += " Make all meals healthy and nutritious with whole foods and balanced macros."
+            prompt += " Make all meals healthy and nutritious."
 
         if allergies:
             allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-            prompt += f" CRITICAL: Ensure all recipes are completely free of these allergens: {allergies_list}. Double-check every ingredient."
+            prompt += f" Ensure all recipes are completely free of: {allergies_list}."
 
         if preferences:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
-            prompt += f" Consider these dietary preferences: {preferences_list}."
+            prompt += f" Consider these preferences: {preferences_list}."
 
         try:
-            print(f"Requesting {days} days × {meals_per_day} meals = {days * meals_per_day} total recipes")
-            
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.6,  # Slightly lower for more consistent formatting
-                max_tokens=4096,  # Increased token limit
-                timeout=120  # Increased timeout for longer responses
+                temperature=0.5,  # Reduced for more consistent formatting
+                max_tokens=4050,
+                timeout=100
             )
 
-            meal_plan_content = response.choices[0].message.content.strip()
-            
-            # Add logging to count recipes generated
-            recipe_count = meal_plan_content.count('=====')
-            expected_recipes = days * meals_per_day
-            print(f"Generated recipes: {recipe_count}")
-            print(f"Expected recipes: {expected_recipes}")
-            
-            if recipe_count < expected_recipes:
-                print(f"WARNING: Missing {expected_recipes - recipe_count} recipes!")
-            
-            # Count days generated
-            day_count = len([line for line in meal_plan_content.split('\n') if line.strip().startswith('Day ')])
-            print(f"Generated days: {day_count}")
-            print(f"Expected days: {days}")
-            
-            return meal_plan_content
+            return response.choices[0].message.content.strip()
 
         except Exception as e:
             print(f"Error generating meal plan: {str(e)}")
