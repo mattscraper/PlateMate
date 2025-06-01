@@ -5,6 +5,7 @@ import random
 from time import sleep
 from dotenv import load_dotenv
 import re
+import random
 
 # Load environment variables
 load_dotenv()
@@ -548,9 +549,16 @@ Next Recipe Title
         except Exception as e:
             print(f"Error generating recipes: {str(e)}")
             return []
-            
+    
+  
+  
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
+    
+        random_themes = ["quick and easy", "chef-inspired", "american and italian","greek and american","mexican and american", "chinese and american","protein packed"]
+            
+        inspiration = random.choice(randon_themes)
+        
         # Updated system prompt with stricter formatting rules
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
@@ -599,7 +607,7 @@ Next Recipe Title
         """
 
         # Initialize prompt
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specicfied calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day with the theme {inspiration}. Make sure the meals add up to the specicfied calories. MOST IMPORTANT: GENERATE ALL RECIPES FOR EACH DAY
 
         # Handle optional parameters safely
         if healthy:
@@ -622,8 +630,7 @@ Next Recipe Title
                 ],
                 temperature=0.7,  # Reduced for more consistent formatting
                 max_tokens=4050,
-                top_p=0.8,  # Reduced for more consistent output
-                timeout=80
+                timeout=100
             )
 
             return response.choices[0].message.content.strip()
