@@ -118,7 +118,7 @@ def get_recipes_ingredients():
             "details": str(e)
         }), 500
 
-# meal plan generation api route - corrected diet type handling
+# meal plan generation api route
 @recipe_routes.route('/api/mealplans', methods=["POST"])
 @cross_origin()
 def get_meal_plan():
@@ -127,101 +127,39 @@ def get_meal_plan():
             return jsonify({
                 "Error": "Response Content-Type must be application/json"
             }), 400
-
         data = request.json
+        
+        
+       
         
         # Existing parameter validation
         days = min(max(int(data.get("days", 7)), 1), 14)
         meals_per_day = min(max(int(data.get("meals_per_day", 3)), 1), 5)
         healthy = bool(data.get("healthy", False))
-        calories_per_day = min(max(int(data.get("calories_per_day", 2000)), 1000), 5000)
-        
-        # Get allergies and preferences from request
         allergies = list(set(allergy.lower().strip() for allergy in data.get("allergies", [])))
         preferences = list(set(preference.lower().strip() for preference in data.get("preferences", [])))
-        
-        # Handle diet type - frontend sends it as a single value, but backend expects it in preferences
-        diet_type = None
-        if data.get("preferences") and len(data.get("preferences", [])) > 0:
-            # Diet type comes in as first item in preferences array from frontend
-            diet_type = data["preferences"][0].strip() if data["preferences"] else None
-        
-        print(f"=== ROUTE DEBUG ===")
-        print(f"Raw preferences from frontend: {data.get('preferences', [])}")
-        print(f"Extracted diet_type: {diet_type}")
-        print(f"Original allergies: {data.get('allergies', [])}")
-
-        # Convert diet type to proper allergies and preferences
-        if diet_type:
-            diet_type_lower = diet_type.lower()
-            
-            if diet_type_lower == "vegan":
-                # For vegan: add all animal products to allergies
-                                preferences.append("vegan plant-based diet")
-                
-            elif diet_type_lower == "vegetarian":
-                # For vegetarian: add meat/fish to allergies
-              
-                preferences.append("vegetarian diet")
-                
-            elif diet_type_lower == "keto":
-                # For keto: strict low carb requirements
-               
-                preferences.append("ketogenic low carb high fat diet")
-                
-            elif diet_type_lower == "paleo":
-                # For paleo: no grains, legumes, dairy, processed
-                
-                preferences.append("paleo diet")
-                
-            elif "gluten free" in diet_type_lower or "gluten-free" in diet_type_lower:
-                # For gluten free: no gluten-containing grains
-                allergies.extend(["wheat", "barley", "rye", "gluten", "bread", "pasta"])
-                preferences.append("gluten free diet")
-                
-            elif "low carb" in diet_type_lower:
-                # For low carb: limit high-carb foods
-         
-                preferences.append("low carb diet")
-                
-            else:
-                # For any other diet type, add it as a preference
-                preferences.append(f"{diet_type} diet")
-
-        # Remove duplicates and clean up
-        allergies = list(set([allergy.strip() for allergy in allergies if allergy.strip()]))
-        preferences = list(set([pref.strip() for pref in preferences if pref.strip()]))
-
-        print(f"Final allergies: {allergies}")
-        print(f"Final preferences: {preferences}")
-
-        # Generate meal plan with current method signature
+        calories_per_day = min(max(int(data.get("calories_per_day", 2000)), 1000), 5000)
+        # Generate meal plan with user_id for duplicate prevention
         meal_plan = recipe_generator.generate_meal_plan(
             days=days,
             meals_per_day=meals_per_day,
             healthy=healthy,
             allergies=allergies,
             preferences=preferences,
-            calories_per_day=calories_per_day
+            calories_per_day=calories_per_day,
+            
         )
-
         if not meal_plan:
             return jsonify({
                 "Error": "No meal plan could be generated. Please try again."
             }), 404
-
         return jsonify({
             "success": True,
             "meal_plan": meal_plan,
             "days": days,
             "meals_per_day": meals_per_day,
-            "calories_per_day": calories_per_day,
-            "diet_type": diet_type,
-            "diversity_enabled": True,
-            "processed_allergies": allergies,  # Debug info
-            "processed_preferences": preferences  # Debug info
+            "calories_per_day": calories_per_day
         })
-
     except Exception as e:
         print(f"Error generating meal plans: {str(e)}")
         return jsonify({

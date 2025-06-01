@@ -5,7 +5,6 @@ import random
 from time import sleep
 from dotenv import load_dotenv
 import re
-import time
 
 # Load environment variables
 load_dotenv()
@@ -62,7 +61,7 @@ class RecipeGenerator:
             
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         # If there are allergies, use the original method to generate recipes
-        meal_type_valid = ["breakfast","lunch","dinner","snack","dessert"]
+        meal_type_valid = ["breakfast","lunch","dinenr","snack","dessert"]
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
@@ -499,13 +498,13 @@ Next Recipe Title
         
 
         # Create a single prompt for multiple recipes
-        prompt = f"Create {count} unique recipes, based on the users available ingredients DO not include extra ingredients (except for spices): {','.join(ingredients)}."
+        prompt = f"Create {count} unique recipes, based on the users available ingridients DO not include extra ingredients (except for spices): {','.join(ingredients)}."
         
             
         if allergies:
             if "vegan" in allergies:
                 prompt += f" Ensure the meal is completely vegan and free these allergens or restrictions: {', '.join(allergies)}."
-            prompt += f" Ensure they are completely free of these allergens or restrictions(example:vegan, vegetarian): {', '.join(allergies)}."
+            prompt += f" Ensure they are completely free of these allergens or restrctions(example:vegan, vegitarian): {', '.join(allergies)}."
 
         try:
             response = self.client.chat.completions.create(
@@ -549,93 +548,16 @@ Next Recipe Title
         except Exception as e:
             print(f"Error generating recipes: {str(e)}")
             return []
-
-    def _generate_randomness_elements(self):
-        """Generate random elements to make meal plans unique and different each time"""
-        
-        # Get current timestamp for time-based variation
-        current_time = int(time.time())
-        
-        # Random cuisine emphasis (changes every few hours)
-        cuisine_focuses = [
-            "Mediterranean and Italian",
-            "Asian and fusion",
-            "Mexican and Latin American",
-            "Middle Eastern and North African",
-            "American comfort food",
-            "European and French",
-            "Indian and South Asian",
-            "international and diverse"
-        ]
-        
-        # Random cooking style emphasis
-        cooking_focuses = [
-            "grilled and roasted dishes",
-            "one-pot and sheet pan meals",
-            "fresh and light preparations",
-            "slow-cooked and braised",
-            "quick and easy recipes",
-            "hearty and warming meals",
-            "creative and modern techniques"
-        ]
-        
-        # Random flavor profiles
-        flavor_focuses = [
-            "bold and spicy flavors",
-            "fresh and herbaceous",
-            "rich and savory",
-            "bright and citrusy",
-            "smoky and earthy",
-            "sweet and savory combinations",
-            "classic and comforting"
-        ]
-        
-        # Select random elements based on time (changes every hour)
-        hour_index = (current_time // 3600) % len(cuisine_focuses)
-        cuisine_focus = cuisine_focuses[hour_index]
-        
-        # Add some randomness within the hour
-        random.seed(current_time + random.randint(1, 1000))
-        cooking_focus = random.choice(cooking_focuses)
-        flavor_focus = random.choice(flavor_focuses)
-        
-        # Generate unique seed for this request
-        unique_seed = f"{current_time}-{random.randint(1000, 9999)}"
-        
-        return {
-            "cuisine_focus": cuisine_focus,
-            "cooking_focus": cooking_focus,
-            "flavor_focus": flavor_focus,
-            "unique_seed": unique_seed
-        }
             
+    #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-        """Generate meal plan with randomness to prevent similarity"""
-        
-        # Generate randomness elements for this meal plan
-        randomness = self._generate_randomness_elements()
-        
-        print(f"=== MEAL PLAN RANDOMNESS ===")
-        print(f"Cuisine focus: {randomness['cuisine_focus']}")
-        print(f"Cooking focus: {randomness['cooking_focus']}")
-        print(f"Flavor focus: {randomness['flavor_focus']}")
-        print(f"Unique seed: {randomness['unique_seed']}")
-        
-        # Updated system prompt with randomness elements
+        # Updated system prompt with stricter formatting rules
         system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
 
-        1. Generate exactly {days} days with {meals_per_day} meals each day.. This is the most important part! all recipes need to be generated.
+        1. Generate exactly {days} days with {meals_per_day} meals each day
         2. NEVER repeat recipes in the plan
         3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
         4. Target {calories_per_day} calories per day total
-        5. Make sure ALL recipes are generated! this is the most important part
-        6. dont make the reecipes too simple (there can be more than 3 ingredients)
-
-        VARIETY REQUIREMENTS (Seed: {randomness['unique_seed']}):
-        - Emphasize {randomness['cuisine_focus']} cuisines for this meal plan
-        - Focus on {randomness['cooking_focus']} cooking methods
-        - Feature {randomness['flavor_focus']} throughout the recipes
-        
 
         EXACT FORMAT FOR EACH DAY:
         Day X (where X is 1, 2, 3, etc.)
@@ -676,11 +598,8 @@ Next Recipe Title
         - Instructions MUST be numbered 1., 2., 3., etc.
         """
 
-        # Initialize prompt with randomness
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specified calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
-        
-        # Add randomness instructions
-        prompt += f" IMPORTANT: This meal plan should emphasize {randomness['cuisine_focus']} with {randomness['cooking_focus']} and {randomness['flavor_focus']}. Make this feel completely different from a standard meal plan."
+        # Initialize prompt
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day. Make sure the meals add up to the specicfied calories (make sure they are accurate though) The macros should be accurate with the meal (dont cut corners to make it exact)!"
 
         # Handle optional parameters safely
         if healthy:
@@ -692,10 +611,7 @@ Next Recipe Title
 
         if preferences:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
-            prompt += f" Consider these preferences: (this is the diet type ex: vegan, low carb, keto) {preferences_list}."
-
-        # Add final uniqueness instruction
-        prompt += f" Randomization seed: {randomness['unique_seed']} - use this to create a completely unique meal plan that feels fresh and different."
+            prompt += f" Consider these preferences: {preferences_list}."
 
         try:
             response = self.client.chat.completions.create(
@@ -704,17 +620,13 @@ Next Recipe Title
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.80,  # Higher temperature for more variety
+                temperature=0.7,  # Reduced for more consistent formatting
                 max_tokens=4050,
-                timeout=120
+                top_p=0.8,  # Reduced for more consistent output
+                timeout=80
             )
 
-            result = response.choices[0].message.content.strip()
-            print(f"=== MEAL PLAN GENERATED ===")
-            print(f"Length: {len(result)} characters")
-            print(f"Separators found: {result.count('=====')}")
-            
-            return result
+            return response.choices[0].message.content.strip()
 
         except Exception as e:
             print(f"Error generating meal plan: {str(e)}")

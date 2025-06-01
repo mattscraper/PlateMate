@@ -385,43 +385,45 @@ export default function MealPlanResults() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      {/* Simple Header */}
+      {/* Compact Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Your Meal Plan</Text>
+        <Text style={styles.headerTitle}>Meal Plan</Text>
         <TouchableOpacity onPress={handleShare}>
           <Ionicons name="share-outline" size={24} color="#008080" />
         </TouchableOpacity>
       </View>
 
-      {/* View Toggle */}
+      {/* Compact Toggle */}
       <View style={styles.toggleContainer}>
         <View style={styles.toggleButtons}>
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
             onPress={() => setViewMode('list')}
           >
-            <Ionicons name="list" size={20} color={viewMode === 'list' ? '#008080' : '#666'} />
+            <Ionicons name="list" size={18} color={viewMode === 'list' ? '#008080' : '#666'} />
             <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'grid' && styles.toggleButtonActive]}
             onPress={() => setViewMode('grid')}
           >
-            <Ionicons name="grid" size={20} color={viewMode === 'grid' ? '#008080' : '#666'} />
+            <Ionicons name="grid" size={18} color={viewMode === 'grid' ? '#008080' : '#666'} />
             <Text style={[styles.toggleText, viewMode === 'grid' && styles.toggleTextActive]}>Grid</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Plan Summary */}
+      {/* Compact Summary */}
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>{days} Day Plan</Text>
-        <Text style={styles.summaryText}>
-          {parsedDays.reduce((sum, day) => sum + day.calories, 0).toLocaleString()} total calories
-        </Text>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryTitle}>{days} Days</Text>
+          <Text style={styles.summaryCalories}>
+            {parsedDays.reduce((sum, day) => sum + day.calories, 0).toLocaleString()} cal
+          </Text>
+        </View>
         {dietType && <Text style={styles.dietType}>{dietType}</Text>}
       </View>
 
@@ -440,7 +442,7 @@ export default function MealPlanResults() {
         />
       </View>
 
-      {/* Days List */}
+      {/* Content Views */}
       {viewMode === 'list' ? (
         <FlatList
           data={parsedDays}
@@ -495,11 +497,19 @@ export default function MealPlanResults() {
         />
       ) : (
         <FlatList
-          data={parsedDays.flatMap(day => day.meals.map(meal => ({ ...meal, dayTitle: day.title })))}
-          keyExtractor={(item, index) => `meal-${index}`}
+          data={parsedDays.flatMap(day =>
+            day.meals.map(meal => ({
+              ...meal,
+              dayTitle: day.title,
+              key: `${day.dayNumber}-${meal.mealType}`
+            }))
+          )}
+          keyExtractor={(item) => item.key}
           numColumns={2}
+          key={`grid-${viewMode}`} // Force re-render when switching to grid
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.gridContent}
+          columnWrapperStyle={styles.gridRow}
           renderItem={({ item: meal }) => (
             <TouchableOpacity
               style={styles.gridMealCard}
@@ -511,7 +521,7 @@ export default function MealPlanResults() {
               <Text style={styles.gridMealTitle} numberOfLines={2}>{meal.title}</Text>
               <View style={styles.gridMealCalories}>
                 <Text style={styles.gridCaloriesNumber}>{meal.calories}</Text>
-                <Text style={styles.gridCaloriesLabel}>calories</Text>
+                <Text style={styles.gridCaloriesLabel}>cal</Text>
               </View>
               <View style={styles.gridMacros}>
                 <Text style={styles.gridMacroText}>{meal.protein}g • {meal.carbs}g • {meal.fat}g</Text>
@@ -616,46 +626,46 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
-  // Header
+  // Header - More Compact
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12, // Reduced from 16
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18, // Reduced from 20
     fontWeight: '600',
     color: '#000',
   },
 
-  // Toggle
+  // Toggle - More Compact
   toggleContainer: {
     backgroundColor: 'white',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 8, // Reduced from 12
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
   toggleButtons: {
     flexDirection: 'row',
     backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 4,
+    borderRadius: 6, // Reduced from 8
+    padding: 3, // Reduced from 4
   },
   toggleButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    gap: 8,
+    paddingVertical: 6, // Reduced from 8
+    paddingHorizontal: 12, // Reduced from 16
+    borderRadius: 4, // Reduced from 6
+    gap: 6, // Reduced from 8
   },
   toggleButtonActive: {
     backgroundColor: 'white',
@@ -672,7 +682,7 @@ const styles = StyleSheet.create({
     }),
   },
   toggleText: {
-    fontSize: 14,
+    fontSize: 13, // Reduced from 14
     fontWeight: '500',
     color: '#666',
   },
@@ -681,13 +691,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Summary
+  // Summary - More Compact
   summaryCard: {
     backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
+    marginHorizontal: 20,
+    marginVertical: 8, // Reduced from 20
+    paddingHorizontal: 20,
+    paddingVertical: 12, // Reduced from 20
     borderRadius: 12,
-    alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -700,31 +711,37 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   summaryTitle: {
-    fontSize: 24,
+    fontSize: 20, // Reduced from 24
     fontWeight: '700',
     color: '#000',
   },
-  summaryText: {
+  summaryCalories: {
     fontSize: 16,
-    color: '#666',
-    marginTop: 4,
+    fontWeight: '600',
+    color: '#008080',
   },
   dietType: {
-    fontSize: 14,
+    fontSize: 12, // Reduced from 14
     color: '#008080',
     fontWeight: '600',
     marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 10, // Reduced from 12
+    paddingVertical: 3, // Reduced from 4
     backgroundColor: '#e0f2f1',
-    borderRadius: 12,
+    borderRadius: 10, // Reduced from 12
+    alignSelf: 'flex-start',
   },
 
-  // Save
+  // Save - More Compact
   saveContainer: {
     marginHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 8, // Reduced from 16
   },
 
   // List
@@ -733,18 +750,21 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  // Grid
+  // Grid - Fixed
   gridContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12, // Reduced padding
     paddingBottom: 40,
+  },
+  gridRow: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
   },
   gridMealCard: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 16,
-    margin: 4,
-    flex: 1,
-    maxWidth: '48%',
+    padding: 14, // Reduced from 16
+    width: '48%', // Fixed width
+    marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
