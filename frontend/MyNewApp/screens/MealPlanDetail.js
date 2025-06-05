@@ -9,10 +9,14 @@ import {
   Share,
   Dimensions,
   StatusBar,
+  Modal,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+
+const { width } = Dimensions.get('window');
 
 export default function MealPlanDetail() {
   const navigation = useNavigation();
@@ -32,17 +36,57 @@ export default function MealPlanDetail() {
 
   // Parse meal plan data
   const [parsedDays, setParsedDays] = useState([]);
-  const [selectedDay, setSelectedDay] = useState(1);
+  const [selectedMeal, setSelectedMeal] = useState(null);
+  const [viewMode, setViewMode] = useState('cards');
   const [isLoading, setIsLoading] = useState(true);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef();
 
-  // Refs for scrolling
-  const mainScrollRef = useRef(null);
-  const dayTabsRef = useRef(null);
+  // Create smooth animated values for summary card
+  const summaryOpacity = scrollY.interpolate({
+    inputRange: [0, 50, 120],
+    outputRange: [1, 0.8, 0],
+    extrapolate: 'clamp',
+  });
 
-  // Store positions of each day section
-  const [dayPositions, setDayPositions] = useState({});
+  const summaryTranslateY = scrollY.interpolate({
+    inputRange: [0, 120],
+    outputRange: [0, -60],
+    extrapolate: 'clamp',
+  });
 
-  const DAY_TAB_WIDTH = 80;
+  const summaryScale = scrollY.interpolate({
+    inputRange: [0, 50, 120],
+    outputRange: [1, 0.98, 0.95],
+    extrapolate: 'clamp',
+  });
+
+  // Animated height for collapsing the summary card
+  const summaryHeight = scrollY.interpolate({
+    inputRange: [0, 80, 120],
+    outputRange: [180, 80, 0],
+    extrapolate: 'clamp',
+  });
+
+  // Animated margin for smooth spacing
+  const summaryMargin = scrollY.interpolate({
+    inputRange: [0, 80, 120],
+    outputRange: [8, 4, 0],
+    extrapolate: 'clamp',
+  });
+
+  // Animated spacing for toggle container to move up and touch header
+  const toggleMarginTop = scrollY.interpolate({
+    inputRange: [0, 80, 120],
+    outputRange: [8, 4, 0],
+    extrapolate: 'clamp',
+  });
+
+  const togglePaddingVertical = scrollY.interpolate({
+    inputRange: [0, 80, 120],
+    outputRange: [8, 4, 0],
+    extrapolate: 'clamp',
+  });
 
   // Parse the meal plan text when component mounts
   useEffect(() => {
@@ -133,10 +177,19 @@ export default function MealPlanDetail() {
       orderedMeals.push(generateFallbackMeal(missingMealType, orderedMeals.length + 1));
     }
 
+    // Calculate totals for the day
+    const totals = orderedMeals.slice(0, mealsPerDay).reduce((sum, meal) => ({
+      calories: sum.calories + meal.calories,
+      protein: sum.protein + meal.protein,
+      carbs: sum.carbs + meal.carbs,
+      fat: sum.fat + meal.fat
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
     return {
       title: `Day ${dayNumber}`,
       dayNumber: dayNumber,
-      meals: orderedMeals.slice(0, mealsPerDay)
+      meals: orderedMeals.slice(0, mealsPerDay),
+      ...totals
     };
   };
 
@@ -202,8 +255,11 @@ export default function MealPlanDetail() {
     let title = '';
     let ingredients = [];
     let instructions = [];
-    let nutrition = '';
     let timings = [];
+    let calories = 0;
+    let protein = 0;
+    let carbs = 0;
+    let fat = 0;
 
     // SIMPLIFIED AND MORE EFFECTIVE TITLE EXTRACTION
     for (let i = 1; i < lines.length; i++) {
@@ -231,9 +287,8 @@ export default function MealPlanDetail() {
       }
       
       // Look for a substantial line that could be a title
-      // Don't be too restrictive - let most lines through unless they're obviously not titles
       if (line.length >= 3 && !line.endsWith(':')) {
-        title = line.replace(/[^\w\s\-'&()]/g, '').trim();
+        title = line.replace(/[^\w\s\-'&(),.]/g, '').trim();
         
         // Only reject if it's clearly an ingredient (has measurements)
         if (!title.match(/\d+\s*(cup|tbsp|tsp|lb|oz|gram|ml|liter)/i)) {
@@ -255,7 +310,45 @@ export default function MealPlanDetail() {
       
       if (!trimmedLine || trimmedLine === title) continue;
 
-      // Timing information - be more specific and precise
+      // Parse nutrition values
+      if (trimmedLine.toLowerCase().includes('calorie') && calories === 0) {
+        const patterns = [
+          /calories?\s*:?\s*(\d+)/i,
+          /(\d+)\s*calories?/i,
+          /(\d+)\s*kcal/i,
+          /cal\s*:?\s*(\d+)/i
+        ];
+        for (const pattern of patterns) {
+          const match = trimmedLine.match(pattern);
+          if (match) {
+            calories = parseInt(match[1]);
+            break;
+          }
+        }
+      }
+      
+      if (trimmedLine.toLowerCase().includes('protein') && protein === 0) {
+        const match = trimmedLine.match(/(\d+)/);
+        if (match) {
+          protein = parseInt(match[1]);
+        }
+      }
+      
+      if (trimmedLine.toLowerCase().includes('carb') && carbs === 0) {
+        const match = trimmedLine.match(/(\d+)/);
+        if (match) {
+          carbs = parseInt(match[1]);
+        }
+      }
+      
+      if (trimmedLine.toLowerCase().includes('fat') && fat === 0) {
+        const match = trimmedLine.match(/(\d+)/);
+        if (match) {
+          fat = parseInt(match[1]);
+        }
+      }
+
+      // Timing information
       if ((trimmedLine.toLowerCase().includes('preparation') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
           (trimmedLine.toLowerCase().includes('cooking') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
           (trimmedLine.toLowerCase().includes('servings') && trimmedLine.match(/\d+/)) ||
@@ -270,7 +363,6 @@ export default function MealPlanDetail() {
       else if (trimmedLine.match(/^[•\-\*]\s/)) {
         const ingredient = trimmedLine.replace(/^[•\-\*]\s*/, '').trim();
         
-        // Only filter out obvious non-ingredients
         if (ingredient &&
             ingredient !== '-----' &&
             ingredient !== '----' &&
@@ -285,24 +377,15 @@ export default function MealPlanDetail() {
       else if (trimmedLine.match(/^\d+\./)) {
         instructions.push(trimmedLine);
       }
-      // Nutrition info - look for any nutrition-related content
-      else if (trimmedLine.toLowerCase().includes('calorie') ||
-               trimmedLine.toLowerCase().includes('protein') ||
-               trimmedLine.toLowerCase().includes('fat') ||
-               trimmedLine.toLowerCase().includes('carb') ||
-               trimmedLine.toLowerCase().includes('kcal') ||
-               trimmedLine.toLowerCase().includes('nutritional') ||
-               trimmedLine.match(/\d+g\s*(protein|fat|carb)/i) ||
-               trimmedLine.match(/\d+\s*calorie/i)) {
-        
-        // If this line has nutrition info, add it to existing or start new
-        if (nutrition) {
-          nutrition += ' • ' + trimmedLine;
-        } else {
-          nutrition = trimmedLine;
-        }
-      }
     }
+
+    // Set default values if not found
+    if (calories === 0) {
+      calories = Math.round(caloriesPerDay / mealsPerDay);
+    }
+    if (protein === 0) protein = Math.round(calories * 0.25 / 4);
+    if (carbs === 0) carbs = Math.round(calories * 0.45 / 4);
+    if (fat === 0) fat = Math.round(calories * 0.30 / 9);
 
     // Ensure we have some content with better defaults
     if (ingredients.length === 0) {
@@ -322,15 +405,6 @@ export default function MealPlanDetail() {
       ];
     }
 
-    // ALWAYS ensure complete macro information
-    if (!nutrition || !nutrition.includes('protein') || !nutrition.includes('carb') || !nutrition.includes('fat')) {
-      const caloriesPerMeal = Math.round(caloriesPerDay / mealsPerDay);
-      const protein = Math.round(caloriesPerMeal * 0.2 / 4); // 20% protein (4 cal/g)
-      const carbs = Math.round(caloriesPerMeal * 0.5 / 4); // 50% carbs (4 cal/g)
-      const fat = Math.round(caloriesPerMeal * 0.3 / 9); // 30% fat (9 cal/g)
-      nutrition = `${caloriesPerMeal} calories • ${protein}g protein • ${carbs}g carbs • ${fat}g fat`;
-    }
-
     if (timings.length === 0) {
       timings = ['Prep: 15 min', 'Cook: 20 min'];
     }
@@ -340,12 +414,16 @@ export default function MealPlanDetail() {
       title,
       ingredients,
       instructions,
-      nutrition,
-      timings
+      timings,
+      calories,
+      protein,
+      carbs,
+      fat
     };
   };
 
   const generateFallbackMeal = (mealType, mealIndex) => {
+    const avgCals = Math.round(caloriesPerDay / mealsPerDay);
     const mealTitles = {
       'Breakfast': ['Protein Power Bowl', 'Morning Energy Plate', 'Sunrise Special', 'Hearty Breakfast Skillet', 'Golden Morning Toast'],
       'Lunch': ['Midday Balance Bowl', 'Power Lunch Plate', 'Afternoon Fuel', 'Fresh Garden Salad', 'Savory Lunch Wrap'],
@@ -355,11 +433,6 @@ export default function MealPlanDetail() {
 
     const titles = mealTitles[mealType] || ['Healthy Meal'];
     const randomTitle = titles[Math.floor(Math.random() * titles.length)];
-
-    const caloriesPerMeal = Math.round(caloriesPerDay / mealsPerDay);
-    const protein = Math.round(caloriesPerMeal * 0.2 / 4);
-    const carbs = Math.round(caloriesPerMeal * 0.5 / 4);
-    const fat = Math.round(caloriesPerMeal * 0.3 / 9);
 
     return {
       mealType,
@@ -374,8 +447,11 @@ export default function MealPlanDetail() {
         '2. Cook according to dietary requirements and preferences',
         '3. Season appropriately and serve fresh'
       ],
-      nutrition: `${caloriesPerMeal} calories • ${protein}g protein • ${carbs}g carbs • ${fat}g fat`,
-      timings: ['Prep: 15 min', 'Cook: 20 min']
+      timings: ['Prep: 15 min', 'Cook: 20 min'],
+      calories: avgCals,
+      protein: Math.round(avgCals * 0.25 / 4),
+      carbs: Math.round(avgCals * 0.45 / 4),
+      fat: Math.round(avgCals * 0.30 / 9)
     };
   };
 
@@ -383,10 +459,18 @@ export default function MealPlanDetail() {
     const mealTypes = ['Breakfast', 'Lunch', 'Dinner'].slice(0, mealsPerDay);
     const meals = mealTypes.map((type, index) => generateFallbackMeal(type, index + 1));
     
+    const totals = meals.reduce((sum, meal) => ({
+      calories: sum.calories + meal.calories,
+      protein: sum.protein + meal.protein,
+      carbs: sum.carbs + meal.carbs,
+      fat: sum.fat + meal.fat
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
     return {
       title: `Day ${dayNumber}`,
       dayNumber,
-      meals
+      meals,
+      ...totals
     };
   };
 
@@ -396,86 +480,46 @@ export default function MealPlanDetail() {
     );
   };
 
-  // Format the meal plan for sharing
-  const formatMealPlanForSharing = () => {
-    let shareText = `🍽️ KITCH MEAL PLAN\n`;
-    shareText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    shareText += `📊 PLAN DETAILS\n`;
-    shareText += `Duration: ${days} days\n`;
-    shareText += `Meals per day: ${mealsPerDay}\n`;
-    shareText += `Daily calories: ${caloriesPerDay}\n`;
-    if (dietType) shareText += `Diet type: ${dietType}\n`;
-    if (allergies.length) shareText += `Restrictions: ${allergies.join(', ')}\n`;
-    shareText += '\n';
-
-    parsedDays.forEach((day, dayIndex) => {
-      shareText += `📅 ${day.title.toUpperCase()}\n`;
-      shareText += '─'.repeat(40) + '\n';
-      
-      day.meals.forEach((meal, mealIndex) => {
-        shareText += `\n${meal.mealType.toUpperCase()}: ${meal.title}\n`;
-        shareText += `⏱️ ${meal.timings.join(' • ')}\n`;
-        shareText += `📋 ${meal.ingredients.length} ingredients\n`;
-        shareText += `👨‍🍳 ${meal.instructions.length} steps\n`;
-        shareText += `💪 ${meal.nutrition}\n`;
-      });
-      
-      if (dayIndex < parsedDays.length - 1) {
-        shareText += '\n' + '═'.repeat(40) + '\n';
-      }
-    });
-
-    return shareText;
+  const getMealTypeColor = (mealType) => {
+    const colors = {
+      'Breakfast': '#f39c12',
+      'Lunch': '#3498db',
+      'Dinner': '#9b59b6',
+      'Snack': '#27ae60'
+    };
+    return colors[mealType] || '#008b8b';
   };
 
   // Share the meal plan
   const handleShare = async () => {
     try {
-      const shareText = formatMealPlanForSharing();
-      await Share.share({
-        message: shareText,
-        title: "My Kitch Meal Plan",
-      });
+      const shareText = `My ${days}-Day Meal Plan\n\n` +
+        parsedDays.map(day =>
+          `${day.title}: ${day.calories} calories\n` +
+          day.meals.map(meal => `• ${meal.title} (${meal.calories} cal)`).join('\n')
+        ).join('\n\n');
+      
+      await Share.share({ message: shareText });
     } catch (error) {
-      console.error("Error sharing meal plan:", error);
+      console.error("Share failed:", error);
     }
   };
 
-  // Register the position of a day in the scroll view
-  const registerDayPosition = (dayNumber, yPosition) => {
-    setDayPositions((prev) => ({
-      ...prev,
-      [dayNumber]: yPosition,
-    }));
-  };
-
-  // Scroll to a specific day
-  const scrollToDay = (dayNumber) => {
-    setSelectedDay(dayNumber);
-
-    if (dayTabsRef.current) {
-      const scrollX = Math.max(0, (dayNumber - 2) * DAY_TAB_WIDTH);
-      dayTabsRef.current.scrollTo({ x: scrollX, animated: true });
-    }
-
-    const yPosition = dayPositions[dayNumber];
-    if (yPosition !== undefined && mainScrollRef.current) {
-      mainScrollRef.current.scrollTo({
-        y: yPosition - 80,
-        animated: true,
-      });
-    }
-  };
+  // Calculate averages for compact summary
+  const avgCalories = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.calories, 0) / days) : caloriesPerDay;
+  const avgProtein = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.protein, 0) / days) : Math.round(caloriesPerDay * 0.25 / 4);
+  const avgCarbs = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.carbs, 0) / days) : Math.round(caloriesPerDay * 0.45 / 4);
+  const avgFat = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.fat, 0) / days) : Math.round(caloriesPerDay * 0.30 / 9);
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <View style={styles.loadingSpinner}>
-            <Ionicons name="restaurant" size={32} color="#008b8b" />
+          <View style={styles.loadingIcon}>
+            <Ionicons name="restaurant" size={48} color="#008b8b" />
           </View>
-          <Text style={styles.loadingText}>Loading your saved meal plan...</Text>
-          <Text style={styles.loadingSubtext}>Kitch Nutrition Platform</Text>
+          <Text style={styles.loadingTitle}>Loading Your Saved Plan</Text>
+          <Text style={styles.loadingSubtitle}>Preparing nutrition data</Text>
         </View>
       </SafeAreaView>
     );
@@ -483,82 +527,108 @@ export default function MealPlanDetail() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
       
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={20} color="#333" />
+          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
         </TouchableOpacity>
         
-        <View style={styles.headerContent}>
+        <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>{mealPlanData.name || "Saved Meal Plan"}</Text>
-          <Text style={styles.headerSubtitle}>Kitch Nutrition Platform</Text>
+          <Text style={styles.headerStats}>
+            {days} days
+          </Text>
         </View>
         
         <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={20} color="#333" />
+          <Ionicons name="share-outline" size={24} color="#008b8b" />
         </TouchableOpacity>
       </View>
 
-      {/* System Status Bar */}
-      <View style={styles.statusBar}>
-        <View style={styles.statusLeft}>
-          <View style={styles.statusIndicator} />
-          <Text style={styles.statusText}>Plan Saved</Text>
-        </View>
-        <View style={styles.statusRight}>
-          <Text style={styles.statusDetails}>
-            {days}D • {mealsPerDay}M/D • {caloriesPerDay}cal/D
-          </Text>
-        </View>
-      </View>
-
-      {/* Navigation Tabs */}
-      <View style={styles.tabsContainer}>
-        <ScrollView
-          ref={dayTabsRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContent}
-        >
-          {parsedDays.map((day, index) => {
-            const isSelected = selectedDay === day.dayNumber;
-            return (
-              <TouchableOpacity
-                key={day.dayNumber}
-                style={[styles.tab, isSelected && styles.tabActive]}
-                onPress={() => scrollToDay(day.dayNumber)}
-              >
-                <Text style={[styles.tabText, isSelected && styles.tabTextActive]}>
-                  Day {day.dayNumber}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Control Panel */}
-      {(dietType || allergies.length > 0) && (
-        <View style={styles.controlPanel}>
-          <View style={styles.controlLeft}>
+      <Animated.View
+        style={[
+          styles.compactSummaryCard,
+          {
+            opacity: summaryOpacity,
+            height: summaryHeight,
+            marginTop: summaryMargin,
+            marginBottom: summaryMargin,
+            overflow: 'hidden',
+            transform: [
+              { translateY: summaryTranslateY },
+              { scale: summaryScale }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.summaryTopRow}>
+          <View style={styles.summaryMainInfo}>
+            <Text style={styles.summaryTitle}>{days} Day Plan</Text>
+            <Text style={styles.summarySubtitle}>{caloriesPerDay} cal/day</Text>
             {dietType && (
-              <View style={styles.controlTag}>
-                <Text style={styles.controlTagText}>{dietType}</Text>
+              <View style={styles.dietTypeBadge}>
+                <Text style={styles.dietTypeBadgeText}>{dietType}</Text>
               </View>
             )}
-            {allergies.map((allergy, index) => (
-              <View key={index} style={styles.controlTagWarning}>
-                <Text style={styles.controlTagWarningText}>{allergy}</Text>
-              </View>
-            ))}
+          </View>
+          <View style={styles.summaryRecipeCount}>
+            <Text style={styles.recipeCountNumber}>{days * mealsPerDay}</Text>
+            <Text style={styles.recipeCountLabel}>recipes</Text>
           </View>
         </View>
-      )}
+        
+        <View style={styles.avgNutritionSection}>
+          <Text style={styles.avgSectionTitle}>Daily Averages</Text>
+          <View style={styles.avgStatsGrid}>
+            <View style={styles.avgStatItem}>
+              <Text style={styles.avgStatValue}>{avgCalories}</Text>
+              <Text style={styles.avgStatLabel}>Calories</Text>
+            </View>
+            <View style={styles.avgStatItem}>
+              <Text style={styles.avgStatValue}>{avgProtein}g</Text>
+              <Text style={styles.avgStatLabel}>Protein</Text>
+            </View>
+            <View style={styles.avgStatItem}>
+              <Text style={styles.avgStatValue}>{avgCarbs}g</Text>
+              <Text style={styles.avgStatLabel}>Carbs</Text>
+            </View>
+            <View style={styles.avgStatItem}>
+              <Text style={styles.avgStatValue}>{avgFat}g</Text>
+              <Text style={styles.avgStatLabel}>Fat</Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.toggleContainer,
+          {
+            marginTop: toggleMarginTop,
+            paddingVertical: togglePaddingVertical,
+          }
+        ]}
+      >
+        <View style={styles.toggleWrapper}>
+          <TouchableOpacity
+            style={[styles.toggleOption, viewMode === 'cards' && styles.toggleOptionActive]}
+            onPress={() => setViewMode('cards')}
+          >
+            <Ionicons name="grid" size={18} color={viewMode === 'cards' ? '#fff' : '#7f8c8d'} />
+            <Text style={[styles.toggleText, viewMode === 'cards' && styles.toggleTextActive]}>Cards</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleOption, viewMode === 'list' && styles.toggleOptionActive]}
+            onPress={() => setViewMode('list')}
+          >
+            <Ionicons name="list" size={18} color={viewMode === 'list' ? '#fff' : '#7f8c8d'} />
+            <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
 
       {parsedDays.length === 0 ? (
-        // Show a message if no meal plan data could be parsed
         <View style={styles.emptyState}>
           <Ionicons name="restaurant-outline" size={64} color="#ccc" />
           <Text style={styles.emptyStateTitle}>No Meal Plan Data</Text>
@@ -567,63 +637,66 @@ export default function MealPlanDetail() {
           </Text>
         </View>
       ) : (
-        // Show the meal plan content
-        <ScrollView
-          ref={mainScrollRef}
-          style={styles.dataGrid}
+        <Animated.ScrollView
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
-          onScroll={(event) => {
-            const y = event.nativeEvent.contentOffset.y;
-            let currentDay = 1;
-            let minDistance = Number.MAX_VALUE;
-
-            Object.entries(dayPositions).forEach(([day, position]) => {
-              const distance = Math.abs(y - (position - 80));
-              if (distance < minDistance) {
-                minDistance = distance;
-                currentDay = parseInt(day);
+          contentContainerStyle={styles.scrollContent}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            {
+              useNativeDriver: false,
+              listener: (event) => {
+                // Optional: Add any additional scroll logic here
               }
-            });
-
-            if (currentDay !== selectedDay) {
-              setSelectedDay(currentDay);
             }
-          }}
-          scrollEventThrottle={16}
+          )}
+          scrollEventThrottle={1}
+          decelerationRate="normal"
+          bounces={true}
         >
-          {parsedDays.map((day, dayIndex) => (
-            <View
-              key={day.dayNumber}
-              style={styles.daySection}
-              onLayout={(event) => {
-                const layout = event.nativeEvent.layout;
-                registerDayPosition(day.dayNumber, layout.y);
-              }}
-            >
-              {/* Day Header Panel */}
-              <View style={styles.dayPanel}>
-                <View style={styles.dayPanelLeft}>
-                  <Text style={styles.dayPanelTitle}>{day.title}</Text>
-                  <Text style={styles.dayPanelMeta}>
-                    {day.meals.length} meals configured • Ready to cook
-                  </Text>
-                </View>
-                <View style={styles.dayPanelRight}>
-                  <View style={styles.dayPanelStats}>
-                    <Text style={styles.dayPanelStatsNumber}>{caloriesPerDay}</Text>
-                    <Text style={styles.dayPanelStatsLabel}>CALORIES</Text>
+          {viewMode === 'cards' ? (
+            <View style={styles.cardsContainer}>
+              {parsedDays.map((day) => (
+                <View key={day.dayNumber} style={styles.dayCard}>
+                  <View style={styles.dayHeader}>
+                    <View style={styles.dayHeaderLeft}>
+                      <Text style={styles.dayTitle}>{day.title}</Text>
+                      <Text style={styles.dayCalories}>{day.calories} calories</Text>
+                    </View>
+                    <View style={styles.dayProgress}>
+                      <View style={styles.progressRing}>
+                        <Text style={styles.progressText}>{Math.round((day.calories / caloriesPerDay) * 100)}%</Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
 
-              {/* Meal Records */}
-              <View style={styles.mealRecords}>
-                {day.meals.map((meal, mealIndex) => (
-                  <View key={`${day.dayNumber}-${mealIndex}`} style={styles.mealRecord}>
-                    {/* Record Header */}
-                    <View style={styles.recordHeader}>
-                      <View style={styles.recordHeaderLeft}>
-                        <View style={styles.recordIcon}>
+                  <View style={styles.macroSection}>
+                    <View style={styles.macroBar}>
+                      <View style={[styles.macroBarSegment, { backgroundColor: '#f39c12', flex: day.protein }]} />
+                      <View style={[styles.macroBarSegment, { backgroundColor: '#3498db', flex: day.carbs }]} />
+                      <View style={[styles.macroBarSegment, { backgroundColor: '#9b59b6', flex: day.fat }]} />
+                    </View>
+                    <View style={styles.macroLabels}>
+                      <Text style={styles.macroLabel}>
+                        <Text style={styles.macroBold}>{day.protein}g</Text> Protein
+                      </Text>
+                      <Text style={styles.macroLabel}>
+                        <Text style={styles.macroBold}>{day.carbs}g</Text> Carbs
+                      </Text>
+                      <Text style={styles.macroLabel}>
+                        <Text style={styles.macroBold}>{day.fat}g</Text> Fat
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.mealsGrid}>
+                    {day.meals.map((meal, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.mealGridItem}
+                        onPress={() => setSelectedMeal(meal)}
+                      >
+                        <View style={[styles.mealIcon, { backgroundColor: getMealTypeColor(meal.mealType) }]}>
                           <Ionicons
                             name={
                               meal.mealType === 'Breakfast' ? 'sunny' :
@@ -631,85 +704,170 @@ export default function MealPlanDetail() {
                               meal.mealType === 'Dinner' ? 'moon' : 'cafe'
                             }
                             size={16}
-                            color="#008b8b"
+                            color="#fff"
                           />
                         </View>
-                        <View>
-                          <Text style={styles.recordType}>{meal.mealType}</Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.recordHeaderRight}>
-                        <View style={styles.recordStatus}>
-                          <View style={styles.recordStatusDot} />
-                          <Text style={styles.recordStatusText}>READY</Text>
-                        </View>
-                      </View>
+                        <Text style={styles.mealGridType}>{meal.mealType}</Text>
+                        <Text style={styles.mealGridTitle} numberOfLines={2}>{meal.title}</Text>
+                        <Text style={styles.mealGridCalories}>{meal.calories} cal</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.listContainer}>
+              {parsedDays.flatMap(day =>
+                day.meals.map((meal, mealIndex) => ({
+                  ...meal,
+                  dayTitle: day.title,
+                  key: `${day.dayNumber}-${meal.mealType}`,
+                  dayNumber: day.dayNumber
+                }))
+              ).map((meal) => (
+                <TouchableOpacity
+                  key={meal.key}
+                  style={styles.listItem}
+                  onPress={() => setSelectedMeal(meal)}
+                >
+                  <View style={styles.listItemLeft}>
+                    <View style={[styles.listMealIcon, { backgroundColor: getMealTypeColor(meal.mealType) }]}>
+                      <Ionicons
+                        name={
+                          meal.mealType === 'Breakfast' ? 'sunny' :
+                          meal.mealType === 'Lunch' ? 'partly-sunny' :
+                          meal.mealType === 'Dinner' ? 'moon' : 'cafe'
+                        }
+                        size={20}
+                        color="#fff"
+                      />
                     </View>
-
-                    {/* Record Title */}
-                    <Text style={styles.recordTitle}>{meal.title}</Text>
-
-                    {/* Record Metadata */}
-                    <View style={styles.recordMeta}>
-                      {meal.timings.map((timing, index) => (
-                        <View key={index} style={styles.recordMetaItem}>
-                          <Ionicons name="time" size={12} color="#7f8c8d" />
-                          <Text style={styles.recordMetaText}>{timing}</Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    {/* Record Data Sections */}
-                    <View style={styles.recordSections}>
-                      {/* Ingredients Data */}
-                      <View style={styles.dataSection}>
-                        <View style={styles.dataSectionHeader}>
-                          <Ionicons name="list" size={14} color="#008b8b" />
-                          <Text style={styles.dataSectionTitle}>INGREDIENTS</Text>
-                          <Text style={styles.dataSectionCount}>({meal.ingredients.length})</Text>
-                        </View>
-                        <View style={styles.dataSectionContent}>
-                          {meal.ingredients.map((ingredient, index) => (
-                            <View key={index} style={styles.dataRow}>
-                              <Text style={styles.dataRowNumber}>{String(index + 1).padStart(2, '0')}</Text>
-                              <Text style={styles.dataRowText}>{ingredient}</Text>
-                            </View>
-                          ))}
-                        </View>
+                    <View style={styles.listMealInfo}>
+                      <Text style={styles.listMealType}>{meal.mealType} • Day {meal.dayNumber}</Text>
+                      <Text style={styles.listMealTitle}>{meal.title}</Text>
+                      <View style={styles.listMealMacros}>
+                        <Text style={styles.listMealMacro}>{meal.protein}g P</Text>
+                        <Text style={styles.listMealMacro}>{meal.carbs}g C</Text>
+                        <Text style={styles.listMealMacro}>{meal.fat}g F</Text>
                       </View>
-
-                      {/* Instructions Data */}
-                      <View style={styles.dataSection}>
-                        <View style={styles.dataSectionHeader}>
-                          <Ionicons name="clipboard" size={14} color="#008b8b" />
-                          <Text style={styles.dataSectionTitle}>INSTRUCTIONS</Text>
-                          <Text style={styles.dataSectionCount}>({meal.instructions.length})</Text>
-                        </View>
-                        <View style={styles.dataSectionContent}>
-                          {meal.instructions.map((instruction, index) => (
-                            <Text key={index} style={styles.instructionText}>
-                              {instruction}
-                            </Text>
-                          ))}
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* Record Footer - Always shows complete macros */}
-                    <View style={styles.recordFooter}>
-                      <Ionicons name="bar-chart" size={12} color="#008b8b" />
-                      <Text style={styles.recordFooterText}>{meal.nutrition}</Text>
                     </View>
                   </View>
-                ))}
+                  <View style={styles.listItemRight}>
+                    <Text style={styles.listMealCalories}>{meal.calories}</Text>
+                    <Text style={styles.listMealCaloriesLabel}>cal</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          
+          <View style={styles.scrollBottom} />
+        </Animated.ScrollView>
+      )}
+
+      <Modal
+        visible={selectedMeal !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedMeal(null)}
+      >
+        {selectedMeal && (
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setSelectedMeal(null)}
+              >
+                <Ionicons name="close" size={24} color="#2c3e50" />
+              </TouchableOpacity>
+              
+              <View style={styles.modalHeaderCenter}>
+                <Text style={styles.modalTitle} numberOfLines={2}>{selectedMeal.title}</Text>
+                <View style={styles.modalMealTypeBadge}>
+                  <Text style={styles.modalMealTypeText}>{selectedMeal.mealType}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.modalCaloriesDisplay}>
+                <Text style={styles.modalCaloriesNumber}>{selectedMeal.calories}</Text>
+                <Text style={styles.modalCaloriesLabel}>calories</Text>
               </View>
             </View>
-          ))}
-          
-          <View style={styles.endSpacer} />
-        </ScrollView>
-      )}
+
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.nutritionSection}>
+                <Text style={styles.sectionTitle}>Nutrition Breakdown</Text>
+                <View style={styles.nutritionCards}>
+                  <View style={styles.nutritionCard}>
+                    <View style={[styles.nutritionIconContainer, { backgroundColor: '#f39c12' }]}>
+                      <Ionicons name="fitness" size={16} color="#fff" />
+                    </View>
+                    <Text style={styles.nutritionValue}>{selectedMeal.protein}g</Text>
+                    <Text style={styles.nutritionLabel}>Protein</Text>
+                  </View>
+                  <View style={styles.nutritionCard}>
+                    <View style={[styles.nutritionIconContainer, { backgroundColor: '#3498db' }]}>
+                      <Ionicons name="leaf" size={16} color="#fff" />
+                    </View>
+                    <Text style={styles.nutritionValue}>{selectedMeal.carbs}g</Text>
+                    <Text style={styles.nutritionLabel}>Carbs</Text>
+                  </View>
+                  <View style={styles.nutritionCard}>
+                    <View style={[styles.nutritionIconContainer, { backgroundColor: '#9b59b6' }]}>
+                      <Ionicons name="water" size={16} color="#fff" />
+                    </View>
+                    <Text style={styles.nutritionValue}>{selectedMeal.fat}g</Text>
+                    <Text style={styles.nutritionLabel}>Fat</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.sectionTitle}>⏱️ Timing</Text>
+                <View style={styles.timingGrid}>
+                  {selectedMeal.timings.map((timing, index) => (
+                    <View key={index} style={styles.timingCard}>
+                      <Ionicons name="time" size={16} color="#008b8b" />
+                      <Text style={styles.timingText}>{timing}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.sectionTitle}>🛒 Ingredients</Text>
+                <View style={styles.ingredientsList}>
+                  {selectedMeal.ingredients.map((ingredient, index) => (
+                    <View key={index} style={styles.ingredientItem}>
+                      <View style={styles.ingredientBullet} />
+                      <Text style={styles.ingredientText}>{ingredient}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.sectionTitle}>👨‍🍳 Instructions</Text>
+                <View style={styles.instructionsList}>
+                  {selectedMeal.instructions.map((instruction, index) => (
+                    <View key={index} style={styles.instructionItem}>
+                      <View style={styles.instructionNumber}>
+                        <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.instructionText}>
+                        {instruction.replace(/^\d+\.\s*/, '')}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.modalBottom} />
+            </ScrollView>
+          </SafeAreaView>
+        )}
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -719,193 +877,81 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-
-  // Loading State
+  
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f8f9fa',
   },
-  loadingSpinner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  loadingIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: '700',
     color: '#2c3e50',
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  loadingSubtext: {
-    fontSize: 14,
+  loadingSubtitle: {
+    fontSize: 16,
     color: '#7f8c8d',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    textAlign: 'center',
   },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   headerButton: {
     padding: 8,
-    borderRadius: 4,
-    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
   },
-  headerContent: {
+  headerCenter: {
     flex: 1,
     alignItems: 'center',
+    marginHorizontal: 20,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: '#2c3e50',
+    marginBottom: 2,
   },
-  headerSubtitle: {
+  headerStats: {
     fontSize: 12,
     color: '#7f8c8d',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 1,
   },
 
-  // System Status Bar
-  statusBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  statusLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#34D399',
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#34D399',
-  },
-  statusRight: {},
-  statusDetails: {
-    fontSize: 13,
-    color: '#7f8c8d',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-
-  // Navigation Tabs
-  tabsContainer: {
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  tabsContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 4,
-  },
-  tab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-    backgroundColor: '#f8f9fa',
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#008b8b',
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#7f8c8d',
-  },
-  tabTextActive: {
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-
-  // Control Panel
-  controlPanel: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  controlLeft: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  controlTag: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-  },
-  controlTagText: {
-    fontSize: 12,
-    color: '#008b8b',
-    fontWeight: '500',
-  },
-  controlTagWarning: {
-    backgroundColor: '#fff2f0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 3,
-  },
-  controlTagWarningText: {
-    fontSize: 12,
-    color: '#d63031',
-    fontWeight: '500',
-  },
-
-  // Main Data Grid
-  dataGrid: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-
-  // Day Section
-  daySection: {
-    marginBottom: 20,
-  },
-
-  // Day Panel
-  dayPanel: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
+  // Compact Summary Card - improved design with smooth animations and collapsing
+  compactSummaryCard: {
+    backgroundColor: 'white',
     marginHorizontal: 20,
-    marginTop: 20,
-    padding: 20,
     borderRadius: 16,
+    padding: 20,
     borderLeftWidth: 4,
     borderLeftColor: '#008b8b',
     ...Platform.select({
@@ -920,48 +966,130 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  dayPanelLeft: {
+  summaryTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  summaryMainInfo: {
     flex: 1,
   },
-  dayPanelTitle: {
-    fontSize: 24,
+  summaryTitle: {
+    fontSize: 22,
     fontWeight: '700',
     color: '#2c3e50',
+    marginBottom: 4,
   },
-  dayPanelMeta: {
+  summarySubtitle: {
     fontSize: 14,
     color: '#7f8c8d',
-    marginTop: 4,
+    marginBottom: 8,
   },
-  dayPanelRight: {},
-  dayPanelStats: {
+  dietTypeBadge: {
+    backgroundColor: '#008b8b',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  dietTypeBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  summaryRecipeCount: {
     alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  dayPanelStatsNumber: {
+  recipeCountNumber: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2c3e50',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#008b8b',
   },
-  dayPanelStatsLabel: {
-    fontSize: 12,
+  recipeCountLabel: {
+    fontSize: 11,
+    color: '#7f8c8d',
+    fontWeight: '600',
+  },
+  avgNutritionSection: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  avgSectionTitle: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  avgStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  avgStatItem: {
+    alignItems: 'center',
+  },
+  avgStatValue: {
+    fontSize: 16,
+    color: '#2c3e50',
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  avgStatLabel: {
+    fontSize: 11,
     color: '#7f8c8d',
     fontWeight: '500',
-    letterSpacing: 0.5,
   },
 
-  // Meal Records
-  mealRecords: {
-    marginHorizontal: 20,
-    marginTop: 12,
+  toggleContainer: {
+    paddingHorizontal: 20,
+    // paddingVertical is now animated, removed from here
+  },
+  toggleWrapper: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 4,
+  },
+  toggleOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 6,
+    gap: 6,
+  },
+  toggleOptionActive: {
+    backgroundColor: '#008b8b',
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#7f8c8d',
+  },
+  toggleTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+
+  scrollContent: {
+    paddingBottom: 40,
+  },
+
+  cardsContainer: {
+    paddingHorizontal: 20,
     gap: 16,
+    paddingTop: 12,
   },
-
-  // Individual Meal Record
-  mealRecord: {
-    backgroundColor: '#ffffff',
+  dayCard: {
+    backgroundColor: 'white',
     borderRadius: 16,
-    overflow: 'hidden',
+    padding: 20,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -974,180 +1102,380 @@ const styles = StyleSheet.create({
       },
     }),
   },
-
-  // Record Header
-  recordHeader: {
+  dayHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    marginBottom: 16,
   },
-  recordHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  dayHeaderLeft: {},
+  dayTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2c3e50',
+    marginBottom: 4,
   },
-  recordIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+  dayCalories: {
+    fontSize: 14,
+    color: '#7f8c8d',
+  },
+  dayProgress: {},
+  progressRing: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#008b8b',
   },
-  recordType: {
+  progressText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#008b8b',
+  },
+
+  macroSection: {
+    marginBottom: 16,
+  },
+  macroBar: {
+    flexDirection: 'row',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  macroBarSegment: {
+    height: '100%',
+  },
+  macroLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  macroLabel: {
+    fontSize: 12,
+    color: '#7f8c8d',
+  },
+  macroBold: {
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+
+  mealsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  mealGridItem: {
+    width: (width - 64) / 2,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  mealIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  mealGridType: {
+    fontSize: 10,
+    color: '#7f8c8d',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  mealGridTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    textAlign: 'center',
+    marginBottom: 8,
+    minHeight: 36,
+  },
+  mealGridCalories: {
+    fontSize: 12,
+    color: '#008b8b',
+    fontWeight: '600',
+  },
+
+  listContainer: {
+    paddingHorizontal: 20,
+    gap: 8,
+    paddingTop: 12,
+  },
+  listItem: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  listItemLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listMealIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  listMealInfo: {
+    flex: 1,
+  },
+  listMealType: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  listMealTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  listMealMacros: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  listMealMacro: {
+    fontSize: 11,
+    color: '#7f8c8d',
+  },
+  listItemRight: {
+    alignItems: 'flex-end',
+  },
+  listMealCalories: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#008b8b',
+  },
+  listMealCaloriesLabel: {
+    fontSize: 10,
+    color: '#7f8c8d',
+  },
+
+  scrollBottom: {
+    height: 20,
+  },
+
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  modalCloseButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  modalHeaderCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 20,
+  },
+  modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#2c3e50',
+    textAlign: 'center',
+    marginBottom: 6,
   },
-  recordHeaderRight: {},
-  recordStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  modalMealTypeBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  recordStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#34D399',
-  },
-  recordStatusText: {
+  modalMealTypeText: {
     fontSize: 12,
-    color: '#34D399',
+    color: '#008b8b',
     fontWeight: '600',
-    letterSpacing: 0.5,
+  },
+  modalCaloriesDisplay: {
+    alignItems: 'flex-end',
+  },
+  modalCaloriesNumber: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#008b8b',
+  },
+  modalCaloriesLabel: {
+    fontSize: 10,
+    color: '#7f8c8d',
   },
 
-  // Record Title
-  recordTitle: {
-    fontSize: 20,
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+
+  nutritionSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 16,
+  },
+  nutritionCards: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  nutritionCard: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  nutritionIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  nutritionValue: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#2c3e50',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
-    lineHeight: 28,
+    marginBottom: 4,
+  },
+  nutritionLabel: {
+    fontSize: 12,
+    color: '#7f8c8d',
   },
 
-  // Record Metadata - Better responsive design for timing
-  recordMeta: {
+  modalSection: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+
+  timingGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
   },
-  recordMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    maxWidth: '45%', // Prevent text overflow
-  },
-  recordMetaText: {
-    fontSize: 12,
-    color: '#7f8c8d',
-    fontWeight: '500',
-    flexShrink: 1, // Allow text to shrink if needed
-  },
-
-  // Record Data Sections
-  recordSections: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 16,
-  },
-
-  // Data Section
-  dataSection: {
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  dataSectionHeader: {
+  timingCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  dataSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2c3e50',
-    letterSpacing: 0.5,
-  },
-  dataSectionCount: {
-    fontSize: 12,
-    color: '#7f8c8d',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  dataSectionContent: {
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 12,
     paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  timingText: {
+    fontSize: 14,
+    color: '#7f8c8d',
   },
 
-  // Data Rows
-  dataRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+  ingredientsList: {
     gap: 12,
   },
-  dataRowNumber: {
-    fontSize: 12,
-    color: '#7f8c8d',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    minWidth: 24,
-    marginTop: 2,
-  },
-  dataRowText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#2c3e50',
-    lineHeight: 22,
-  },
-
-  // Instructions
-  instructionText: {
-    fontSize: 15,
-    color: '#2c3e50',
-    lineHeight: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-
-  // Record Footer
-  recordFooter: {
+  ingredientItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    gap: 8,
+    alignItems: 'flex-start',
+    gap: 12,
   },
-  recordFooterText: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    fontWeight: '500',
+  ingredientBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#008b8b',
+    marginTop: 8,
+  },
+  ingredientText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#2c3e50',
+    lineHeight: 24,
   },
 
-  // End Spacer
-  endSpacer: {
-    height: 80,
+  instructionsList: {
+    gap: 16,
+  },
+  instructionItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+  },
+  instructionNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#008b8b',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instructionNumberText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'white',
+  },
+  instructionText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#2c3e50',
+    lineHeight: 24,
+  },
+
+  modalBottom: {
+    height: 40,
   },
 
   // Empty State

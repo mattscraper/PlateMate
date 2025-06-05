@@ -551,12 +551,50 @@ Next Recipe Title
             return []
     
   
+  #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
   
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
     
-        random_themes = ["quick and easy", "chef-inspired", "american and italian","greek and american","mexican and american", "chinese and american","protein packed"]
-            
+        random_themes = [
+        "quick and easy",
+        "chef-inspired",
+        "american and italian",
+        "greek and american",
+        "mexican and american",
+        "chinese and american",
+        "hearty comfort meals",
+        "light and refreshing",
+        "flavor-packed favorites",
+        "one-pot wonders",
+        "weeknight go-tos",
+        "global sampler",
+        "modern classics",
+        "family dinner vibes",
+        "lazy weekend meals",
+        "bold & spicy",
+        "nostalgic favorites",
+        "street food inspired",
+        "elevated homestyle",
+        "rainy day meals",
+        "crowd-pleasers",
+        "no-fuss cooking",
+        "Sunday supper style",
+        "grill-inspired dishes",
+        "cozy and warm",
+        "fast-casual feel",
+        "fusion experiments",
+        "creative comfort",
+        "simple & satisfying",
+        "trendy eats",
+        "classic with a twist",
+        "weekend indulgence",
+        "weekday warrior meals",
+        "bistro-style ideas",
+        "high-energy meals",
+        "minimal cleanup"
+    ]
+
         inspiration = random.choice(random_themes)
         print (f"Meal Plan Inspiration: {inspiration}")
         
@@ -596,6 +634,7 @@ Next Recipe Title
         
         CRITICAL RULES:
         - Recipe title MUST be on its own line after meal type
+        - Calories must be within 50 of {calories_per_day} (perferrably even more accurate)
         - Recipe title CANNOT contain ingredients or measurements
         - Recipe title CANNOT be "-----" or "====="
         - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
@@ -630,7 +669,7 @@ Next Recipe Title
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.5,  # Reduced for more consistent formatting
-                max_tokens=4050,
+                max_tokens=4065,
                 timeout=100
             )
 

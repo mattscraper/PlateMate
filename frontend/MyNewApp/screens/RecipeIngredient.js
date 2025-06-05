@@ -268,7 +268,7 @@ export default function FindByIngredients() {
           </View>
 
           {/* Requirements Note */}
-          {ingredients.length > 0 && ingredients.length < 3 && (
+          {ingredients.length > 0 && ingredients.length < 4 && (
             <View style={styles.tipCard}>
               <View style={styles.tipIcon}>
                 <Ionicons name="bulb" size={20} color="#ff9500" />
@@ -276,7 +276,7 @@ export default function FindByIngredients() {
               <View style={styles.tipContent}>
                 <Text style={styles.tipTitle}>Pro Tip</Text>
                 <Text style={styles.tipText}>
-                  Add {3 - ingredients.length} more ingredient{ingredients.length === 2 ? '' : 's'} for better recipe suggestions
+                  Add {4 - ingredients.length} more ingredient{4 - ingredients.length === 1 ? '' : 's'} for better recipe suggestions
                 </Text>
               </View>
             </View>
@@ -1004,7 +1004,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#c7c7cc',
   },
   allergyAddButtonText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '500',
     color: 'white',
   },

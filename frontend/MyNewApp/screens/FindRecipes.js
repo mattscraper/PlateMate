@@ -488,6 +488,7 @@ const styles = StyleSheet.create({
   // Header
   header: {
     backgroundColor: 'white',
+      marginTop:0,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
