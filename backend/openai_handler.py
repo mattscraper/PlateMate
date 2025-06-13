@@ -554,125 +554,112 @@ Next Recipe Title
   #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
   
     #this needs to be changed to handle similiar recipes appearing after many queries
-    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, retry=False):
-        
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
+    
         random_themes = [
-            "quick and easy",
-            "chef-inspired",
-            "american and italian",
-            "greek and american",
-            "mexican and american",
-            "chinese and american",
-            "hearty comfort meals",
-            "light and refreshing",
-            "flavor-packed favorites",
-            "one-pot wonders",
-            "weeknight go-tos",
-            "global sampler",
-            "modern classics",
-            "family dinner vibes",
-            "lazy weekend meals",
-            "bold & spicy",
-            "nostalgic favorites",
-            "street food inspired",
-            "elevated homestyle",
-            "rainy day meals",
-            "crowd-pleasers",
-            "no-fuss cooking",
-            "Sunday supper style",
-            "grill-inspired dishes",
-            "cozy and warm",
-            "fast-casual feel",
-            "fusion experiments",
-            "creative comfort",
-            "simple & satisfying",
-            "trendy eats",
-            "classic with a twist",
-            "weekend indulgence",
-            "weekday warrior meals",
-            "bistro-style ideas",
-            "high-energy meals",
-            "minimal cleanup"
-        ]
+        "quick and easy",
+        "chef-inspired",
+        "american and italian",
+        "greek and american",
+        "mexican and american",
+        "chinese and american",
+        "hearty comfort meals",
+        "light and refreshing",
+        "flavor-packed favorites",
+        "one-pot wonders",
+        "weeknight go-tos",
+        "global sampler",
+        "modern classics",
+        "family dinner vibes",
+        "lazy weekend meals",
+        "bold & spicy",
+        "nostalgic favorites",
+        "street food inspired",
+        "elevated homestyle",
+        "rainy day meals",
+        "crowd-pleasers",
+        "no-fuss cooking",
+        "Sunday supper style",
+        "grill-inspired dishes",
+        "cozy and warm",
+        "fast-casual feel",
+        "fusion experiments",
+        "creative comfort",
+        "simple & satisfying",
+        "trendy eats",
+        "classic with a twist",
+        "weekend indulgence",
+        "weekday warrior meals",
+        "bistro-style ideas",
+        "high-energy meals",
+        "minimal cleanup"
+    ]
 
         inspiration = random.choice(random_themes)
-        print(f"Meal Plan Inspiration: {inspiration}")
+        print (f"Meal Plan Inspiration: {inspiration}")
         
-        # Calculate calories per meal for better accuracy
-        calories_per_meal = calories_per_day // meals_per_day
+        # Updated system prompt with stricter formatting rules
+        system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
+
+        1. Generate exactly {days} days with {meals_per_day} meals each day
+        2. NEVER repeat recipes in the plan
+        3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
+        4. Target {calories_per_day} calories per day total (each of the meals should add to this every single time)
+
+        EXACT FORMAT FOR EACH DAY:
+        Day X (where X is 1, 2, 3, etc.)
         
-        # Enhanced system prompt
-        system_prompt = f"""You are a professional meal planning expert. CRITICAL REQUIREMENTS:
+        [RECIPE TITLE] [AVOID USING THEME WORDS]
+        
+        Preparation Time: X minutes
+        Cooking Time: X minutes  
+        Servings: X
+        
+        • [Ingredient 1]
+        • [Ingredient 2]
+        • [Ingredient 3]
+        
+        Instructions:
+        1. [First step]
+        2. [Second step]
+        3. [Third step]
+        
+        Nutritional Information:
+        Calories: X
+        Protein: Xg
+        Carbs: Xg
+        Fat: Xg
+        
+        =====
+        
+        CRITICAL RULES:
+        - Recipe title MUST be on its own line after meal type
+        - Calories must be within 50 of {calories_per_day} (perferrably even more accurate)
+        - Recipe title CANNOT contain ingredients or measurements
+        - Recipe title CANNOT be "-----" or "====="
+        - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
+        - NEVER put ingredients in the title line
+        - Each meal type: Breakfast, Lunch, Dinner, or Snack
+        - Separate days with ===== ONLY
+        - NO bold text, asterisks, or special formatting
+        - Ingredients MUST start with • symbol
+        - Instructions MUST be numbered 1., 2., 3., etc.
+        """
 
-    1. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day
-    2. Each day MUST total EXACTLY {calories_per_day} calories (approximately {calories_per_meal} calories per meal)
-    3. NEVER repeat recipes - all {days * meals_per_day} recipes must be unique
-    4. Recipe titles must be creative and varied - don't overuse the theme words in every title
+        # Initialize prompt
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day with the theme {inspiration}. Make sure the meals add up to the specicfied calories. MOST IMPORTANT: GENERATE ALL RECIPES FOR EACH DAY"
 
-    EXACT FORMAT FOR EACH MEAL:
-    [Meal Type]
-
-    [Creative Recipe Title - Don't repeat theme words in every title]
-
-    Preparation Time: X minutes
-    Cooking Time: X minutes  
-    Servings: X
-
-    • [Ingredient with specific amount]
-    • [Ingredient with specific amount]
-    • [Ingredient with specific amount]
-    • [More ingredients as needed]
-
-    Instructions:
-    1. [Detailed step]
-    2. [Detailed step]
-    3. [Detailed step]
-    4. [More steps as needed]
-
-    Nutritional Information:
-    Calories: X (must be accurate for daily total of {calories_per_day})
-    Protein: Xg
-    Carbs: Xg
-    Fat: Xg
-
-    =====
-
-    CRITICAL RULES:
-    - Daily calories MUST add up to {calories_per_day} - this is MANDATORY
-    - Recipe titles should be diverse - if theme is "bistro", only use "bistro" in 1-2 titles max
-    - Every recipe must be complete with all sections above
-    - Use realistic ingredient amounts and cooking times
-    - NO special formatting (**, *, etc.)
-    - Separate days with ===== ONLY"""
-
-        # Build the main prompt
-        if retry:
-            prompt = f"""RETRY REQUEST - Previous attempt had issues. Generate a PERFECT {days}-day meal plan with {meals_per_day} meals per day.
-
-    CRITICAL: Each day must total EXACTLY {calories_per_day} calories. Theme inspiration: {inspiration} (use creatively, don't put theme words in every recipe title).
-
-    Generate ALL {days * meals_per_day} complete recipes. Double-check that calories add up correctly."""
-        else:
-            prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day. Each day must total EXACTLY {calories_per_day} calories.
-
-    Theme inspiration: {inspiration} (use as inspiration only - create varied, creative recipe titles)
-
-    MANDATORY: Generate all {days * meals_per_day} complete recipes with accurate calorie counts."""
-
-        # Add optional parameters
+        # Handle optional parameters safely
         if healthy:
-            prompt += " Focus on healthy, nutritious meals with fresh ingredients."
+            prompt += " Make all meals healthy and nutritious."
 
         if allergies:
             allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-            prompt += f" AVOID these allergens completely: {allergies_list}."
+            prompt += f" Ensure all recipes are completely free of: {allergies_list}."
 
         if preferences:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
             prompt += f" Consider these preferences: {preferences_list}."
-
-        # Final emphasis
-        prompt += f"\n\nREMEMBER: Each day must total {calories_per_day} calories. Be accurate with portions and calorie calculations."
 
         try:
             response = self.client.chat.completions.create(
@@ -681,20 +668,12 @@ Next Recipe Title
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,  # Lower for more consistent results
-                max_tokens=4000,
-                timeout=120
+                temperature=0.5,  # Reduced for more consistent formatting
+                max_tokens=4075,
+                timeout=100
             )
 
-            meal_plan = response.choices[0].message.content.strip()
-            
-            # Basic validation
-            if meal_plan and len(meal_plan) > 500:
-                print("✅ Meal plan generated successfully")
-                return meal_plan
-            else:
-                print("❌ Generated meal plan too short, likely incomplete")
-                return None
+            return response.choices[0].message.content.strip()
 
         except Exception as e:
             print(f"Error generating meal plan: {str(e)}")
