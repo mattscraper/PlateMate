@@ -1,9 +1,9 @@
 const API_URL = "https://platemate-6.onrender.com"; // make sure this is changed during production to backends url
-
 export const fetchRecipes = async (mealType, healthy, allergies) => {
   try {
     console.log("Fetching from:", API_URL); // Debug log
-    const response = await fetch(`${API_URL}/api/recipes`, {
+      const response = await fetch(`${API_URL}/api/recipes`, {
+
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -27,7 +27,6 @@ export const fetchRecipes = async (mealType, healthy, allergies) => {
     return [];
   }
 };
-
 export const fetchRecipesByIngredients = async (ingredients, allergies) => {
   try {
     console.log("Fetching from:", API_URL); // Debug log
@@ -53,20 +52,16 @@ export const fetchRecipesByIngredients = async (ingredients, allergies) => {
     throw error;
   }
 };
-
-// function to fetch meal plans - ONLY CHANGE: added isRetry parameter
+// function to fetch meal plans
 export const fetchMealPlans = async (
   days,
   mealsPerDay,
   healthy,
   allergies,
   preferences,
-  caloriesPerDay,
-  isRetry = false // <-- ONLY NEW ADDITION
+  caloriesPerDay
 ) => {
   try {
-    console.log(`${isRetry ? '🔄 Retrying' : '📋 Initial'} meal plan generation...`);
-    
     const response = await fetch(`${API_URL}/api/mealplans`, {
       method: "POST",
       headers: {
@@ -79,7 +74,6 @@ export const fetchMealPlans = async (
         allergies: Array.isArray(allergies) ? allergies : [],
         preferences: Array.isArray(preferences) ? preferences : [],
         calories_per_day: caloriesPerDay,
-        retry: isRetry, // <-- ONLY NEW ADDITION
       }),
     });
     if (!response.ok) {

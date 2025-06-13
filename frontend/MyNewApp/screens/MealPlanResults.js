@@ -35,17 +35,14 @@ export default function MealPlanResults() {
 
   const [parsedDays, setParsedDays] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   const [selectedMeal, setSelectedMeal] = useState(null);
   const [viewMode, setViewMode] = useState('cards');
-  const [parsingStats, setParsingStats] = useState(null);
+  const [parsingError, setParsingError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const scrollY = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef();
 
-  const MAX_RETRIES = 3;
-
-  // Create smooth animated values for summary card with proper easing
+  // Create smooth animated values for summary card
   const summaryOpacity = scrollY.interpolate({
     inputRange: [0, 40, 100],
     outputRange: [1, 0.7, 0],
@@ -64,14 +61,12 @@ export default function MealPlanResults() {
     extrapolate: 'clamp',
   });
 
-  // Animated height for collapsing the summary card
   const summaryHeight = scrollY.interpolate({
     inputRange: [0, 60, 100],
     outputRange: [200, 100, 0],
     extrapolate: 'clamp',
   });
 
-  // Controls spacing for smooth layout transitions
   const controlsMarginTop = scrollY.interpolate({
     inputRange: [0, 60, 100],
     outputRange: [16, 8, 0],
@@ -85,269 +80,93 @@ export default function MealPlanResults() {
   });
 
   useEffect(() => {
-    console.log("=== MEAL PLAN PARSING WITH RETRY MECHANISM ===");
+    console.log("=== MEAL PLAN PARSING ===");
     console.log("Raw meal plan length:", mealPlan?.length);
     console.log("Expected:", `${days} days × ${mealsPerDay} meals = ${days * mealsPerDay} total recipes`);
     
-    const parsed = bulletproofParseMealPlan(mealPlan);
-    
-    // Check if parsing was successful
-    if (!parsed.stats.success && retryCount < MAX_RETRIES) {
-      console.log(`❌ Parsing failed, initiating retry ${retryCount + 1}/${MAX_RETRIES}`);
-      retryMealPlanGeneration();
-    } else if (!parsed.stats.success && retryCount >= MAX_RETRIES) {
-      console.log("❌ Max retries reached, showing error to user");
-      showRetryFailedAlert();
-    } else {
-      console.log("✅ Parsing successful");
-      setParsedDays(parsed.days);
-      setParsingStats(parsed.stats);
+    if (!mealPlan || mealPlan.trim().length === 0) {
+      setParsingError("No meal plan data received");
       setIsLoading(false);
+      return;
     }
-  }, [mealPlan, retryCount]);
 
-  const retryMealPlanGeneration = async () => {
-    setIsRetrying(true);
-    setRetryCount(prev => prev + 1);
+    try {
+      const parsed = parseMealPlan(mealPlan);
+      
+      // Validate that we have complete data
+      if (parsed.length !== days) {
+        throw new Error(`Expected ${days} days, got ${parsed.length}`);
+      }
+      
+      const totalMeals = parsed.reduce((sum, day) => sum + day.meals.length, 0);
+      if (totalMeals < days * mealsPerDay * 0.9) { // Allow 10% tolerance
+        throw new Error(`Expected ${days * mealsPerDay} meals, got ${totalMeals}`);
+      }
+      
+      setParsedDays(parsed);
+      setParsingError(null);
+      
+    } catch (error) {
+      console.error("Parsing failed:", error);
+      setParsingError(error.message);
+    }
     
-    try {
-      console.log("🔄 Calling backend to regenerate meal plan...");
-      
-      // Use your existing fetchMealPlans function with retry flag
-      const { fetchMealPlans } = await import('../utils/api');
-      
-      const newMealPlan = await fetchMealPlans(
-        days,
-        mealsPerDay,
-        healthy,
-        allergies,
-        [dietType],
-        caloriesPerDay,
-        true // isRetry = true
-      );
-      
-      if (newMealPlan) {
-        console.log("✅ Successfully received new meal plan from backend");
-        
-        // Parse the new meal plan
-        const parsed = bulletproofParseMealPlan(newMealPlan);
-        
-        if (parsed.stats.success) {
-          console.log("✅ New meal plan parsed successfully");
-          setParsedDays(parsed.days);
-          setParsingStats(parsed.stats);
-          setIsLoading(false);
-          setIsRetrying(false);
-        } else {
-          console.log("❌ New meal plan also failed to parse, will retry again");
-          setIsRetrying(false);
-          // The useEffect will trigger another retry
-        }
-      } else {
-        throw new Error('Backend did not return a valid meal plan');
-      }
-    } catch (error) {
-      console.error("❌ Error during retry:", error);
-      setIsRetrying(false);
-      
-      if (retryCount >= MAX_RETRIES - 1) {
-        showRetryFailedAlert();
-      }
-      // If not max retries, the useEffect will trigger another retry
-    }
-  };
+    setIsLoading(false);
+  }, [mealPlan, days, mealsPerDay]);
 
-  const showRetryFailedAlert = () => {
-    Alert.alert(
-      "Unable to Generate Meal Plan",
-      "We're having trouble generating your complete meal plan. Please try again or adjust your preferences.",
-      [
-        {
-          text: "Try Again",
-          onPress: () => {
-            setRetryCount(0);
-            setIsLoading(true);
-            // This will trigger the useEffect again
-            const parsed = bulletproofParseMealPlan(mealPlan);
-            if (!parsed.stats.success) {
-              retryMealPlanGeneration();
-            }
-          }
-        },
-        {
-          text: "Go Back",
-          onPress: () => navigation.goBack(),
-          style: "cancel"
-        }
-      ]
-    );
-  };
+  const parseMealPlan = (text) => {
+    console.log("🔥 Starting simplified parsing...");
+    
+    const cleanedText = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .trim();
 
-  const bulletproofParseMealPlan = (text) => {
-    if (!text || text.trim().length === 0) {
-      console.log("❌ No meal plan text provided");
-      return {
-        days: [],
-        stats: { found: 0, expected: days * mealsPerDay, success: false, reason: 'no_text' }
-      };
+    // Split by day separators
+    let dayTexts = [];
+    if (cleanedText.includes('=====')) {
+      dayTexts = cleanedText.split('=====').filter(text => text.trim());
+    } else {
+      // Try to split by "Day X" pattern
+      const dayPattern = /(?=Day\s+\d+)/gi;
+      dayTexts = cleanedText.split(dayPattern).filter(text => text.trim());
     }
 
-    try {
-      console.log("\n🔥 Starting BULLETPROOF parsing...");
-      
-      const cleanedText = text
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n')
-        .trim();
+    console.log(`Found ${dayTexts.length} day blocks`);
 
-      let dayTexts = [];
+    const parsedDays = [];
+    
+    for (let i = 0; i < days; i++) {
+      const dayText = dayTexts[i] || '';
+      const dayNumber = i + 1;
       
-      // Try different separation methods
-      if (cleanedText.includes('=====')) {
-        dayTexts = cleanedText.split('=====').filter(text => text.trim());
-      } else if (cleanedText.includes('====================')) {
-        dayTexts = cleanedText.split('====================').filter(text => text.trim());
-      } else {
-        const dayPattern = /(?=Day\s+\d+)/gi;
-        dayTexts = cleanedText.split(dayPattern).filter(text => text.trim());
+      if (!dayText.trim()) {
+        throw new Error(`Day ${dayNumber} has no content`);
       }
       
-      if (dayTexts.length < days) {
-        dayTexts = cleanedText.split(/\n\s*\n/).filter(text => text.trim());
-      }
-
-      console.log(`🔥 Found ${dayTexts.length} day blocks using separation`);
-
-      const parsedDays = [];
-      const allMeals = [];
+      const dayData = parseDayContent(dayText, dayNumber);
       
-      for (let i = 0; i < Math.max(dayTexts.length, days); i++) {
-        const dayText = dayTexts[i] || '';
-        const dayNumber = i + 1;
-        
-        if (dayNumber > days) break;
-        
-        const dayData = parseDayContentRobust(dayText, dayNumber);
-        
-        // Check if this day has meaningful content
-        const hasRealContent = dayData.meals.some(meal =>
-          meal.title &&
-          meal.title.length > 10 &&
-          !meal.title.includes('Fallback') &&
-          !meal.title.includes('Delicious') &&
-          !meal.title.includes('Healthy') &&
-          !meal.title.includes('Fresh') &&
-          !meal.title.includes('Nutritious') &&
-          meal.ingredients.length > 0 &&
-          meal.instructions.length > 0 &&
-          meal.ingredients.some(ing => !ing.includes('Premium quality') && !ing.includes('Fresh vegetables'))
-        );
-
-        if (!hasRealContent) {
-          console.log(`❌ Day ${dayNumber} has no real content, marking as failed`);
-          return {
-            days: [],
-            stats: { found: 0, expected: days * mealsPerDay, success: false, reason: 'no_real_content' }
-          };
-        }
-        
-        parsedDays.push(dayData);
-        allMeals.push(...dayData.meals);
+      if (dayData.meals.length < mealsPerDay) {
+        throw new Error(`Day ${dayNumber} only has ${dayData.meals.length} meals, expected ${mealsPerDay}`);
       }
-
-      // Check if we have enough days
-      if (parsedDays.length < days) {
-        console.log(`❌ Only found ${parsedDays.length} days, expected ${days}`);
-        return {
-          days: [],
-          stats: { found: parsedDays.length, expected: days, success: false, reason: 'insufficient_days' }
-        };
-      }
-
-      // Check if we have enough meals with real content
-      const realMealsCount = allMeals.filter(meal =>
-        meal.title &&
-        meal.title.length > 10 &&
-        !meal.title.includes('Fallback') &&
-        !meal.title.includes('Delicious') &&
-        !meal.title.includes('Healthy') &&
-        !meal.title.includes('Fresh') &&
-        !meal.title.includes('Nutritious')
-      ).length;
-
-      const requiredMeals = days * mealsPerDay;
-      const successThreshold = Math.floor(requiredMeals * 0.9); // At least 90% real meals
-
-      console.log(`📊 Real meals: ${realMealsCount}/${requiredMeals} (threshold: ${successThreshold})`);
-
-      if (realMealsCount < successThreshold) {
-        console.log(`❌ Not enough real meals: ${realMealsCount} < ${successThreshold}`);
-        return {
-          days: [],
-          stats: {
-            found: realMealsCount,
-            expected: requiredMeals,
-            success: false,
-            reason: 'insufficient_real_meals'
-          }
-        };
-      }
-
-      const stats = {
-        found: allMeals.length,
-        expected: requiredMeals,
-        realMeals: realMealsCount,
-        strategy: 'bulletproof',
-        success: true
-      };
-
-      console.log(`🔥 BULLETPROOF Results: ${stats.found}/${stats.expected} meals parsed (${stats.realMeals} real)`);
-
-      return { days: parsedDays, stats };
-
-    } catch (error) {
-      console.error("❌ Bulletproof parsing failed:", error);
-      return {
-        days: [],
-        stats: { found: 0, expected: days * mealsPerDay, success: false, error: error.message }
-      };
+      
+      parsedDays.push(dayData);
     }
+
+    return parsedDays;
   };
 
-  const parseDayContentRobust = (dayText, dayNumber) => {
+  const parseDayContent = (dayText, dayNumber) => {
     const lines = dayText.split('\n').map(line => line.trim()).filter(line => line);
     
-    const extractedMeals = extractMealsFromLinesRobust(lines);
-    const orderedMeals = ensureProperMealOrderRobust(extractedMeals);
+    const meals = extractMealsFromLines(lines);
     
-    // Only add missing meals if we have some real content
-    const hasRealMeals = orderedMeals.some(meal =>
-      meal.title &&
-      meal.title.length > 10 &&
-      !meal.title.includes('Fallback')
-    );
-
-    if (!hasRealMeals) {
-      // Return empty meals to trigger retry
-      return {
-        dayNumber: dayNumber,
-        title: `Day ${dayNumber}`,
-        meals: [],
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0
-      };
+    if (meals.length < mealsPerDay) {
+      throw new Error(`Day ${dayNumber}: Expected ${mealsPerDay} meals, found ${meals.length}`);
     }
 
-    // Only fill to required count if we have real meals
-    while (orderedMeals.length < mealsPerDay) {
-      const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
-      const missingMealType = mealTypes[orderedMeals.length] || 'Meal';
-      orderedMeals.push(generateFallbackMeal(missingMealType));
-    }
-
-    const totals = orderedMeals.slice(0, mealsPerDay).reduce((sum, meal) => ({
+    // Calculate totals
+    const totals = meals.slice(0, mealsPerDay).reduce((sum, meal) => ({
       calories: sum.calories + meal.calories,
       protein: sum.protein + meal.protein,
       carbs: sum.carbs + meal.carbs,
@@ -357,12 +176,12 @@ export default function MealPlanResults() {
     return {
       dayNumber: dayNumber,
       title: `Day ${dayNumber}`,
-      meals: orderedMeals.slice(0, mealsPerDay),
+      meals: meals.slice(0, mealsPerDay),
       ...totals
     };
   };
 
-  const extractMealsFromLinesRobust = (lines) => {
+  const extractMealsFromLines = (lines) => {
     const meals = [];
     const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
     
@@ -372,12 +191,16 @@ export default function MealPlanResults() {
     for (const line of lines) {
       const foundMealType = mealTypes.find(type =>
         line.toLowerCase().includes(type.toLowerCase()) &&
-        (line.toLowerCase().indexOf(type.toLowerCase()) < 5 || line.toLowerCase().startsWith(type.toLowerCase()))
+        line.toLowerCase().indexOf(type.toLowerCase()) < 10
       );
 
       if (foundMealType) {
+        // Process previous meal if exists
         if (currentMealType && currentMealLines.length > 0) {
-          meals.push(parseIndividualMealRobust(currentMealLines, currentMealType));
+          const meal = parseIndividualMeal(currentMealLines, currentMealType);
+          if (meal) {
+            meals.push(meal);
+          }
         }
         
         currentMealType = foundMealType;
@@ -387,28 +210,18 @@ export default function MealPlanResults() {
       }
     }
 
+    // Process final meal
     if (currentMealType && currentMealLines.length > 0) {
-      meals.push(parseIndividualMealRobust(currentMealLines, currentMealType));
+      const meal = parseIndividualMeal(currentMealLines, currentMealType);
+      if (meal) {
+        meals.push(meal);
+      }
     }
 
     return meals;
   };
 
-  const ensureProperMealOrderRobust = (meals) => {
-    const mealOrder = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
-    const orderedMeals = [];
-    
-    for (const mealType of mealOrder) {
-      const meal = meals.find(m => m.mealType === mealType);
-      if (meal) {
-        orderedMeals.push(meal);
-      }
-    }
-    
-    return orderedMeals;
-  };
-
-  const parseIndividualMealRobust = (lines, mealType) => {
+  const parseIndividualMeal = (lines, mealType) => {
     let title = '';
     let ingredients = [];
     let instructions = [];
@@ -418,132 +231,103 @@ export default function MealPlanResults() {
     let carbs = 0;
     let fat = 0;
 
-    // Extract title more carefully
+    // Find title (usually the first substantive line after meal type)
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       
-      if (!line ||
-          line.startsWith('•') ||
-          line.startsWith('-') ||
-          line.match(/^\d+\./) ||
-          line.toLowerCase().includes('preparation') ||
-          line.toLowerCase().includes('cooking') ||
-          line.toLowerCase().includes('servings') ||
-          line.toLowerCase().includes('calorie') ||
-          line.toLowerCase().includes('protein') ||
-          line.toLowerCase().includes('carb') ||
-          line.toLowerCase().includes('fat') ||
-          line.toLowerCase().includes('ingredients:') ||
-          line.toLowerCase().includes('instructions:') ||
-          line.toLowerCase().includes('nutritional') ||
-          line === '-----' ||
-          line === '----' ||
-          line.match(/^=+$/)) {
-        continue;
-      }
-      
-      if (line.length >= 3 && !line.endsWith(':')) {
-        title = line.replace(/[^\w\s\-'&(),.]/g, '').trim();
-        
-        // Don't accept titles that look like ingredients
-        if (!title.match(/\d+\s*(cup|tbsp|tsp|lb|oz|gram|ml|liter)/i)) {
-          break;
-        }
+      if (line &&
+          !line.includes(':') &&
+          !line.startsWith('•') &&
+          !line.startsWith('-') &&
+          !line.match(/^\d+\./) &&
+          line.length > 3 &&
+          !line.match(/\d+\s*(minutes?|hours?)/i)) {
+        title = line;
+        break;
       }
     }
 
-    // Parse nutritional information and other details
+    // Parse each line for different sections
+    let inIngredients = false;
+    let inInstructions = false;
+
     for (const line of lines) {
       const trimmedLine = line.trim();
       
-      if (!trimmedLine || trimmedLine === title) continue;
+      if (!trimmedLine) continue;
 
-      // Extract calories
-      if (trimmedLine.toLowerCase().includes('calorie') && calories === 0) {
-        const patterns = [
-          /calories?\s*:?\s*(\d+)/i,
-          /(\d+)\s*calories?/i,
-          /(\d+)\s*kcal/i,
-          /cal\s*:?\s*(\d+)/i
-        ];
-        for (const pattern of patterns) {
-          const match = trimmedLine.match(pattern);
-          if (match) {
-            calories = parseInt(match[1]);
-            break;
-          }
-        }
+      // Section headers
+      if (trimmedLine.toLowerCase().includes('ingredients:')) {
+        inIngredients = true;
+        inInstructions = false;
+        continue;
       }
-      
-      // Extract protein
-      if (trimmedLine.toLowerCase().includes('protein') && protein === 0) {
-        const match = trimmedLine.match(/(\d+)/);
-        if (match) {
-          protein = parseInt(match[1]);
-        }
+      if (trimmedLine.toLowerCase().includes('instructions:')) {
+        inIngredients = false;
+        inInstructions = true;
+        continue;
       }
-      
-      // Extract carbs
-      if (trimmedLine.toLowerCase().includes('carb') && carbs === 0) {
-        const match = trimmedLine.match(/(\d+)/);
-        if (match) {
-          carbs = parseInt(match[1]);
-        }
-      }
-      
-      // Extract fat
-      if (trimmedLine.toLowerCase().includes('fat') && fat === 0) {
-        const match = trimmedLine.match(/(\d+)/);
-        if (match) {
-          fat = parseInt(match[1]);
-        }
+      if (trimmedLine.toLowerCase().includes('nutritional')) {
+        inIngredients = false;
+        inInstructions = false;
+        continue;
       }
 
-      // Extract timing information
-      if ((trimmedLine.toLowerCase().includes('preparation') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
-          (trimmedLine.toLowerCase().includes('cooking') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
-          (trimmedLine.toLowerCase().includes('servings') && trimmedLine.match(/\d+/)) ||
-          (trimmedLine.toLowerCase().startsWith('prep') && trimmedLine.match(/\d+\s*min/i)) ||
-          (trimmedLine.toLowerCase().startsWith('cook') && trimmedLine.match(/\d+\s*min/i)) ||
-          (trimmedLine.match(/^(prep|cook|preparation|cooking).*time.*\d+/i)) ||
-          (trimmedLine.match(/^servings?\s*:\s*\d+/i)) ||
-          (trimmedLine.match(/^\d+\s*(minute|hour|serving)/i) && !trimmedLine.match(/^\d+\.\s/))) {
-        timings.push(trimmedLine);
-      }
-      // Extract ingredients
-      else if (trimmedLine.match(/^[•\-\*]\s/)) {
+      // Parse based on current section
+      if (inIngredients && trimmedLine.match(/^[•\-\*]\s/)) {
         const ingredient = trimmedLine.replace(/^[•\-\*]\s*/, '').trim();
-        
-        if (ingredient &&
-            ingredient !== '-----' &&
-            ingredient !== '----' &&
-            ingredient.length > 1 &&
-            !ingredient.match(/^=+$/) &&
-            !ingredient.toLowerCase().startsWith('instruction') &&
-            !ingredient.match(/^\d+\.\s/)) {
+        if (ingredient) {
           ingredients.push(ingredient);
         }
-      }
-      // Extract instructions
-      else if (trimmedLine.match(/^\d+\./)) {
+      } else if (inInstructions && trimmedLine.match(/^\d+\./)) {
         instructions.push(trimmedLine);
+      } else if (trimmedLine.match(/calories?\s*:?\s*(\d+)/i)) {
+        const match = trimmedLine.match(/calories?\s*:?\s*(\d+)/i);
+        if (match) calories = parseInt(match[1]);
+      } else if (trimmedLine.match(/protein\s*:?\s*(\d+)/i)) {
+        const match = trimmedLine.match(/protein\s*:?\s*(\d+)/i);
+        if (match) protein = parseInt(match[1]);
+      } else if (trimmedLine.match(/carbs?\s*:?\s*(\d+)/i)) {
+        const match = trimmedLine.match(/carbs?\s*:?\s*(\d+)/i);
+        if (match) carbs = parseInt(match[1]);
+      } else if (trimmedLine.match(/fat\s*:?\s*(\d+)/i)) {
+        const match = trimmedLine.match(/fat\s*:?\s*(\d+)/i);
+        if (match) fat = parseInt(match[1]);
+      } else if (trimmedLine.match(/(preparation|cooking|prep|cook).*time/i) ||
+                 trimmedLine.match(/servings?\s*:/i)) {
+        timings.push(trimmedLine);
       }
     }
 
-    // Set default nutritional values if not found
-    if (calories === 0) {
-      calories = Math.round(caloriesPerDay / mealsPerDay);
+    // Validate required fields
+    if (!title) {
+      throw new Error(`${mealType} is missing a title`);
     }
+    if (ingredients.length === 0) {
+      throw new Error(`${mealType} is missing ingredients`);
+    }
+    if (instructions.length === 0) {
+      throw new Error(`${mealType} is missing instructions`);
+    }
+    if (calories === 0) {
+      throw new Error(`${mealType} is missing calorie information`);
+    }
+
+    // Set defaults for missing nutrition info
     if (protein === 0) protein = Math.round(calories * 0.25 / 4);
     if (carbs === 0) carbs = Math.round(calories * 0.45 / 4);
     if (fat === 0) fat = Math.round(calories * 0.30 / 9);
 
+    if (timings.length === 0) {
+      timings = ['Prep: 15 min', 'Cook: 20 min'];
+    }
+
     return {
       mealType,
-      title: title || `${mealType} Recipe`,
+      title,
       ingredients,
       instructions,
-      timings: timings.length > 0 ? timings : ['Prep: 15 min', 'Cook: 20 min'],
+      timings,
       calories,
       protein,
       carbs,
@@ -551,20 +335,21 @@ export default function MealPlanResults() {
     };
   };
 
-  const generateFallbackMeal = (mealType) => {
-    const avgCals = Math.round(caloriesPerDay / mealsPerDay);
-    
-    return {
-      mealType,
-      title: `${mealType} Recipe`,
-      ingredients: ['Recipe ingredients will be provided'],
-      instructions: ['1. Recipe instructions will be provided'],
-      timings: ['Prep: 15 min', 'Cook: 20 min'],
-      calories: avgCals,
-      protein: Math.round(avgCals * 0.25 / 4),
-      carbs: Math.round(avgCals * 0.45 / 4),
-      fat: Math.round(avgCals * 0.30 / 9)
-    };
+  const handleRetry = () => {
+    Alert.alert(
+      "Regenerate Meal Plan",
+      "This will generate a new meal plan with the same settings. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Regenerate",
+          onPress: () => {
+            setRetryCount(prev => prev + 1);
+            navigation.goBack();
+          }
+        }
+      ]
+    );
   };
 
   const getMealTypeColor = (mealType) => {
@@ -591,32 +376,53 @@ export default function MealPlanResults() {
     }
   };
 
-  // Calculate averages for compact summary
-  const avgCalories = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.calories, 0) / days) : 0;
-  const avgProtein = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.protein, 0) / days) : 0;
-  const avgCarbs = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.carbs, 0) / days) : 0;
-  const avgFat = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.fat, 0) / days) : 0;
+  // Calculate averages for summary
+  const avgCalories = parsedDays.length > 0 ?
+    Math.round(parsedDays.reduce((sum, day) => sum + day.calories, 0) / days) : 0;
+  const avgProtein = parsedDays.length > 0 ?
+    Math.round(parsedDays.reduce((sum, day) => sum + day.protein, 0) / days) : 0;
+  const avgCarbs = parsedDays.length > 0 ?
+    Math.round(parsedDays.reduce((sum, day) => sum + day.carbs, 0) / days) : 0;
+  const avgFat = parsedDays.length > 0 ?
+    Math.round(parsedDays.reduce((sum, day) => sum + day.fat, 0) / days) : 0;
 
-  if (isLoading || isRetrying) {
+  if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <View style={styles.loadingIcon}>
             <Ionicons name="restaurant" size={48} color="#008b8b" />
           </View>
-          <Text style={styles.loadingTitle}>
-            {isRetrying ? `Regenerating Plan (${retryCount}/${MAX_RETRIES})` : 'Crafting Your Perfect Plan'}
+          <Text style={styles.loadingTitle}>Processing Your Meal Plan</Text>
+          <Text style={styles.loadingSubtitle}>Analyzing recipes and nutrition</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (parsingError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <View style={styles.errorIcon}>
+            <Ionicons name="alert-circle" size={48} color="#e74c3c" />
+          </View>
+          <Text style={styles.errorTitle}>Meal Plan Incomplete</Text>
+          <Text style={styles.errorMessage}>
+            The generated meal plan is missing some recipes or has formatting issues.
           </Text>
-          <Text style={styles.loadingSubtitle}>
-            {isRetrying ? 'Ensuring quality recipes • Please wait' : 'Analyzing nutrition • Optimizing flavors'}
-          </Text>
-          {isRetrying && (
-            <View style={styles.retryIndicator}>
-              <Text style={styles.retryText}>
-                Previous attempt didn't meet our quality standards, trying again...
-              </Text>
-            </View>
-          )}
+          <Text style={styles.errorDetails}>{parsingError}</Text>
+          
+          <View style={styles.errorActions}>
+            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+              <Ionicons name="refresh" size={20} color="#fff" />
+              <Text style={styles.retryButtonText}>Generate New Plan</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.backButtonText}>Back to Settings</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -634,7 +440,7 @@ export default function MealPlanResults() {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Your Meal Plan</Text>
           <Text style={styles.headerStats}>
-            {days} days
+            {days} days • {parsedDays.reduce((sum, day) => sum + day.meals.length, 0)} recipes
           </Text>
         </View>
         
@@ -649,14 +455,12 @@ export default function MealPlanResults() {
         contentContainerStyle={styles.scrollContent}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          {
-            useNativeDriver: false,
-          }
+          { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
         bounces={true}
       >
-        {/* Summary Card that smoothly disappears */}
+        {/* Summary Card */}
         <Animated.View
           style={[
             styles.compactSummaryCard,
@@ -710,7 +514,7 @@ export default function MealPlanResults() {
           </View>
         </Animated.View>
 
-        {/* Controls that smoothly move up */}
+        {/* Controls */}
         <Animated.View
           style={[
             styles.controlsContainer,
@@ -720,7 +524,6 @@ export default function MealPlanResults() {
             }
           ]}
         >
-          {/* Toggle Container */}
           <View style={styles.toggleContainer}>
             <View style={styles.toggleWrapper}>
               <TouchableOpacity
@@ -740,7 +543,6 @@ export default function MealPlanResults() {
             </View>
           </View>
 
-          {/* Save Button */}
           <View style={styles.saveContainer}>
             <SaveMealPlanButton
               mealPlan={mealPlan}
@@ -792,7 +594,6 @@ export default function MealPlanResults() {
                   </View>
                 </View>
 
-                {/* Full-width meal cards */}
                 <View style={styles.mealsContainer}>
                   {day.meals.map((meal, index) => (
                     <TouchableOpacity
@@ -882,6 +683,7 @@ export default function MealPlanResults() {
         <View style={styles.scrollBottom} />
       </Animated.ScrollView>
 
+      {/* Meal Detail Modal */}
       <Modal
         visible={selectedMeal !== null}
         animationType="slide"
@@ -1020,15 +822,75 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     textAlign: 'center',
   },
-  retryIndicator: {
-    marginTop: 20,
-    paddingHorizontal: 20,
+
+  // Error handling styles
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f8f9fa',
   },
-  retryText: {
-    fontSize: 14,
+  errorIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#ffeaea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#e74c3c',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
     color: '#7f8c8d',
     textAlign: 'center',
-    lineHeight: 20,
+    marginBottom: 8,
+    lineHeight: 24,
+  },
+  errorDetails: {
+    fontSize: 14,
+    color: '#95a5a6',
+    textAlign: 'center',
+    marginBottom: 32,
+    fontStyle: 'italic',
+  },
+  errorActions: {
+    width: '100%',
+    gap: 12,
+  },
+  retryButton: {
+    backgroundColor: '#008b8b',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  backButton: {
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: '#7f8c8d',
+    fontSize: 16,
+    fontWeight: '500',
   },
 
   header: {
@@ -1076,7 +938,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  // Improved Summary Card with better animations
+  // Summary Card styles
   compactSummaryCard: {
     backgroundColor: 'white',
     marginHorizontal: 20,
@@ -1176,7 +1038,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Controls container that moves smoothly
   controlsContainer: {
     paddingHorizontal: 20,
   },
@@ -1212,9 +1073,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  saveContainer: {
-    // No additional margin needed
-  },
+  saveContainer: {},
 
   cardsContainer: {
     paddingHorizontal: 20,
@@ -1296,7 +1155,6 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
   },
 
-  // Full-width meal cards
   mealsContainer: {
     gap: 12,
   },

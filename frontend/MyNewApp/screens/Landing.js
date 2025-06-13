@@ -813,10 +813,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dashboardLogo: {
-    width: 65,
-    height: 65,
+    width: 70,
+    height: 70,
     borderRadius: 25,
-    marginRight: 15,
+    marginRight: 12,
   },
   headerTextContainer: {
     flex: 1,

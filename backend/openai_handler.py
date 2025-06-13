@@ -554,102 +554,119 @@ Next Recipe Title
   #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
   
     #this needs to be changed to handle similiar recipes appearing after many queries
+  
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-    
+        """Generate a complete meal plan with retry logic and validation"""
+        
+        max_retries = 3
+        retry_delay = 2  # seconds
+        
         random_themes = [
-        "quick and easy",
-        "chef-inspired",
-        "american and italian",
-        "greek and american",
-        "mexican and american",
-        "chinese and american",
-        "hearty comfort meals",
-        "light and refreshing",
-        "flavor-packed favorites",
-        "one-pot wonders",
-        "weeknight go-tos",
-        "global sampler",
-        "modern classics",
-        "family dinner vibes",
-        "lazy weekend meals",
-        "bold & spicy",
-        "nostalgic favorites",
-        "street food inspired",
-        "elevated homestyle",
-        "rainy day meals",
-        "crowd-pleasers",
-        "no-fuss cooking",
-        "Sunday supper style",
-        "grill-inspired dishes",
-        "cozy and warm",
-        "fast-casual feel",
-        "fusion experiments",
-        "creative comfort",
-        "simple & satisfying",
-        "trendy eats",
-        "classic with a twist",
-        "weekend indulgence",
-        "weekday warrior meals",
-        "bistro-style ideas",
-        "high-energy meals",
-        "minimal cleanup"
-    ]
+            "quick and easy", "chef-inspired", "american and italian", "greek and american",
+            "mexican and american", "chinese and american", "hearty comfort meals",
+            "light and refreshing", "flavor-packed favorites", "one-pot wonders",
+            "weeknight go-tos", "global sampler", "modern classics", "family dinner vibes",
+            "lazy weekend meals", "bold & spicy", "nostalgic favorites", "street food inspired",
+            "elevated homestyle", "rainy day meals", "crowd-pleasers", "no-fuss cooking",
+            "Sunday supper style", "grill-inspired dishes", "cozy and warm",
+            "fast-casual feel", "fusion experiments", "creative comfort",
+            "simple & satisfying", "trendy eats", "classic with a twist",
+            "weekend indulgence", "weekday warrior meals", "bistro-style ideas",
+            "high-energy meals", "minimal cleanup"
+        ]
 
         inspiration = random.choice(random_themes)
-        print (f"Meal Plan Inspiration: {inspiration}")
+        print(f"Meal Plan Inspiration: {inspiration}")
         
-        # Updated system prompt with stricter formatting rules
-        system_prompt = f"""You are a meal planning expert. CRITICAL FORMAT REQUIREMENTS:
+        # Try generating the complete plan multiple times
+        for attempt in range(max_retries):
+            try:
+                print(f"Generation attempt {attempt + 1}/{max_retries}")
+                
+                result = self._generate_single_meal_plan_attempt(
+                    days, meals_per_day, healthy, allergies, preferences,
+                    calories_per_day, inspiration
+                )
+                
+                if result and self._validate_meal_plan(result, days, meals_per_day):
+                    print("✅ Successfully generated complete meal plan")
+                    return result
+                else:
+                    print(f"❌ Attempt {attempt + 1} failed validation")
+                    if attempt < max_retries - 1:
+                        print(f"Retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                        
+            except Exception as e:
+                print(f"❌ Attempt {attempt + 1} failed with error: {str(e)}")
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+        
+        # If all attempts failed with the full plan, try day-by-day generation
+        print("🔄 All full-plan attempts failed, trying day-by-day generation...")
+        try:
+            return self._generate_day_by_day(days, meals_per_day, healthy, allergies, preferences, calories_per_day)
+        except Exception as e:
+            print(f"❌ Day-by-day generation also failed: {str(e)}")
+            # Return None instead of incomplete data - let the frontend handle the error
+            return None
 
-        1. Generate exactly {days} days with {meals_per_day} meals each day
-        2. NEVER repeat recipes in the plan
-        3. Each day MUST have exactly {meals_per_day} meals - no skipping... make sure each recipe is fully complete NO MATTER WHAT!
-        4. Target {calories_per_day} calories per day total (each of the meals should add to this every single time)
+    def _generate_single_meal_plan_attempt(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration):
+        """Single attempt at generating a meal plan"""
+        
+        # Updated system prompt with stricter requirements
+        system_prompt = f"""You are a meal planning expert. You MUST generate EXACTLY {days} complete days with EXACTLY {meals_per_day} meals each day.
 
-        EXACT FORMAT FOR EACH DAY:
-        Day X (where X is 1, 2, 3, etc.)
-        
-        [RECIPE TITLE] [AVOID USING THEME WORDS]
-        
-        Preparation Time: X minutes
-        Cooking Time: X minutes  
-        Servings: X
-        
-        • [Ingredient 1]
-        • [Ingredient 2]
-        • [Ingredient 3]
-        
-        Instructions:
-        1. [First step]
-        2. [Second step]
-        3. [Third step]
-        
-        Nutritional Information:
-        Calories: X
-        Protein: Xg
-        Carbs: Xg
-        Fat: Xg
-        
-        =====
-        
-        CRITICAL RULES:
-        - Recipe title MUST be on its own line after meal type
-        - Calories must be within 50 of {calories_per_day} (perferrably even more accurate)
-        - Recipe title CANNOT contain ingredients or measurements
-        - Recipe title CANNOT be "-----" or "====="
-        - Recipe title MUST be descriptive (e.g., "Grilled Chicken with Herbs")
-        - NEVER put ingredients in the title line
-        - Each meal type: Breakfast, Lunch, Dinner, or Snack
-        - Separate days with ===== ONLY
-        - NO bold text, asterisks, or special formatting
-        - Ingredients MUST start with • symbol
-        - Instructions MUST be numbered 1., 2., 3., etc.
-        """
+    CRITICAL REQUIREMENTS:
+    1. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day
+    2. NEVER repeat recipes in the plan
+    3. Each day MUST have exactly {meals_per_day} complete meals - NO EXCEPTIONS
+    4. Target {calories_per_day} calories per day total
+    5. EVERY recipe must be fully complete with all sections
 
-        # Initialize prompt
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day with the theme {inspiration}. Make sure the meals add up to the specicfied calories. MOST IMPORTANT: GENERATE ALL RECIPES FOR EACH DAY"
+    EXACT FORMAT FOR EACH MEAL:
+    [MEAL TYPE] (Breakfast/Lunch/Dinner/Snack)
 
-        # Handle optional parameters safely
+    [RECIPE TITLE - NO ingredients or measurements in title]
+
+    Preparation Time: X minutes
+    Cooking Time: X minutes  
+    Servings: X
+
+    Ingredients:
+    • [Ingredient 1]
+    • [Ingredient 2]
+    • [Ingredient 3]
+    • [Continue with all ingredients]
+
+    Instructions:
+    1. [First step]
+    2. [Second step]
+    3. [Continue with all steps]
+
+    Nutritional Information:
+    Calories: X
+    Protein: Xg
+    Carbs: Xg
+    Fat: Xg
+
+    =====
+
+    CRITICAL RULES:
+    - You MUST generate ALL {days * meals_per_day} recipes completely
+    - Each recipe MUST have all sections: title, times, ingredients, instructions, nutrition
+    - Recipe titles CANNOT contain ingredients or measurements
+    - Calories must total approximately {calories_per_day} per day
+    - Separate each meal with ===== ONLY
+    - NO partial recipes or incomplete meals allowed
+    - If you cannot fit everything, prioritize completeness over elaborate descriptions
+
+    VALIDATION: Before submitting, count your recipes. You MUST have exactly {days * meals_per_day} complete recipes."""
+
+        # Build the prompt
+        prompt = f"Create a COMPLETE {days}-day meal plan with {meals_per_day} meals per day, targeting {calories_per_day} calories per day with the theme '{inspiration}'. You MUST generate ALL {days * meals_per_day} recipes completely."
+
         if healthy:
             prompt += " Make all meals healthy and nutritious."
 
@@ -661,20 +678,233 @@ Next Recipe Title
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
             prompt += f" Consider these preferences: {preferences_list}."
 
+        prompt += f"\n\nRemember: You MUST generate exactly {days * meals_per_day} complete recipes. Count them before submitting."
+
+        # Use GPT-4 if available, otherwise stick with GPT-3.5 but with higher limits
         try:
+            # Try GPT-4 first for better reliability
+            response = self.client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=8000,
+                timeout=120
+            )
+        except Exception as gpt4_error:
+            print(f"GPT-4 failed, falling back to GPT-3.5: {gpt4_error}")
+            # Fallback to GPT-3.5 with optimized settings
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.5,  # Reduced for more consistent formatting
-                max_tokens=4075,
-                timeout=100
+                temperature=0.5,
+                max_tokens=4000,  # Slightly reduced but still high
+                timeout=120
             )
 
-            return response.choices[0].message.content.strip()
+        return response.choices[0].message.content.strip()
 
+    def _validate_meal_plan(self, meal_plan_text, expected_days, expected_meals_per_day):
+        """Validate that the meal plan contains the expected number of complete recipes"""
+        if not meal_plan_text:
+            return False
+        
+        try:
+            # Count meal type declarations
+            meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
+            total_meals_found = 0
+            
+            for meal_type in meal_types:
+                # Count occurrences of each meal type
+                count = meal_plan_text.lower().count(meal_type.lower())
+                total_meals_found += count
+            
+            expected_total = expected_days * expected_meals_per_day
+            
+            # Also check for recipe completeness indicators
+            ingredients_sections = meal_plan_text.count('Ingredients:')
+            instructions_sections = meal_plan_text.count('Instructions:')
+            nutrition_sections = meal_plan_text.count('Nutritional Information:')
+            
+            print(f"Validation results:")
+            print(f"  Total meals found: {total_meals_found}/{expected_total}")
+            print(f"  Ingredients sections: {ingredients_sections}")
+            print(f"  Instructions sections: {instructions_sections}")
+            print(f"  Nutrition sections: {nutrition_sections}")
+            
+            # Consider valid if we have at least 90% of expected meals and all key sections
+            min_required = int(expected_total * 0.9)
+            
+            return (total_meals_found >= min_required and
+                    ingredients_sections >= min_required and
+                    instructions_sections >= min_required and
+                    nutrition_sections >= min_required)
+                    
         except Exception as e:
-            print(f"Error generating meal plan: {str(e)}")
-            return None
+            print(f"Validation error: {e}")
+            return False
+
+    def _generate_day_by_day(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day):
+        """Alternative method: Generate one day at a time for large meal plans"""
+        
+        random_themes = [
+            "quick and easy", "chef-inspired", "american and italian", "greek and american",
+            "mexican and american", "chinese and american", "hearty comfort meals",
+            "light and refreshing", "flavor-packed favorites", "one-pot wonders"
+        ]
+        
+        all_days = []
+        used_recipes = set()  # Track used recipes to avoid duplicates
+        max_retries = 3
+        
+        for day_num in range(1, days + 1):
+            print(f"Generating Day {day_num}...")
+            
+            for attempt in range(max_retries):
+                try:
+                    inspiration = random.choice(random_themes)
+                    day_result = self._generate_single_day(
+                        day_num, meals_per_day, healthy, allergies, preferences,
+                        calories_per_day, inspiration, used_recipes
+                    )
+                    
+                    if day_result and self._validate_single_day(day_result, meals_per_day):
+                        all_days.append(day_result)
+                        # Extract recipe titles to avoid duplicates
+                        day_recipes = self._extract_recipe_titles(day_result)
+                        used_recipes.update(day_recipes)
+                        print(f"✅ Day {day_num} generated successfully")
+                        break
+                    else:
+                        print(f"Day {day_num} attempt {attempt + 1} failed validation")
+                        if attempt < max_retries - 1:
+                            time.sleep(1)
+                            
+                except Exception as e:
+                    print(f"Day {day_num} attempt {attempt + 1} failed: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(1)
+            else:
+                raise Exception(f"Failed to generate Day {day_num} after all attempts")
+        
+        # Combine all days
+        return "\n\n".join(all_days)
+
+    def _generate_single_day(self, day_num, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration, used_recipes):
+        """Generate a single day's meal plan"""
+        
+        meal_order = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
+        
+        system_prompt = f"""Generate EXACTLY {meals_per_day} complete meals for Day {day_num}.
+
+    REQUIREMENTS:
+    - Generate exactly {meals_per_day} meals: {', '.join(meal_order)}
+    - Target {calories_per_day} total calories for the day
+    - Theme: {inspiration}
+    - Each meal must have: title, prep/cook times, ingredients list, instructions, nutrition info
+    - DO NOT use these recipe titles: {', '.join(list(used_recipes)[:10]) if used_recipes else 'None'}
+
+    FORMAT each meal exactly like this:
+    [MEAL TYPE]
+
+    [Recipe Title]
+
+    Preparation Time: X minutes
+    Cooking Time: X minutes
+    Servings: X
+
+    Ingredients:
+    • [ingredient 1]
+    • [ingredient 2]
+
+    Instructions:
+    1. [step 1]
+    2. [step 2]
+
+    Nutritional Information:
+    Calories: X
+    Protein: Xg
+    Carbs: Xg
+    Fat: Xg
+
+    ====="""
+
+        prompt = f"Generate Day {day_num} meal plan with {meals_per_day} complete meals."
+        
+        if healthy:
+            prompt += " Make meals healthy and nutritious."
+        if allergies:
+            allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
+            prompt += f" Avoid: {allergies_list}."
+        if preferences:
+            preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
+            prompt += f" Preferences: {preferences_list}."
+
+        try:
+            # Try GPT-4 first, fallback to GPT-3.5
+            response = self.client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=4000,
+                timeout=60
+            )
+        except Exception:
+            # Fallback to GPT-3.5
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,
+                max_tokens=3000,
+                timeout=60
+            )
+
+        return response.choices[0].message.content.strip()
+
+    def _validate_single_day(self, day_text, expected_meals):
+        """Validate a single day has all required meals"""
+        meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:expected_meals]
+        
+        for meal_type in meal_types:
+            if meal_type.lower() not in day_text.lower():
+                return False
+                
+        return ('Ingredients:' in day_text and
+                'Instructions:' in day_text and
+                'Nutritional Information:' in day_text)
+
+    def _extract_recipe_titles(self, day_text):
+        """Extract recipe titles from a day's meal plan"""
+        lines = day_text.split('\n')
+        titles = []
+        
+        meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if any(meal_type in line for meal_type in meal_types):
+                # Look for the title in the next few lines
+                for j in range(i + 1, min(i + 4, len(lines))):
+                    next_line = lines[j].strip()
+                    if (next_line and
+                        not next_line.startswith('Preparation') and
+                        not next_line.startswith('Cooking') and
+                        not next_line.startswith('Servings') and
+                        not next_line.startswith('•') and
+                        not next_line.startswith('Ingredients') and
+                        len(next_line) > 3):
+                        titles.append(next_line.lower())
+                        break
+        
+        return titles
