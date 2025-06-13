@@ -149,20 +149,76 @@ export const authService = {
     }
   },
 
-  async upgradeToPremuim() {
+  // Enhanced upgrade method that's compatible with RevenueCat
+  async upgradeToPremuim(subscriptionInfo = null) {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("User not logged in");
 
-      // Update user document in Firestore
-      await updateDoc(doc(db, "users", user.uid), {
+      const updateData = {
         isPremium: true,
-      });
+        premiumUpdatedAt: new Date().toISOString(),
+      };
+
+      // Add subscription info if provided
+      if (subscriptionInfo) {
+        updateData.subscriptionInfo = subscriptionInfo;
+      }
+
+      // Update user document in Firestore
+      await updateDoc(doc(db, "users", user.uid), updateData);
 
       return true;
     } catch (error) {
       console.error("Error upgrading to premium:", error);
       throw error;
+    }
+  },
+
+  // Update premium status (enhanced version that works with RevenueCat)
+  async updatePremiumStatus(isPremium, subscriptionInfo = null) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const updateData = {
+        isPremium: isPremium,
+        premiumUpdatedAt: new Date().toISOString(),
+      };
+
+      // Add subscription info if provided (from RevenueCat)
+      if (subscriptionInfo && isPremium) {
+        updateData.subscriptionInfo = subscriptionInfo;
+      } else if (!isPremium) {
+        updateData.subscriptionInfo = null;
+      }
+
+      // Update user document in Firestore
+      await updateDoc(doc(db, "users", user.uid), updateData);
+      
+      console.log('✅ Auth service updated premium status:', isPremium);
+      return true;
+    } catch (error) {
+      console.error("Error updating premium status:", error);
+      throw error;
+    }
+  },
+
+  // Method to sync with RevenueCat status
+  async syncWithRevenueCat() {
+    try {
+      // This will be called by PurchaseService
+      const user = auth.currentUser;
+      if (!user) return false;
+
+      // Import PurchaseService here to avoid circular imports
+      const PurchaseService = require('./PurchaseService').default;
+      const status = await PurchaseService.checkSubscriptionStatus();
+      
+      return status.hasActivePremium;
+    } catch (error) {
+      console.error("Error syncing with RevenueCat:", error);
+      return false;
     }
   },
 

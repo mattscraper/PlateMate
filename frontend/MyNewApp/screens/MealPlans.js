@@ -37,8 +37,6 @@ export default function MealPlans() {
   // Modal states
   const [showDietTypeModal, setShowDietTypeModal] = useState(false);
   const [showAllergyModal, setShowAllergyModal] = useState(false);
-  const [showCustomDietInput, setShowCustomDietInput] = useState(false);
-  const [customDietInput, setCustomDietInput] = useState("");
   const [newAllergy, setNewAllergy] = useState("");
 
   // Loading states
@@ -47,9 +45,8 @@ export default function MealPlans() {
 
   // Animation
   const [fadeAnim] = useState(new Animated.Value(0));
-  const customDietInputRef = useRef(null);
 
-  // Diet type options
+  // Expanded diet type options
   const predefinedDietTypes = [
     { id: "keto", label: "Keto", value: "Keto", icon: "nutrition", color: "#ff6b35" },
     { id: "paleo", label: "Paleo", value: "Paleo", icon: "leaf", color: "#34c759" },
@@ -57,6 +54,10 @@ export default function MealPlans() {
     { id: "vegetarian", label: "Vegetarian", value: "Vegetarian", icon: "flower", color: "#32d74b" },
     { id: "lowCarb", label: "Low Carb", value: "Low Carb", icon: "barbell", color: "#007aff" },
     { id: "glutenFree", label: "Gluten Free", value: "Gluten Free", icon: "checkmark-circle", color: "#5856d6" },
+    { id: "mediterranean", label: "Mediterranean", value: "Mediterranean", icon: "sunny", color: "#ff9500" },
+    { id: "pescatarian", label: "Pescatarian", value: "Pescatarian", icon: "fish", color: "#5ac8fa" },
+    { id: "dairyFree", label: "Dairy Free", value: "Dairy Free", icon: "close-circle", color: "#ff3b30" },
+    { id: "highProtein", label: "High Protein", value: "High Protein", icon: "fitness", color: "#ff2d92" },
   ];
 
   const loadingTexts = [
@@ -95,40 +96,15 @@ export default function MealPlans() {
   // Modal handlers
   const openDietTypeModal = () => {
     setShowDietTypeModal(true);
-    setShowCustomDietInput(false);
-    setCustomDietInput("");
   };
 
   const closeDietTypeModal = () => {
     setShowDietTypeModal(false);
-    setShowCustomDietInput(false);
-    setCustomDietInput("");
   };
 
-  const selectPredefinedDiet = (value) => {
+  const selectDietType = (value) => {
     setDietType(value);
     closeDietTypeModal();
-  };
-
-  const openCustomDietInput = () => {
-    setShowCustomDietInput(true);
-    setTimeout(() => {
-      if (customDietInputRef.current) {
-        customDietInputRef.current.focus();
-      }
-    }, 300);
-  };
-
-  const confirmCustomDiet = () => {
-    if (customDietInput.trim()) {
-      setDietType(customDietInput.trim());
-      closeDietTypeModal();
-    }
-  };
-
-  const cancelCustomDietInput = () => {
-    setShowCustomDietInput(false);
-    setCustomDietInput("");
   };
 
   // Allergy handlers
@@ -417,10 +393,7 @@ export default function MealPlans() {
         transparent={true}
         onRequestClose={closeDietTypeModal}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalOverlay}
-        >
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Choose Diet Type</Text>
@@ -430,94 +403,56 @@ export default function MealPlans() {
             </View>
 
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {!showCustomDietInput ? (
-                <>
-                  <Text style={styles.modalSubtitle}>
-                    Select a diet type that matches your lifestyle
-                  </Text>
+              <Text style={styles.modalSubtitle}>
+                Select a diet type that matches your lifestyle
+              </Text>
 
-                  {/* Predefined Diet Types */}
-                  <View style={styles.dietTypesGrid}>
-                    {predefinedDietTypes.map((diet) => (
-                      <TouchableOpacity
-                        key={diet.id}
-                        style={styles.dietTypeCard}
-                        onPress={() => selectPredefinedDiet(diet.value)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={[styles.dietTypeIcon, { backgroundColor: `${diet.color}15` }]}>
-                          <Ionicons name={diet.icon} size={24} color={diet.color} />
-                        </View>
-                        <Text style={styles.dietTypeText}>{diet.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {/* Custom Diet Type Trigger */}
-                  <TouchableOpacity style={styles.customTrigger} onPress={openCustomDietInput}>
-                    <View style={styles.customTriggerIcon}>
-                      <Ionicons name="create-outline" size={24} color="#008b8b" />
+              {/* Diet Types Grid */}
+              <View style={styles.dietTypesGrid}>
+                {predefinedDietTypes.map((diet) => (
+                  <TouchableOpacity
+                    key={diet.id}
+                    style={[
+                      styles.dietTypeCard,
+                      dietType === diet.value && styles.dietTypeCardSelected
+                    ]}
+                    onPress={() => selectDietType(diet.value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      styles.dietTypeIcon,
+                      { backgroundColor: `${diet.color}15` },
+                      dietType === diet.value && styles.dietTypeIconSelected
+                    ]}>
+                      <Ionicons
+                        name={diet.icon}
+                        size={24}
+                        color={dietType === diet.value ? "#fff" : diet.color}
+                      />
                     </View>
-                    <View style={styles.customTriggerContent}>
-                      <Text style={styles.customTriggerTitle}>Custom Diet Type</Text>
-                      <Text style={styles.customTriggerSubtitle}>Create your own diet category</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
+                    <Text style={[
+                      styles.dietTypeText,
+                      dietType === diet.value && styles.dietTypeTextSelected
+                    ]}>
+                      {diet.label}
+                    </Text>
                   </TouchableOpacity>
-                </>
-              ) : (
-                /* Custom Diet Input Mode */
-                <View style={styles.customInputSection}>
-                  <View style={styles.customInputHeader}>
-                    <TouchableOpacity onPress={cancelCustomDietInput}>
-                      <Ionicons name="chevron-back" size={24} color="#008b8b" />
-                    </TouchableOpacity>
-                    <Text style={styles.customInputTitle}>Custom Diet Type</Text>
-                    <View style={{ width: 24 }} />
-                  </View>
+                ))}
+              </View>
 
-                  <Text style={styles.customInputLabel}>What's your diet preference?</Text>
-                  
-                  <TextInput
-                    ref={customDietInputRef}
-                    style={styles.customTextInput}
-                    value={customDietInput}
-                    onChangeText={setCustomDietInput}
-                    placeholder="e.g., Low FODMAP, Pescatarian, Intermittent Fasting..."
-                    placeholderTextColor="#c7c7cc"
-                    returnKeyType="done"
-                    onSubmitEditing={confirmCustomDiet}
-                    autoCapitalize="words"
-                  />
-
-                  <View style={styles.customInputActions}>
-                    <TouchableOpacity
-                      style={styles.customCancelButton}
-                      onPress={cancelCustomDietInput}
-                    >
-                      <Text style={styles.customCancelText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.customConfirmButton,
-                        !customDietInput.trim() && styles.customConfirmButtonDisabled
-                      ]}
-                      onPress={confirmCustomDiet}
-                      disabled={!customDietInput.trim()}
-                    >
-                      <Text style={[
-                        styles.customConfirmText,
-                        !customDietInput.trim() && styles.customConfirmTextDisabled
-                      ]}>
-                        Use This
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+              {/* Clear Selection Option */}
+              {dietType && (
+                <TouchableOpacity
+                  style={styles.clearSelectionButton}
+                  onPress={() => selectDietType("")}
+                >
+                  <Ionicons name="close-circle" size={20} color="#ff3b30" />
+                  <Text style={styles.clearSelectionText}>Clear Selection</Text>
+                </TouchableOpacity>
               )}
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Allergy Modal */}
@@ -996,11 +931,17 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   dietTypeCard: {
-    width: (width - 64) / 2,
+    width: 150,
     backgroundColor: '#f2f2f7',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  dietTypeCardSelected: {
+    backgroundColor: '#008b8b',
+    borderColor: '#006666',
   },
   dietTypeIcon: {
     width: 48,
@@ -1010,106 +951,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  dietTypeIconSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
   dietTypeText: {
     fontSize: 15,
     fontWeight: '500',
     color: '#1c1c1e',
     textAlign: 'center',
   },
-
-  // Custom Diet Input
-  customTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f2f2f7',
-    borderRadius: 16,
-    padding: 16,
-  },
-  customTriggerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 139, 139, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  customTriggerContent: {
-    flex: 1,
-  },
-  customTriggerTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1c1c1e',
-  },
-  customTriggerSubtitle: {
-    fontSize: 13,
-    color: '#8e8e93',
-    marginTop: 2,
-  },
-
-  // Custom Input Section
-  customInputSection: {
-    paddingTop: 8,
-  },
-  customInputHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  customInputTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1c1c1e',
-    flex: 1,
-    textAlign: 'center',
-  },
-  customInputLabel: {
-    fontSize: 16,
-    color: '#1c1c1e',
-    marginBottom: 12,
-  },
-  customTextInput: {
-    backgroundColor: '#f2f2f7',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1c1c1e',
-    marginBottom: 20,
-  },
-  customInputActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  customCancelButton: {
-    flex: 1,
-    backgroundColor: '#f2f2f7',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  customCancelText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#8e8e93',
-  },
-  customConfirmButton: {
-    flex: 1,
-    backgroundColor: '#008b8b',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  customConfirmButtonDisabled: {
-    backgroundColor: '#c7c7cc',
-  },
-  customConfirmText: {
-    fontSize: 16,
-    fontWeight: '500',
+  dietTypeTextSelected: {
     color: 'white',
+    fontWeight: '600',
   },
-  customConfirmTextDisabled: {
-    color: '#8e8e93',
+
+  // Clear Selection Button
+  clearSelectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f2f2f7',
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+    marginTop: 8,
+  },
+  clearSelectionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#ff3b30',
   },
 
   // Allergy Modal

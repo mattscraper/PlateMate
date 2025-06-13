@@ -173,7 +173,7 @@ export default function LandingScreen({ navigation }) {
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
-          showCustomToast("Welcome back to Kitch!", "success");
+          showCustomToast("Welcome back to Kitchly!", "success");
         } else {
           throw new Error("Login failed - no user returned");
         }
@@ -426,7 +426,7 @@ export default function LandingScreen({ navigation }) {
     <View style={styles.dashboardHeader}>
       <View style={styles.headerLeft}>
         <Image
-          source={require("../assets/logo.jpg")}
+          source={require("../assets/logo.png")}
           style={styles.dashboardLogo}
           resizeMode="contain"
         />

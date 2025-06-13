@@ -19,6 +19,9 @@
     "ios": {
       "name": "PlateMate",
       "bundleIdentifier": "com.platemate.recipemealplanner",
+      "entitlements": {
+        "com.apple.developer.in-app-purchase": true
+      },
       "buildNumber": "1.0.0",
       "googleServicesFile": "./assets/GoogleService-Info.plist",
       "infoPlist": {
@@ -44,7 +47,10 @@
     "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/3287301c-9f8d-4553-9f48-efc19ee880db"
-    }
+    },
+    "plugins": [
+      "react-native-iap"
+    ]
   },
   "android": {
     "adaptiveIcon": {
