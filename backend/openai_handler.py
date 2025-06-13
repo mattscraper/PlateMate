@@ -554,8 +554,8 @@ Next Recipe Title
   #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
   
     #this needs to be changed to handle similiar recipes appearing after many queries
-     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, retry=False):
-        
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, retry=False):
+    
         random_themes = [
             "quick and easy",
             "chef-inspired",
@@ -618,73 +618,73 @@ Next Recipe Title
         # Enhanced system prompt with stricter validation
         system_prompt = f"""You are a professional meal planning expert. Your task is CRITICAL and must be executed PERFECTLY.
 
-        ABSOLUTE REQUIREMENTS:
-        1. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day
-        2. Each day's meals MUST total {calories_per_day} calories (±25 calories maximum deviation)
-        3. {calorie_breakdown}
-        4. NEVER repeat any recipe across the entire plan
-        5. Every recipe MUST be complete with all sections
+    ABSOLUTE REQUIREMENTS:
+    1. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day
+    2. Each day's meals MUST total {calories_per_day} calories (±25 calories maximum deviation)
+    3. {calorie_breakdown}
+    4. NEVER repeat any recipe across the entire plan
+    5. Every recipe MUST be complete with all sections
 
-        MANDATORY FORMAT FOR EACH MEAL:
-        [Meal Type] (Breakfast/Lunch/Dinner/Snack)
+    MANDATORY FORMAT FOR EACH MEAL:
+    [Meal Type] (Breakfast/Lunch/Dinner/Snack)
 
-        [Recipe Title - Be Creative, Avoid Theme Words in Every Title]
+    [Recipe Title - Be Creative, Avoid Theme Words in Every Title]
 
-        Preparation Time: X minutes
-        Cooking Time: X minutes
-        Servings: X
+    Preparation Time: X minutes
+    Cooking Time: X minutes
+    Servings: X
 
-        • [Ingredient with amount]
-        • [Ingredient with amount]
-        • [Ingredient with amount]
-        (Include 5-8 ingredients minimum)
+    • [Ingredient with amount]
+    • [Ingredient with amount]
+    • [Ingredient with amount]
+    (Include 5-8 ingredients minimum)
 
-        Instructions:
-        1. [Detailed cooking step]
-        2. [Detailed cooking step] 
-        3. [Detailed cooking step]
-        (Include 4-6 steps minimum)
+    Instructions:
+    1. [Detailed cooking step]
+    2. [Detailed cooking step] 
+    3. [Detailed cooking step]
+    (Include 4-6 steps minimum)
 
-        Nutritional Information:
-        Calories: X
-        Protein: Xg
-        Carbs: Xg
-        Fat: Xg
+    Nutritional Information:
+    Calories: X
+    Protein: Xg
+    Carbs: Xg
+    Fat: Xg
 
-        =====
+    =====
 
-        CRITICAL FORMATTING RULES:
-        - Recipe titles must be CREATIVE and VARIED - don't overuse theme words
-        - If theme is "bistro-style", only 1-2 recipes should mention "bistro", others should be creative
-        - Calories MUST add up to {calories_per_day} per day (this is CRITICAL)
-        - Each recipe title must be on its own line after meal type
-        - NO special formatting (**, *, etc.)
-        - Ingredients MUST have • bullet points with specific amounts
-        - Instructions MUST be numbered 1., 2., 3., etc.
-        - Separate days with ===== ONLY
-        - Include realistic prep/cook times
-        - Nutritional info must be accurate for the ingredients listed
+    CRITICAL FORMATTING RULES:
+    - Recipe titles must be CREATIVE and VARIED - don't overuse theme words
+    - If theme is "bistro-style", only 1-2 recipes should mention "bistro", others should be creative
+    - Calories MUST add up to {calories_per_day} per day (this is CRITICAL)
+    - Each recipe title must be on its own line after meal type
+    - NO special formatting (**, *, etc.)
+    - Ingredients MUST have • bullet points with specific amounts
+    - Instructions MUST be numbered 1., 2., 3., etc.
+    - Separate days with ===== ONLY
+    - Include realistic prep/cook times
+    - Nutritional info must be accurate for the ingredients listed
 
-        CALORIE ACCURACY IS MANDATORY - Double-check that daily totals equal {calories_per_day}."""
+    CALORIE ACCURACY IS MANDATORY - Double-check that daily totals equal {calories_per_day}."""
 
         # Build prompt based on retry status
         if retry:
             prompt = f"""RETRY REQUEST: The previous meal plan had quality issues. Please generate a HIGH-QUALITY {days}-day meal plan with {meals_per_day} meals per day.
 
-            CRITICAL REQUIREMENTS:
-            - EXACTLY {calories_per_day} calories per day (this is MANDATORY)
-            - Detailed, complete recipes with specific ingredients and amounts
-            - Creative recipe titles that don't overuse the theme "{inspiration}"
-            - {calorie_breakdown}
-            - All {days * meals_per_day} recipes must be fully detailed and unique
+    CRITICAL REQUIREMENTS:
+    - EXACTLY {calories_per_day} calories per day (this is MANDATORY)
+    - Detailed, complete recipes with specific ingredients and amounts
+    - Creative recipe titles that don't overuse the theme "{inspiration}"
+    - {calorie_breakdown}
+    - All {days * meals_per_day} recipes must be fully detailed and unique
 
-            This is a retry, so please take extra care with accuracy and completeness."""
+    This is a retry, so please take extra care with accuracy and completeness."""
         else:
             prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day, targeting EXACTLY {calories_per_day} calories per day.
 
-            Theme inspiration: {inspiration} (use this as general inspiration, but don't put theme words in every recipe title)
+    Theme inspiration: {inspiration} (use this as general inspiration, but don't put theme words in every recipe title)
 
-            MANDATORY: Each day must total {calories_per_day} calories. {calorie_breakdown}"""
+    MANDATORY: Each day must total {calories_per_day} calories. {calorie_breakdown}"""
 
         # Handle optional parameters
         if healthy:
