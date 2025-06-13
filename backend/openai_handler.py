@@ -555,7 +555,7 @@ Next Recipe Title
   
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000, retry=False):
-    
+        
         random_themes = [
             "quick and easy",
             "chef-inspired",
@@ -598,193 +598,104 @@ Next Recipe Title
         inspiration = random.choice(random_themes)
         print(f"Meal Plan Inspiration: {inspiration}")
         
-        # Calculate per-meal calories more intelligently
+        # Calculate calories per meal for better accuracy
         calories_per_meal = calories_per_day // meals_per_day
-        calories_remainder = calories_per_day % meals_per_day
         
-        # Distribute calories smartly based on meal types
-        if meals_per_day == 3:
-            breakfast_cal = calories_per_meal + (calories_remainder if calories_remainder > 0 else 0)
-            lunch_cal = calories_per_meal + (calories_remainder - 1 if calories_remainder > 1 else 0)
-            dinner_cal = calories_per_meal + (calories_remainder - 2 if calories_remainder > 2 else 0)
-            calorie_breakdown = f"Breakfast: ~{breakfast_cal} cal, Lunch: ~{lunch_cal} cal, Dinner: ~{dinner_cal} cal"
-        elif meals_per_day == 4:
-            snack_cal = calories_per_meal // 2  # Snacks should be smaller
-            main_meal_cal = (calories_per_day - snack_cal) // 3
-            calorie_breakdown = f"Breakfast: ~{main_meal_cal} cal, Lunch: ~{main_meal_cal} cal, Dinner: ~{main_meal_cal} cal, Snack: ~{snack_cal} cal"
-        else:
-            calorie_breakdown = f"Each meal: ~{calories_per_meal} calories"
+        # Enhanced system prompt
+        system_prompt = f"""You are a professional meal planning expert. CRITICAL REQUIREMENTS:
 
-        # Enhanced system prompt with stricter validation
-        system_prompt = f"""You are a professional meal planning expert. Your task is CRITICAL and must be executed PERFECTLY.
-
-    ABSOLUTE REQUIREMENTS:
     1. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day
-    2. Each day's meals MUST total {calories_per_day} calories (±25 calories maximum deviation)
-    3. {calorie_breakdown}
-    4. NEVER repeat any recipe across the entire plan
-    5. Every recipe MUST be complete with all sections
+    2. Each day MUST total EXACTLY {calories_per_day} calories (approximately {calories_per_meal} calories per meal)
+    3. NEVER repeat recipes - all {days * meals_per_day} recipes must be unique
+    4. Recipe titles must be creative and varied - don't overuse the theme words in every title
 
-    MANDATORY FORMAT FOR EACH MEAL:
-    [Meal Type] (Breakfast/Lunch/Dinner/Snack)
+    EXACT FORMAT FOR EACH MEAL:
+    [Meal Type]
 
-    [Recipe Title - Be Creative, Avoid Theme Words in Every Title]
+    [Creative Recipe Title - Don't repeat theme words in every title]
 
     Preparation Time: X minutes
-    Cooking Time: X minutes
+    Cooking Time: X minutes  
     Servings: X
 
-    • [Ingredient with amount]
-    • [Ingredient with amount]
-    • [Ingredient with amount]
-    (Include 5-8 ingredients minimum)
+    • [Ingredient with specific amount]
+    • [Ingredient with specific amount]
+    • [Ingredient with specific amount]
+    • [More ingredients as needed]
 
     Instructions:
-    1. [Detailed cooking step]
-    2. [Detailed cooking step] 
-    3. [Detailed cooking step]
-    (Include 4-6 steps minimum)
+    1. [Detailed step]
+    2. [Detailed step]
+    3. [Detailed step]
+    4. [More steps as needed]
 
     Nutritional Information:
-    Calories: X
+    Calories: X (must be accurate for daily total of {calories_per_day})
     Protein: Xg
     Carbs: Xg
     Fat: Xg
 
     =====
 
-    CRITICAL FORMATTING RULES:
-    - Recipe titles must be CREATIVE and VARIED - don't overuse theme words
-    - If theme is "bistro-style", only 1-2 recipes should mention "bistro", others should be creative
-    - Calories MUST add up to {calories_per_day} per day (this is CRITICAL)
-    - Each recipe title must be on its own line after meal type
+    CRITICAL RULES:
+    - Daily calories MUST add up to {calories_per_day} - this is MANDATORY
+    - Recipe titles should be diverse - if theme is "bistro", only use "bistro" in 1-2 titles max
+    - Every recipe must be complete with all sections above
+    - Use realistic ingredient amounts and cooking times
     - NO special formatting (**, *, etc.)
-    - Ingredients MUST have • bullet points with specific amounts
-    - Instructions MUST be numbered 1., 2., 3., etc.
-    - Separate days with ===== ONLY
-    - Include realistic prep/cook times
-    - Nutritional info must be accurate for the ingredients listed
+    - Separate days with ===== ONLY"""
 
-    CALORIE ACCURACY IS MANDATORY - Double-check that daily totals equal {calories_per_day}."""
-
-        # Build prompt based on retry status
+        # Build the main prompt
         if retry:
-            prompt = f"""RETRY REQUEST: The previous meal plan had quality issues. Please generate a HIGH-QUALITY {days}-day meal plan with {meals_per_day} meals per day.
+            prompt = f"""RETRY REQUEST - Previous attempt had issues. Generate a PERFECT {days}-day meal plan with {meals_per_day} meals per day.
 
-    CRITICAL REQUIREMENTS:
-    - EXACTLY {calories_per_day} calories per day (this is MANDATORY)
-    - Detailed, complete recipes with specific ingredients and amounts
-    - Creative recipe titles that don't overuse the theme "{inspiration}"
-    - {calorie_breakdown}
-    - All {days * meals_per_day} recipes must be fully detailed and unique
+    CRITICAL: Each day must total EXACTLY {calories_per_day} calories. Theme inspiration: {inspiration} (use creatively, don't put theme words in every recipe title).
 
-    This is a retry, so please take extra care with accuracy and completeness."""
+    Generate ALL {days * meals_per_day} complete recipes. Double-check that calories add up correctly."""
         else:
-            prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day, targeting EXACTLY {calories_per_day} calories per day.
+            prompt = f"""Create a {days}-day meal plan with {meals_per_day} meals per day. Each day must total EXACTLY {calories_per_day} calories.
 
-    Theme inspiration: {inspiration} (use this as general inspiration, but don't put theme words in every recipe title)
+    Theme inspiration: {inspiration} (use as inspiration only - create varied, creative recipe titles)
 
-    MANDATORY: Each day must total {calories_per_day} calories. {calorie_breakdown}"""
+    MANDATORY: Generate all {days * meals_per_day} complete recipes with accurate calorie counts."""
 
-        # Handle optional parameters
+        # Add optional parameters
         if healthy:
-            prompt += "\n\nMake all meals healthy and nutritious with fresh ingredients, lean proteins, and vegetables."
+            prompt += " Focus on healthy, nutritious meals with fresh ingredients."
 
         if allergies:
             allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-            prompt += f"\n\nEnsure ALL recipes are completely free of these allergens: {allergies_list}. Double-check every ingredient."
+            prompt += f" AVOID these allergens completely: {allergies_list}."
 
         if preferences:
             preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
-            prompt += f"\n\nConsider these dietary preferences: {preferences_list}."
+            prompt += f" Consider these preferences: {preferences_list}."
 
-        prompt += f"\n\nRemember: Generate ALL {days * meals_per_day} complete recipes. Every day must total {calories_per_day} calories."
+        # Final emphasis
+        prompt += f"\n\nREMEMBER: Each day must total {calories_per_day} calories. Be accurate with portions and calorie calculations."
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                print(f"Generating meal plan (attempt {attempt + 1}/{max_retries})...")
-                
-                # Adjust parameters based on attempt
-                if attempt == 0:
-                    temperature = 0.3
-                    max_tokens = 4000
-                elif attempt == 1:
-                    temperature = 0.2
-                    max_tokens = 4000
-                else:  # Final attempt
-                    temperature = 0.1
-                    max_tokens = 4000
-                    prompt += "\n\nFINAL ATTEMPT: This must be perfect. Include every required section for every meal."
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,  # Lower for more consistent results
+                max_tokens=4000,
+                timeout=120
+            )
 
-                response = self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    timeout=120
-                )
+            meal_plan = response.choices[0].message.content.strip()
+            
+            # Basic validation
+            if meal_plan and len(meal_plan) > 500:
+                print("✅ Meal plan generated successfully")
+                return meal_plan
+            else:
+                print("❌ Generated meal plan too short, likely incomplete")
+                return None
 
-                meal_plan = response.choices[0].message.content.strip()
-                
-                # Validate the response
-                if self._validate_meal_plan(meal_plan, days, meals_per_day, calories_per_day):
-                    print(f"✅ Meal plan generated successfully on attempt {attempt + 1}")
-                    return meal_plan
-                else:
-                    print(f"❌ Attempt {attempt + 1} failed validation")
-                    if attempt < max_retries - 1:
-                        print("Retrying with adjusted parameters...")
-                        continue
-
-            except Exception as e:
-                print(f"❌ Error on attempt {attempt + 1}: {str(e)}")
-                if attempt < max_retries - 1:
-                    print("Retrying...")
-                    continue
-
-        # If all attempts failed, return a more detailed error
-        print("❌ All attempts failed to generate a valid meal plan")
-        return None
-
-    def _validate_meal_plan(self, meal_plan, expected_days, expected_meals_per_day, expected_calories):
-        """Validate that the meal plan meets basic requirements"""
-        if not meal_plan or len(meal_plan.strip()) < 500:
-            print("❌ Validation failed: Meal plan too short")
-            return False
-        
-        # Check for required number of days
-        day_markers = len([line for line in meal_plan.split('\n') if line.strip().startswith('Day ')])
-        if day_markers < expected_days:
-            print(f"❌ Validation failed: Found {day_markers} days, expected {expected_days}")
-            return False
-        
-        # Check for meal types
-        meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
-        meal_count = 0
-        for meal_type in meal_types[:expected_meals_per_day]:
-            meal_count += len([line for line in meal_plan.split('\n') if line.strip() == meal_type])
-        
-        expected_total_meals = expected_days * expected_meals_per_day
-        if meal_count < expected_total_meals * 0.8:  # Allow some flexibility
-            print(f"❌ Validation failed: Found {meal_count} meals, expected ~{expected_total_meals}")
-            return False
-        
-        # Check for required sections
-        required_sections = ['Preparation Time:', 'Cooking Time:', 'Servings:', 'Instructions:', 'Nutritional Information:']
-        for section in required_sections:
-            if meal_plan.count(section) < expected_total_meals * 0.7:  # Allow some missing
-                print(f"❌ Validation failed: Missing section '{section}'")
-                return False
-        
-        # Check for calorie information
-        calorie_lines = [line for line in meal_plan.split('\n') if 'Calories:' in line]
-        if len(calorie_lines) < expected_total_meals * 0.7:
-            print(f"❌ Validation failed: Missing calorie information")
-            return False
-        
-        print("✅ Meal plan passed basic validation")
-        return True
+        except Exception as e:
+            print(f"Error generating meal plan: {str(e)}")
+            return None
