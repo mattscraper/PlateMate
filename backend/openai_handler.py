@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 import re
 import random
 import time
-
 # Load environment variables
 load_dotenv()
 
@@ -555,7 +554,7 @@ Next Recipe Title
   #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
   
     #this needs to be changed to handle similiar recipes appearing after many queries
-   def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
+    def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
     """Generate a complete meal plan with retry logic - GPT-3.5 optimized"""
     
         random_themes = [
