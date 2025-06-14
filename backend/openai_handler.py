@@ -6,7 +6,7 @@ from time import sleep
 from dotenv import load_dotenv
 import re
 import random
-import time
+
 # Load environment variables
 load_dotenv()
 
@@ -555,7 +555,7 @@ Next Recipe Title
   
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-        """Generate a complete meal plan with retry logic - GPT-3.5 optimized"""
+        """Simple, reliable meal plan generation with GPT-3.5"""
         
         random_themes = [
             "quick and easy", "chef-inspired", "american and italian", "greek and american",
@@ -574,55 +574,57 @@ Next Recipe Title
         inspiration = random.choice(random_themes)
         print(f"Meal Plan Inspiration: {inspiration}")
         
+        # For larger plans, generate day by day for reliability
+        if days > 3 or (days * meals_per_day) > 9:
+            return self._generate_day_by_day_simple(days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration)
+        
+        # For small plans, try full generation with retries
         max_retries = 3
-        
-        # Try full plan generation first (works well for smaller plans)
-        if days <= 5:  # For smaller plans, try full generation
-            for attempt in range(max_retries):
-                try:
-                    print(f"Full plan generation attempt {attempt + 1}/{max_retries}")
-                    result = self._generate_full_plan(days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration)
-                    
-                    if result and self._is_plan_complete(result, days, meals_per_day):
-                        print("✅ Successfully generated complete meal plan")
-                        return result
-                    else:
-                        print(f"❌ Attempt {attempt + 1} failed validation")
-                        if attempt < max_retries - 1:
-                            time.sleep(2)
-                            
-                except Exception as e:
-                    print(f"❌ Attempt {attempt + 1} failed with error: {str(e)}")
+        for attempt in range(max_retries):
+            try:
+                print(f"Attempt {attempt + 1}/{max_retries} for full plan generation")
+                result = self._generate_full_plan_simple(days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration)
+                
+                if self._validate_plan_simple(result, days, meals_per_day):
+                    print("✅ Full plan generation successful")
+                    return result
+                else:
+                    print(f"❌ Attempt {attempt + 1} failed validation")
                     if attempt < max_retries - 1:
-                        time.sleep(2)
+                        sleep(2)
+                        
+            except Exception as e:
+                print(f"❌ Attempt {attempt + 1} error: {str(e)}")
+                if attempt < max_retries - 1:
+                    sleep(2)
         
-        # For larger plans or if full plan failed, generate day by day
-        print("🔄 Switching to day-by-day generation...")
-        try:
-            return self._generate_plan_day_by_day(days, meals_per_day, healthy, allergies, preferences, calories_per_day, random_themes)
-        except Exception as e:
-            print(f"❌ Day-by-day generation failed: {str(e)}")
-            return None
+        # If full plan fails, fallback to day-by-day
+        print("🔄 Full plan failed, switching to day-by-day generation")
+        return self._generate_day_by_day_simple(days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration)
 
-    def _generate_full_plan(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration):
-        """Generate the entire meal plan in one API call"""
+    def _generate_full_plan_simple(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration):
+        """Generate complete meal plan in one call - optimized for GPT-3.5"""
+        
+        meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
         
         system_prompt = f"""You are a meal planning expert. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day.
 
         CRITICAL REQUIREMENTS:
         - Generate ALL {days * meals_per_day} complete recipes
+        - Use these meal types in order: {', '.join(meal_types)}
         - NEVER repeat recipes
-        - Each meal MUST have: meal type, title, times, ingredients, instructions, nutrition
-        - Target {calories_per_day} calories per day
+        - Each recipe MUST have: meal type, title, times, ingredients, instructions, nutrition
 
-        FORMAT FOR EACH MEAL:
-        [Breakfast/Lunch/Dinner/Snack]
+        EXACT FORMAT:
+        Day 1
+
+        Breakfast
 
         Recipe Title Here
 
-        Preparation Time: X minutes
-        Cooking Time: X minutes
-        Servings: X
+        Preparation Time: 15 minutes
+        Cooking Time: 20 minutes
+        Servings: 2
 
         • Ingredient 1
         • Ingredient 2
@@ -634,20 +636,31 @@ Next Recipe Title
         3. Step three
 
         Nutritional Information:
-        Calories: X
-        Protein: Xg
-        Carbs: Xg
-        Fat: Xg
+        Calories: 400
+        Protein: 25g
+        Carbs: 30g
+        Fat: 15g
 
         =====
 
+        Lunch
+
+        Another Recipe Title
+
+        (same format...)
+
+        =====
+
+        (Continue for all meals and days)
+
         RULES:
         - Separate each meal with =====
-        - Use • for ingredients
+        - Start each day with "Day X"
+        - Recipe titles must be descriptive (no ingredients in title)
+        - Target {calories_per_day} calories per day total
+        - Use • for ingredients only
         - Number instructions 1., 2., 3.
-        - NO bold text or asterisks
-        - Make titles descriptive (no ingredients in title)
-        - Count your recipes before submitting - you need exactly {days * meals_per_day}"""
+        """
 
         prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, {calories_per_day} calories per day, theme: {inspiration}."
         
@@ -676,56 +689,55 @@ Next Recipe Title
             print(f"Full plan generation error: {e}")
             return None
 
-    def _generate_plan_day_by_day(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, themes):
+    def _generate_day_by_day_simple(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration):
         """Generate meal plan one day at a time for reliability"""
         
         all_days = []
         used_titles = set()
-        
         meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
         
         for day_num in range(1, days + 1):
             print(f"Generating Day {day_num}...")
             
-            for attempt in range(3):  # 3 attempts per day
+            for attempt in range(3):
                 try:
-                    theme = random.choice(themes)
-                    
-                    system_prompt = f"""Generate exactly {meals_per_day} complete meals for Day {day_num}.
+                    system_prompt = f"""Generate EXACTLY {meals_per_day} complete meals for one day.
 
         REQUIRED MEALS: {', '.join(meal_types)}
-        Target: {calories_per_day} calories total for the day
-        Theme: {theme}
+        Target: {calories_per_day} calories total
+        Avoid these titles: {', '.join(list(used_titles)[:5]) if used_titles else 'None'}
 
-        AVOID these recipe titles: {', '.join(list(used_titles)[:8]) if used_titles else 'None'}
-
-        FORMAT each meal:
-        [Meal Type]
+        FORMAT:
+        Breakfast
 
         Recipe Title
 
-        Preparation Time: X minutes
-        Cooking Time: X minutes
-        Servings: X
+        Preparation Time: 15 minutes
+        Cooking Time: 20 minutes
+        Servings: 2
 
         • Ingredient 1
         • Ingredient 2
+        • Ingredient 3
 
         Instructions:
-        1. Step 1
-        2. Step 2
+        1. Step one
+        2. Step two
+        3. Step three
 
         Nutritional Information:
-        Calories: X
-        Protein: Xg
-        Carbs: Xg
-        Fat: Xg
+        Calories: {calories_per_day // meals_per_day}
+        Protein: 25g
+        Carbs: 30g
+        Fat: 15g
 
         =====
 
-        Generate ALL {meals_per_day} meals completely."""
+        (Continue for all {meals_per_day} meals)
 
-                    prompt = f"Generate Day {day_num} with {meals_per_day} meals totaling {calories_per_day} calories."
+        CRITICAL: Generate ALL {meals_per_day} meals completely."""
+
+                    prompt = f"Generate {meals_per_day} meals for Day {day_num}, theme: {inspiration}."
                     
                     if healthy:
                         prompt += " Make healthy."
@@ -749,12 +761,12 @@ Next Recipe Title
                     
                     day_content = response.choices[0].message.content.strip()
                     
-                    # Quick validation - check if we have the expected meal types
-                    if self._validate_day_content(day_content, meal_types):
+                    # Quick validation
+                    if self._validate_day_simple(day_content, meal_types):
                         all_days.append(f"Day {day_num}\n\n{day_content}")
                         
                         # Extract titles to avoid duplicates
-                        titles = self._extract_titles_from_day(day_content)
+                        titles = self._extract_titles_simple(day_content)
                         used_titles.update(titles)
                         
                         print(f"✅ Day {day_num} generated successfully")
@@ -762,41 +774,60 @@ Next Recipe Title
                     else:
                         print(f"Day {day_num} attempt {attempt + 1} failed validation")
                         if attempt < 2:
-                            time.sleep(1)
+                            sleep(1)
                             
                 except Exception as e:
                     print(f"Day {day_num} attempt {attempt + 1} error: {e}")
                     if attempt < 2:
-                        time.sleep(1)
+                        sleep(1)
             else:
-                # If all attempts failed for this day, create a minimal day
-                print(f"⚠️ Creating fallback for Day {day_num}")
-                fallback_day = self._create_fallback_day(day_num, meal_types, calories_per_day)
+                # Create basic fallback day if all attempts fail
+                print(f"⚠️ Creating basic day {day_num}")
+                fallback_day = self._create_basic_day(day_num, meal_types, calories_per_day)
                 all_days.append(fallback_day)
         
         return "\n\n".join(all_days)
 
-    def _validate_day_content(self, content, expected_meal_types):
-        """Quick validation that a day contains expected meal types"""
-        content_lower = content.lower()
-        found_meals = 0
+    def _validate_plan_simple(self, plan_text, days, meals_per_day):
+        """Simple validation for full plans"""
+        if not plan_text or len(plan_text) < 1000:
+            return False
         
-        for meal_type in expected_meal_types:
-            if meal_type.lower() in content_lower:
-                found_meals += 1
+        # Count basic elements
+        day_count = plan_text.lower().count('day ')
+        meal_types = ['breakfast', 'lunch', 'dinner', 'snack']
+        total_meals = sum(plan_text.lower().count(meal) for meal in meal_types[:meals_per_day])
+        ingredients_count = plan_text.count('•')
+        instructions_count = plan_text.count('1.')
         
-        # Also check for basic recipe components
-        has_ingredients = 'ingredients:' in content_lower or '•' in content
-        has_instructions = 'instructions:' in content_lower or '1.' in content
-        has_nutrition = 'calories:' in content_lower or 'nutritional' in content_lower
+        expected_total = days * meals_per_day
         
-        return found_meals >= len(expected_meal_types) * 0.8 and has_ingredients and has_instructions and has_nutrition
+        print(f"Validation: {total_meals}/{expected_total} meals, {ingredients_count} ingredients, {instructions_count} instructions")
+        
+        return (total_meals >= expected_total * 0.8 and
+                ingredients_count >= expected_total * 0.8 and
+                instructions_count >= expected_total * 0.8)
 
-    def _extract_titles_from_day(self, day_content):
-        """Extract recipe titles from day content to avoid duplicates"""
-        lines = day_content.split('\n')
+    def _validate_day_simple(self, day_content, meal_types):
+        """Simple validation for single days"""
+        content_lower = day_content.lower()
+        
+        # Check for meal types
+        found_meals = sum(1 for meal in meal_types if meal.lower() in content_lower)
+        
+        # Check for basic recipe components
+        has_ingredients = '•' in day_content
+        has_instructions = '1.' in day_content
+        has_calories = 'calories:' in content_lower
+        
+        return (found_meals >= len(meal_types) * 0.8 and
+                has_ingredients and has_instructions and has_calories)
+
+    def _extract_titles_simple(self, content):
+        """Extract recipe titles to avoid duplicates"""
+        lines = content.split('\n')
         titles = []
-        meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
+        meal_types = ['breakfast', 'lunch', 'dinner', 'snack']
         
         for i, line in enumerate(lines):
             line = line.strip()
@@ -804,76 +835,56 @@ Next Recipe Title
                 # Look for title in next few lines
                 for j in range(i + 1, min(i + 4, len(lines))):
                     next_line = lines[j].strip()
-                    if (next_line and
-                        len(next_line) > 3 and
+                    if (next_line and len(next_line) > 3 and
                         not next_line.startswith('Preparation') and
-                        not next_line.startswith('Cooking') and
-                        not next_line.startswith('•') and
-                        ':' not in next_line):
+                        not next_line.startswith('•') and ':' not in next_line):
                         titles.append(next_line.lower())
                         break
         
         return titles
 
-    def _create_fallback_day(self, day_num, meal_types, calories_per_day):
-        """Create a basic fallback day if generation fails"""
+    def _create_basic_day(self, day_num, meal_types, calories_per_day):
+        """Create a basic fallback day"""
         calories_per_meal = calories_per_day // len(meal_types)
         
-        fallback_meals = []
-        meal_names = {
-            'Breakfast': 'Hearty Morning Bowl',
-            'Lunch': 'Balanced Midday Plate',
-            'Dinner': 'Nourishing Evening Meal',
-            'Snack': 'Energy Boost Snack'
+        basic_recipes = {
+            'Breakfast': 'Protein Scramble Bowl',
+            'Lunch': 'Balanced Power Bowl',
+            'Dinner': 'Hearty Comfort Plate',
+            'Snack': 'Energy Bite Mix'
         }
         
+        day_content = f"Day {day_num}\n\n"
+        
         for meal_type in meal_types:
-            meal = f"""{meal_type}
+            recipe_name = basic_recipes.get(meal_type, f'Healthy {meal_type}')
+            
+            meal_content = f"""{meal_type}
 
-        {meal_names.get(meal_type, f'Healthy {meal_type}')}
+    {recipe_name}
 
-        Preparation Time: 15 minutes
-        Cooking Time: 20 minutes
-        Servings: 1
+    Preparation Time: 15 minutes
+    Cooking Time: 20 minutes
+    Servings: 1
 
-        • High-quality proteins
-        • Fresh vegetables
-        • Healthy grains
-        • Nutritious fats
+    • High-quality protein source
+    • Fresh seasonal vegetables
+    • Healthy whole grains
+    • Nutritious fats and oils
 
-        Instructions:
-        1. Prepare ingredients according to dietary preferences
-        2. Cook using healthy methods
-        3. Season and serve fresh
+    Instructions:
+    1. Prepare all ingredients according to preferences
+    2. Cook using healthy cooking methods
+    3. Season with herbs and spices
+    4. Serve fresh and enjoy
 
-        Nutritional Information:
-        Calories: {calories_per_meal}
-        Protein: {calories_per_meal // 20}g
-        Carbs: {calories_per_meal // 15}g
-        Fat: {calories_per_meal // 25}g
+    Nutritional Information:
+    Calories: {calories_per_meal}
+    Protein: {calories_per_meal // 20}g
+    Carbs: {calories_per_meal // 15}g
+    Fat: {calories_per_meal // 25}g
 
-        ====="""
-        fallback_meals.append(meal)
+    ====="""
+            day_content += meal_content + "\n\n"
         
-        return f"Day {day_num}\n\n" + "\n\n".join(fallback_meals)
-
-    def _is_plan_complete(self, plan_text, expected_days, expected_meals_per_day):
-        """Check if the generated plan appears complete"""
-        if not plan_text or len(plan_text.strip()) < 500:
-            return False
-        
-        # Count basic indicators
-        meal_count = 0
-        for meal_type in ['Breakfast', 'Lunch', 'Dinner', 'Snack']:
-            meal_count += plan_text.lower().count(meal_type.lower())
-        
-        expected_total = expected_days * expected_meals_per_day
-        ingredients_count = plan_text.count('•')
-        instructions_count = plan_text.count('1.')
-        
-        print(f"Plan validation: {meal_count}/{expected_total} meals, {ingredients_count} ingredient lists, {instructions_count} instruction sets")
-        
-        # Accept if we have at least 80% of expected content
-        return (meal_count >= expected_total * 0.8 and
-                ingredients_count >= expected_total * 0.8 and
-                instructions_count >= expected_total * 0.8)
+        return day_content.strip()
