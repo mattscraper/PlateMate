@@ -853,7 +853,7 @@ Next Recipe Title
         Fat: {calories_per_meal // 25}g
 
         ====="""
-                fallback_meals.append(meal)
+        fallback_meals.append(meal)
         
         return f"Day {day_num}\n\n" + "\n\n".join(fallback_meals)
 
