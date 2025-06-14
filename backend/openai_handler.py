@@ -555,8 +555,8 @@ Next Recipe Title
   
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-    """Generate a complete meal plan with retry logic - GPT-3.5 optimized"""
-    
+        """Generate a complete meal plan with retry logic - GPT-3.5 optimized"""
+        
         random_themes = [
             "quick and easy", "chef-inspired", "american and italian", "greek and american",
             "mexican and american", "chinese and american", "hearty comfort meals",
@@ -609,45 +609,45 @@ Next Recipe Title
         
         system_prompt = f"""You are a meal planning expert. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day.
 
-    CRITICAL REQUIREMENTS:
-    - Generate ALL {days * meals_per_day} complete recipes
-    - NEVER repeat recipes
-    - Each meal MUST have: meal type, title, times, ingredients, instructions, nutrition
-    - Target {calories_per_day} calories per day
+        CRITICAL REQUIREMENTS:
+        - Generate ALL {days * meals_per_day} complete recipes
+        - NEVER repeat recipes
+        - Each meal MUST have: meal type, title, times, ingredients, instructions, nutrition
+        - Target {calories_per_day} calories per day
 
-    FORMAT FOR EACH MEAL:
-    [Breakfast/Lunch/Dinner/Snack]
+        FORMAT FOR EACH MEAL:
+        [Breakfast/Lunch/Dinner/Snack]
 
-    Recipe Title Here
+        Recipe Title Here
 
-    Preparation Time: X minutes
-    Cooking Time: X minutes
-    Servings: X
+        Preparation Time: X minutes
+        Cooking Time: X minutes
+        Servings: X
 
-    • Ingredient 1
-    • Ingredient 2
-    • Ingredient 3
+        • Ingredient 1
+        • Ingredient 2
+        • Ingredient 3
 
-    Instructions:
-    1. Step one
-    2. Step two
-    3. Step three
+        Instructions:
+        1. Step one
+        2. Step two
+        3. Step three
 
-    Nutritional Information:
-    Calories: X
-    Protein: Xg
-    Carbs: Xg
-    Fat: Xg
+        Nutritional Information:
+        Calories: X
+        Protein: Xg
+        Carbs: Xg
+        Fat: Xg
 
-    =====
+        =====
 
-    RULES:
-    - Separate each meal with =====
-    - Use • for ingredients
-    - Number instructions 1., 2., 3.
-    - NO bold text or asterisks
-    - Make titles descriptive (no ingredients in title)
-    - Count your recipes before submitting - you need exactly {days * meals_per_day}"""
+        RULES:
+        - Separate each meal with =====
+        - Use • for ingredients
+        - Number instructions 1., 2., 3.
+        - NO bold text or asterisks
+        - Make titles descriptive (no ingredients in title)
+        - Count your recipes before submitting - you need exactly {days * meals_per_day}"""
 
         prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, {calories_per_day} calories per day, theme: {inspiration}."
         
@@ -693,37 +693,37 @@ Next Recipe Title
                     
                     system_prompt = f"""Generate exactly {meals_per_day} complete meals for Day {day_num}.
 
-    REQUIRED MEALS: {', '.join(meal_types)}
-    Target: {calories_per_day} calories total for the day
-    Theme: {theme}
+        REQUIRED MEALS: {', '.join(meal_types)}
+        Target: {calories_per_day} calories total for the day
+        Theme: {theme}
 
-    AVOID these recipe titles: {', '.join(list(used_titles)[:8]) if used_titles else 'None'}
+        AVOID these recipe titles: {', '.join(list(used_titles)[:8]) if used_titles else 'None'}
 
-    FORMAT each meal:
-    [Meal Type]
+        FORMAT each meal:
+        [Meal Type]
 
-    Recipe Title
+        Recipe Title
 
-    Preparation Time: X minutes
-    Cooking Time: X minutes
-    Servings: X
+        Preparation Time: X minutes
+        Cooking Time: X minutes
+        Servings: X
 
-    • Ingredient 1
-    • Ingredient 2
+        • Ingredient 1
+        • Ingredient 2
 
-    Instructions:
-    1. Step 1
-    2. Step 2
+        Instructions:
+        1. Step 1
+        2. Step 2
 
-    Nutritional Information:
-    Calories: X
-    Protein: Xg
-    Carbs: Xg
-    Fat: Xg
+        Nutritional Information:
+        Calories: X
+        Protein: Xg
+        Carbs: Xg
+        Fat: Xg
 
-    =====
+        =====
 
-    Generate ALL {meals_per_day} meals completely."""
+        Generate ALL {meals_per_day} meals completely."""
 
                     prompt = f"Generate Day {day_num} with {meals_per_day} meals totaling {calories_per_day} calories."
                     
@@ -830,30 +830,30 @@ Next Recipe Title
         for meal_type in meal_types:
             meal = f"""{meal_type}
 
-    {meal_names.get(meal_type, f'Healthy {meal_type}')}
+        {meal_names.get(meal_type, f'Healthy {meal_type}')}
 
-    Preparation Time: 15 minutes
-    Cooking Time: 20 minutes
-    Servings: 1
+        Preparation Time: 15 minutes
+        Cooking Time: 20 minutes
+        Servings: 1
 
-    • High-quality proteins
-    • Fresh vegetables
-    • Healthy grains
-    • Nutritious fats
+        • High-quality proteins
+        • Fresh vegetables
+        • Healthy grains
+        • Nutritious fats
 
-    Instructions:
-    1. Prepare ingredients according to dietary preferences
-    2. Cook using healthy methods
-    3. Season and serve fresh
+        Instructions:
+        1. Prepare ingredients according to dietary preferences
+        2. Cook using healthy methods
+        3. Season and serve fresh
 
-    Nutritional Information:
-    Calories: {calories_per_meal}
-    Protein: {calories_per_meal // 20}g
-    Carbs: {calories_per_meal // 15}g
-    Fat: {calories_per_meal // 25}g
+        Nutritional Information:
+        Calories: {calories_per_meal}
+        Protein: {calories_per_meal // 20}g
+        Carbs: {calories_per_meal // 15}g
+        Fat: {calories_per_meal // 25}g
 
-    ====="""
-            fallback_meals.append(meal)
+        ====="""
+                fallback_meals.append(meal)
         
         return f"Day {day_num}\n\n" + "\n\n".join(fallback_meals)
 
