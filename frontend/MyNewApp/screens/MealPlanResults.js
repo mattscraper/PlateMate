@@ -215,10 +215,11 @@ export default function MealPlanResults() {
       }
     }
 
-    // Find title (first substantial line that's not a meal type or timing info)
+    // Find title (first substantial line that's not a meal type, day header, or timing info)
     for (const line of lines) {
       if (line.length > 3 &&
           !mealTypes.some(type => line.toLowerCase().includes(type.toLowerCase())) &&
+          !line.toLowerCase().match(/^day\s+\d+/i) && // EXCLUDE "Day X" headers
           !line.toLowerCase().includes('preparation') &&
           !line.toLowerCase().includes('cooking') &&
           !line.toLowerCase().includes('servings') &&

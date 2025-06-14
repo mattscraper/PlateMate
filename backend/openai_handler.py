@@ -146,50 +146,50 @@ class RecipeGenerator:
         
         system_prompt = """You are a culinary expert creating multiple recipes. Follow these formatting instructions precisely:
 
-CRITICAL FORMAT RULES:
-1. Each recipe must have these sections IN THIS ORDER:
-   - Title (first line)
-   - Time/Servings information (in one paragraph)
-   - Ingredients (with bullet points •)
-   - Instructions (with numbers 1., 2., etc. ALL UNDER ONE "Instructions" HEADER)
-   - Nutritional information
+        CRITICAL FORMAT RULES:
+        1. Each recipe must have these sections IN THIS ORDER:
+           - Title (first line)
+           - Time/Servings information (in one paragraph)
+           - Ingredients (with bullet points •)
+           - Instructions (with numbers 1., 2., etc. ALL UNDER ONE "Instructions" HEADER)
+           - Nutritional information
 
-2. Section spacing:
-   - EXACTLY ONE blank line between sections
-   - NO extra blank lines within sections
-   - NEVER use bullet points (•) except for ingredients
+        2. Section spacing:
+           - EXACTLY ONE blank line between sections
+           - NO extra blank lines within sections
+           - NEVER use bullet points (•) except for ingredients
 
-3. Recipe separation:
-   - Separate each recipe with exactly five equals signs: =====
-   - Always put a blank line before and after the separator
+        3. Recipe separation:
+           - Separate each recipe with exactly five equals signs: =====
+           - Always put a blank line before and after the separator
 
-FORMAT EXAMPLE:
-Delicious Recipe Title
+        FORMAT EXAMPLE:
+        Delicious Recipe Title
 
-Preparation Time: 15 minutes
-Cooking Time: 30 minutes
-Servings: 4
+        Preparation Time: 15 minutes
+        Cooking Time: 30 minutes
+        Servings: 4
 
-• 1 cup ingredient one
-• 2 tablespoons ingredient two
-• 3 teaspoons ingredient three
+        • 1 cup ingredient one
+        • 2 tablespoons ingredient two
+        • 3 teaspoons ingredient three
 
-(make sure instructions is in its own little category)
-1. First step instruction details.
-2. Second step with more details.
-3. Third step with final instructions.
+        (make sure instructions is in its own little category)
+        1. First step instruction details.
+        2. Second step with more details.
+        3. Third step with final instructions.
 
-(make sure nutrition is in its own little category)
-Calories: 350
-Protein: 15g
-Fat: 12g
-Carbohydrates: 45g
+        (make sure nutrition is in its own little category)
+        Calories: 350
+        Protein: 15g
+        Fat: 12g
+        Carbohydrates: 45g
 
-=====
+        =====
 
-Next Recipe Title
-...and so on.
-"""
+        Next Recipe Title
+        ...and so on.
+        """
 
         prompt = f"Create {len(selected_titles)} detailed recipes for these titles: {titles_str}. Each recipe must strictly follow my format requirements."
         if healthy:
@@ -610,17 +610,24 @@ Next Recipe Title
         system_prompt = f"""You are a meal planning expert. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day.
 
         CRITICAL REQUIREMENTS:
-        - Generate ALL {days * meals_per_day} complete recipes
+        - Generate ALL {days * meals_per_day} completely UNIQUE recipes
         - Use these meal types in order: {', '.join(meal_types)}
-        - NEVER repeat recipes
+        - NEVER repeat any recipe titles, ingredients combinations, or cooking methods
+        - Each recipe MUST be from a different cuisine or cooking style
         - Each recipe MUST have: meal type, title, times, ingredients, instructions, nutrition
+
+        VARIETY REQUIREMENTS:
+        - Use different protein sources: chicken, fish, beef, pork, tofu, eggs, beans, etc.
+        - Use different cooking methods: grilled, baked, sautéed, steamed, roasted, stir-fried, etc.
+        - Use different cuisines: Italian, Mexican, Asian, Mediterranean, Indian, French, etc.
+        - Use different main ingredients and flavor profiles
 
         EXACT FORMAT:
         Day 1
 
         Breakfast
 
-        Recipe Title Here
+        Unique Recipe Title Here
 
         Preparation Time: 15 minutes
         Cooking Time: 20 minutes
@@ -645,7 +652,7 @@ Next Recipe Title
 
         Lunch
 
-        Another Recipe Title
+        Completely Different Recipe Title
 
         (same format...)
 
@@ -656,13 +663,13 @@ Next Recipe Title
         RULES:
         - Separate each meal with =====
         - Start each day with "Day X"
-        - Recipe titles must be descriptive (no ingredients in title)
+        - Recipe titles must be descriptive and UNIQUE
         - Target {calories_per_day} calories per day total
         - Use • for ingredients only
         - Number instructions 1., 2., 3.
-        """
+        - Make every single recipe completely different from all others"""
 
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} meals per day, {calories_per_day} calories per day, theme: {inspiration}."
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} completely unique meals per day, {calories_per_day} calories per day, theme: {inspiration}. Every recipe must be different - no repeats allowed."
         
         if healthy:
             prompt += " Make all meals healthy and nutritious."
@@ -680,7 +687,7 @@ Next Recipe Title
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,
+                temperature=0.9,  # Higher temperature for more variety
                 max_tokens=4000,
                 timeout=120
             )
@@ -701,16 +708,37 @@ Next Recipe Title
             
             for attempt in range(3):
                 try:
-                    system_prompt = f"""Generate EXACTLY {meals_per_day} complete meals for one day.
+                    # Create more specific themes for variety
+                    themes = [
+                        f"Mediterranean flavors", f"Asian fusion", f"Mexican cuisine",
+                        f"Italian classics", f"American comfort", f"Indian spices",
+                        f"Middle Eastern", f"Thai flavors", f"French bistro", f"Greek healthy"
+                    ]
+                    theme = random.choice(themes)
+                    
+                    # Build a stronger exclusion list
+                    exclusion_text = ""
+                    if used_titles:
+                        exclusion_text = f"NEVER use these recipe titles or similar variations: {', '.join(list(used_titles)[:10])}. "
+                    
+                    system_prompt = f"""Generate EXACTLY {meals_per_day} completely unique meals for one day.
 
         REQUIRED MEALS: {', '.join(meal_types)}
         Target: {calories_per_day} calories total
-        Avoid these titles: {', '.join(list(used_titles)[:5]) if used_titles else 'None'}
+        Theme: {theme}
+
+        {exclusion_text}
+
+        CRITICAL: Each recipe MUST be completely different from any previous recipes. Use different:
+        - Cooking methods (grilled, baked, sautéed, steamed, roasted, etc.)
+        - Protein sources (chicken, fish, beef, tofu, eggs, beans, etc.)
+        - Cuisines (Italian, Mexican, Asian, Mediterranean, etc.)
+        - Ingredients and flavor profiles
 
         FORMAT:
         Breakfast
 
-        Recipe Title
+        Unique Recipe Title Here
 
         Preparation Time: 15 minutes
         Cooking Time: 20 minutes
@@ -735,18 +763,20 @@ Next Recipe Title
 
         (Continue for all {meals_per_day} meals)
 
-        CRITICAL: Generate ALL {meals_per_day} meals completely."""
+        CRITICAL: Generate ALL {meals_per_day} meals completely. Make each recipe title creative and unique."""
 
-                    prompt = f"Generate {meals_per_day} meals for Day {day_num}, theme: {inspiration}."
+                    prompt = f"Generate {meals_per_day} UNIQUE meals for Day {day_num} with {theme} theme. Each recipe must be completely different from previous days."
                     
                     if healthy:
-                        prompt += " Make healthy."
+                        prompt += " Make all meals healthy and nutritious."
                     if allergies:
                         allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
-                        prompt += f" Avoid: {allergies_list}."
+                        prompt += f" Avoid these allergens: {allergies_list}."
                     if preferences:
                         preferences_list = ', '.join(preferences) if isinstance(preferences, list) else preferences
-                        prompt += f" Preferences: {preferences_list}."
+                        prompt += f" Consider preferences: {preferences_list}."
+                    
+                    prompt += f" IMPORTANT: Do not repeat any of these recipe concepts: {', '.join(list(used_titles)[:8]) if used_titles else 'None'}"
 
                     response = self.client.chat.completions.create(
                         model="gpt-3.5-turbo",
@@ -754,25 +784,31 @@ Next Recipe Title
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": prompt}
                         ],
-                        temperature=0.8,
+                        temperature=0.9,  # Increased for more variety
                         max_tokens=3000,
                         timeout=90
                     )
                     
                     day_content = response.choices[0].message.content.strip()
                     
+                    # Extract and check for duplicate titles before accepting
+                    new_titles = self._extract_titles_simple(day_content)
+                    duplicate_found = any(title in used_titles for title in new_titles)
+                    
                     # Quick validation
-                    if self._validate_day_simple(day_content, meal_types):
+                    if self._validate_day_simple(day_content, meal_types) and not duplicate_found:
                         all_days.append(f"Day {day_num}\n\n{day_content}")
                         
-                        # Extract titles to avoid duplicates
-                        titles = self._extract_titles_simple(day_content)
-                        used_titles.update(titles)
+                        # Add titles to used set
+                        used_titles.update(new_titles)
                         
-                        print(f"✅ Day {day_num} generated successfully")
+                        print(f"✅ Day {day_num} generated successfully with unique recipes")
                         break
                     else:
-                        print(f"Day {day_num} attempt {attempt + 1} failed validation")
+                        if duplicate_found:
+                            print(f"Day {day_num} attempt {attempt + 1} had duplicate recipes")
+                        else:
+                            print(f"Day {day_num} attempt {attempt + 1} failed validation")
                         if attempt < 2:
                             sleep(1)
                             
@@ -783,8 +819,12 @@ Next Recipe Title
             else:
                 # Create basic fallback day if all attempts fail
                 print(f"⚠️ Creating basic day {day_num}")
-                fallback_day = self._create_basic_day(day_num, meal_types, calories_per_day)
+                fallback_day = self._create_basic_day(day_num, meal_types, calories_per_day, used_titles)
                 all_days.append(fallback_day)
+                
+                # Add fallback titles to used set
+                fallback_titles = self._extract_titles_simple(fallback_day)
+                used_titles.update(fallback_titles)
         
         return "\n\n".join(all_days)
 
@@ -843,48 +883,71 @@ Next Recipe Title
         
         return titles
 
-    def _create_basic_day(self, day_num, meal_types, calories_per_day):
-        """Create a basic fallback day"""
+    def _create_basic_day(self, day_num, meal_types, calories_per_day, used_titles=None):
+        """Create a basic fallback day with unique titles"""
         calories_per_meal = calories_per_day // len(meal_types)
         
+        # Create unique fallback recipes
         basic_recipes = {
-            'Breakfast': 'Protein Scramble Bowl',
-            'Lunch': 'Balanced Power Bowl',
-            'Dinner': 'Hearty Comfort Plate',
-            'Snack': 'Energy Bite Mix'
+            'Breakfast': [
+                f'Power Protein Scramble #{day_num}',
+                f'Morning Energy Bowl #{day_num}',
+                f'Sunrise Smoothie Bowl #{day_num}',
+                f'Healthy Start Plate #{day_num}'
+            ],
+            'Lunch': [
+                f'Balanced Power Bowl #{day_num}',
+                f'Midday Fuel Plate #{day_num}',
+                f'Afternoon Energy Salad #{day_num}',
+                f'Quick Lunch Fix #{day_num}'
+            ],
+            'Dinner': [
+                f'Evening Comfort Meal #{day_num}',
+                f'Dinner Satisfaction #{day_num}',
+                f'Night Nourishment #{day_num}',
+                f'Sunset Feast #{day_num}'
+            ],
+            'Snack': [
+                f'Energy Boost Bites #{day_num}',
+                f'Quick Power Snack #{day_num}',
+                f'Healthy Munch #{day_num}',
+                f'Fuel Break #{day_num}'
+            ]
         }
         
         day_content = f"Day {day_num}\n\n"
         
         for meal_type in meal_types:
-            recipe_name = basic_recipes.get(meal_type, f'Healthy {meal_type}')
+            # Pick a unique title for this meal type
+            available_titles = basic_recipes.get(meal_type, [f'Healthy {meal_type} #{day_num}'])
+            recipe_name = available_titles[0]  # Use the first unique option
             
             meal_content = f"""{meal_type}
 
-    {recipe_name}
+        {recipe_name}
 
-    Preparation Time: 15 minutes
-    Cooking Time: 20 minutes
-    Servings: 1
+        Preparation Time: 15 minutes
+        Cooking Time: 20 minutes
+        Servings: 1
 
-    • High-quality protein source
-    • Fresh seasonal vegetables
-    • Healthy whole grains
-    • Nutritious fats and oils
+        • High-quality protein source
+        • Fresh seasonal vegetables
+        • Healthy whole grains
+        • Nutritious fats and oils
 
-    Instructions:
-    1. Prepare all ingredients according to preferences
-    2. Cook using healthy cooking methods
-    3. Season with herbs and spices
-    4. Serve fresh and enjoy
+        Instructions:
+        1. Prepare all ingredients according to preferences
+        2. Cook using healthy cooking methods
+        3. Season with herbs and spices
+        4. Serve fresh and enjoy
 
-    Nutritional Information:
-    Calories: {calories_per_meal}
-    Protein: {calories_per_meal // 20}g
-    Carbs: {calories_per_meal // 15}g
-    Fat: {calories_per_meal // 25}g
+        Nutritional Information:
+        Calories: {calories_per_meal}
+        Protein: {calories_per_meal // 20}g
+        Carbs: {calories_per_meal // 15}g
+        Fat: {calories_per_meal // 25}g
 
-    ====="""
+        ====="""
             day_content += meal_content + "\n\n"
         
         return day_content.strip()
