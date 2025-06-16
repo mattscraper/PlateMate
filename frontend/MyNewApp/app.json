@@ -1,10 +1,6 @@
 {
   "expo": {
     "name": "MyNewApp",
-    "android": {
-      "package": "com.platemate.recipemealplanner",
-      "permissions": ["CAMERA"]
-    },
     "slug": "platemate",
     "version": "1.0.0",
     "baseUrl": "http:172.20.10.2:5000",
@@ -17,6 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "supportsTablet": true,
     "ios": {
       "name": "PlateMate",
       "bundleIdentifier": "com.platemate.recipemealplanner",
@@ -27,19 +24,35 @@
       "googleServicesFile": "./assets/GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "This app needs camera access to scan food barcodes."
-      }
-    },
-    "supportsTablet": true,
-    "infoPlist": {
-      "NSAllowsArbitraryLoads": true,
-      "NSExceptionDomains": {
-        "10.174.104.150": {
-          "NSExceptionAllowsInsecureHTTPLoads": true,
-          "NSIncludesSubdomains": true
+        "NSCameraUsageDescription": "This app needs camera access to scan food barcodes.",
+        "NSAllowsArbitraryLoads": true,
+        "NSExceptionDomains": {
+          "10.174.104.150": {
+            "NSExceptionAllowsInsecureHTTPLoads": true,
+            "NSIncludesSubdomains": true
+          }
         }
       }
     },
+    "android": {
+      "package": "com.platemate.recipemealplanner",
+      "permissions": ["CAMERA"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "usesCleartextTraffic": true,
+      "versionCode": 1,
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "react-native-iap",
+      "expo-camera"
+    ],
     "extra": {
       "eas": {
         "projectId": "3287301c-9f8d-4553-9f48-efc19ee880db"
@@ -49,35 +62,6 @@
     "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/3287301c-9f8d-4553-9f48-efc19ee880db"
-    },
-    "plugins": [
-      "react-native-iap",
-      "expo-camera"
-    ]
-  },
-  "android": {
-    "adaptiveIcon": {
-      "foregroundImage": "./assets/adaptive-icon.png",
-      "backgroundColor": "#ffffff"
-    },
-    "package": "com.platemate.recipemealplanner",
-    "usesCleartextTraffic": true,
-    "versionCode": 1,
-    "googleServicesFile": "./google-services.json"
-  },
-  "web": {
-    "favicon": "./assets/favicon.png"
-  },
-  "plugins": [
-    "expo-secure-store",
-    "@react-native-firebase/app",
-    "@react-native-firebase/auth",
-    "@react-native-firebase/firestore"
-  ],
-  "extra": {
-    "eas": {
-      "projectId": "1ca757aa-4cac-4f34-93e8-acbad2b8a4c0"
     }
-  },
-  "owner": "mattnaples22"
+  }
 }
