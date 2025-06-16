@@ -2,7 +2,7 @@
   "expo": {
     "name": "MyNewApp",
     "slug": "platemate",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "baseUrl": "http:172.20.10.2:5000",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,7 +20,7 @@
       "entitlements": {
         "com.apple.developer.in-app-purchase": true
       },
-      "buildNumber": "1.0.0",
+      "buildNumber": "1.0.1",
       "googleServicesFile": "./assets/GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -42,7 +42,7 @@
         "backgroundColor": "#ffffff"
       },
       "usesCleartextTraffic": true,
-      "versionCode": 1,
+      "versionCode": 2,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
@@ -51,7 +51,14 @@
     "plugins": [
       "expo-secure-store",
       "react-native-iap",
-      "expo-camera"
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "This app needs camera access to scan food barcodes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "extra": {
       "eas": {
@@ -59,7 +66,7 @@
       }
     },
     "owner": "mattnaples22",
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.0.1",
     "updates": {
       "url": "https://u.expo.dev/3287301c-9f8d-4553-9f48-efc19ee880db"
     }

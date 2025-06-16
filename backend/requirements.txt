@@ -13,3 +13,4 @@ flask-migrate
 flask-jwt-extended
 flask-mail
 gunicorn
+requests

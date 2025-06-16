@@ -17,8 +17,24 @@ const BarcodeScannerScreen = ({ navigation }) => {
   const [scanned, setScanned] = useState(false);
   const [flashEnabled, setFlashEnabled] = useState(false);
 
+  // Auto-request permission when component mounts
+  useEffect(() => {
+    if (!permission?.granted && permission?.canAskAgain !== false) {
+      console.log('Auto-requesting camera permission...');
+      requestPermission();
+    }
+  }, [permission]);
+
+  // Debug permission status
+  useEffect(() => {
+    console.log('Camera permission status:', permission);
+    console.log('Can ask again:', permission?.canAskAgain);
+    console.log('Granted:', permission?.granted);
+  }, [permission]);
+
   const handleBarCodeScanned = ({ type, data }) => {
     setScanned(true);
+    console.log('Barcode scanned:', { type, data });
     // Navigate to product detail with the scanned barcode
     navigation.navigate('ProductDetail', { barcode: data });
   };
@@ -27,7 +43,7 @@ const BarcodeScannerScreen = ({ navigation }) => {
     // Camera permissions are still loading
     return (
       <View style={styles.container}>
-        <Text>Requesting camera permission...</Text>
+        <Text style={styles.text}>Loading camera permissions...</Text>
       </View>
     );
   }
@@ -36,13 +52,36 @@ const BarcodeScannerScreen = ({ navigation }) => {
     // Camera permissions are not granted yet
     return (
       <View style={styles.container}>
-        <Text style={styles.text}>No access to camera</Text>
+        <Ionicons name="camera-outline" size={64} color="white" style={{ marginBottom: 20 }} />
+        <Text style={styles.text}>Camera access required</Text>
+        <Text style={styles.subText}>
+          We need camera access to scan barcodes for food products
+        </Text>
         <TouchableOpacity
           style={styles.permissionButton}
-          onPress={requestPermission}
+          onPress={async () => {
+            console.log('Manual permission request...');
+            const result = await requestPermission();
+            console.log('Permission result:', result);
+          }}
         >
-          <Text style={styles.buttonText}>Grant Permission</Text>
+          <Text style={styles.buttonText}>Grant Camera Permission</Text>
         </TouchableOpacity>
+        
+        {permission?.canAskAgain === false && (
+          <TouchableOpacity
+            style={[styles.permissionButton, { backgroundColor: '#666', marginTop: 10 }]}
+            onPress={() => {
+              Alert.alert(
+                'Camera Permission Required',
+                'Please enable camera access in your device Settings → Privacy & Security → Camera → PlateMate',
+                [{ text: 'OK' }]
+              );
+            }}
+          >
+            <Text style={styles.buttonText}>Open Settings</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -148,11 +187,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     color: 'white',
+    marginBottom: 10,
+  },
+  subText: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#ccc',
+    marginBottom: 30,
+    paddingHorizontal: 40,
+    lineHeight: 20,
   },
   permissionButton: {
     backgroundColor: '#007AFF',
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 15,
     borderRadius: 10,
     marginTop: 20,
   },
