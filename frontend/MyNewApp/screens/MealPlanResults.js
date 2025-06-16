@@ -223,12 +223,27 @@ export default function MealPlanResults() {
           !line.toLowerCase().includes('preparation') &&
           !line.toLowerCase().includes('cooking') &&
           !line.toLowerCase().includes('servings') &&
+          !line.toLowerCase().includes('protein') && // EXCLUDE protein lines
+          !line.toLowerCase().includes('carbs') && // EXCLUDE carb lines
+          !line.toLowerCase().includes('carbohydrates') && // EXCLUDE carbohydrate lines
+          !line.toLowerCase().includes('fat') && // EXCLUDE fat lines
+          !line.toLowerCase().includes('fiber') && // EXCLUDE fiber lines
+          !line.toLowerCase().includes('sodium') && // EXCLUDE sodium lines
+          !line.toLowerCase().includes('sugar') && // EXCLUDE sugar lines
+          !line.match(/\d+g\b/) && // EXCLUDE lines with "25g" format
+          !line.match(/\d+\s*mg\b/) && // EXCLUDE lines with "mg" format
+          !line.match(/\d+\s*minutes?\b/i) && // EXCLUDE time references
+          !line.match(/\d+\s*hours?\b/i) && // EXCLUDE hour references
           !line.startsWith('•') &&
           !line.match(/^\d+\./) &&
           !line.toLowerCase().includes('ingredients') &&
           !line.toLowerCase().includes('instructions') &&
           !line.toLowerCase().includes('nutritional') &&
-          !line.toLowerCase().includes('calories')) {
+          !line.toLowerCase().includes('calories') &&
+          !line.includes(':') && // EXCLUDE lines with colons (like "Protein: 25g")
+          !line.match(/^\s*\d+\s*$/) && // EXCLUDE lines that are just numbers
+          line !== '=====' && // EXCLUDE separators
+          line !== '-----') { // EXCLUDE other separators
         title = line;
         break;
       }

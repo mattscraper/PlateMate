@@ -2,7 +2,8 @@
   "expo": {
     "name": "MyNewApp",
     "android": {
-      "package": "com.platemate.recipemealplanner"
+      "package": "com.platemate.recipemealplanner",
+      "permissions": ["CAMERA"]
     },
     "slug": "platemate",
     "version": "1.0.0",
@@ -25,7 +26,8 @@
       "buildNumber": "1.0.0",
       "googleServicesFile": "./assets/GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "This app needs camera access to scan food barcodes."
       }
     },
     "supportsTablet": true,
@@ -49,7 +51,8 @@
       "url": "https://u.expo.dev/3287301c-9f8d-4553-9f48-efc19ee880db"
     },
     "plugins": [
-      "react-native-iap"
+      "react-native-iap",
+      "expo-camera"
     ]
   },
   "android": {

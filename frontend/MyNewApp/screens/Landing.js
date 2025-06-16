@@ -536,12 +536,12 @@ export default function LandingScreen({ navigation }) {
 
             <View style={styles.menuContainer}>
           
-          <MenuCard
-            icon="image"
-            title="Recipe Explorer"
-            description="Browse a vibrant grid of recipes with mouthwatering photos and details."
-            onPress={() => navigation.navigate("RecipeScreen")}
-          />
+              <MenuCard
+                icon="image"
+                title="Recipe Explorer"
+                description="Browse a vibrant grid of recipes with mouthwatering photos and details."
+                onPress={() => navigation.navigate("RecipeScreen")}
+              />
 
               <MenuCard
                 icon="search"
@@ -549,6 +549,21 @@ export default function LandingScreen({ navigation }) {
                 description="Enter your preferences and get personalized recipes instantly."
                 onPress={() => navigation.navigate("FindRecipes")}
               />
+
+              {/* NEW FOOD SCANNER MENU CARD */}
+              <MenuCard
+                icon="scan"
+                title="Food Scanner"
+                description="Scan product barcodes to get health scores and nutritional analysis."
+                onPress={() =>
+                  handlePremiumFeaturePress(
+                    "Food Scanner",
+                    "FoodScannerHome"
+                  )
+                }
+                isPremiumFeature={true}
+              />
+
               <MenuCard
                 icon="basket-outline"
                 title="What's in Your Kitchen?"

@@ -9,8 +9,14 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Initialize existing routes
 from backend.generate_routes import init_recipe_routes
 init_recipe_routes(app)
+
+# Initialize food scanner routes
+from backend.food_scanner import init_food_scanner_routes
+init_food_scanner_routes(app)
+
 jwt.init_app(app)
 
 CORS(app, resources={
@@ -21,12 +27,9 @@ CORS(app, resources={
     }
 })
 
-
 #from backend.extensions import db, migrate
 #db.init_app(app)
 #migrate.init_app(app, db)
-
-
 
 from backend.auth import auth_bp
 app.register_blueprint(auth_bp, url_prefix='/apiauth')

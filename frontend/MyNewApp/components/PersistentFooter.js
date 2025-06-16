@@ -123,13 +123,13 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
   };
 
   const routes = [
-      {
-        name: "RecipeScreen",
-        icon: "image",
-        label: "Explore",
-        requiresLogin: false, // Allow non-logged in users to see pricing
-        isPremiumFeature: false,
-      },
+    {
+      name: "RecipeScreen",
+      icon: "image",
+      label: "Explore",
+      requiresLogin: false,
+      isPremiumFeature: false,
+    },
     {
       name: "FindRecipes",
       icon: "search",
@@ -138,9 +138,9 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       isPremiumFeature: false,
     },
     {
-      name: "FindByIngredients",
-      icon: "basket-outline",
-      label: "Ingredients",
+      name: "FoodScannerHome", // NEW FOOD SCANNER ROUTE
+      icon: "scan",
+      label: "Scanner",
       requiresLogin: true,
       isPremiumFeature: true,
     },
@@ -158,7 +158,6 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       requiresLogin: true,
       isPremiumFeature: false,
     },
-    
   ];
 
   return (
@@ -198,7 +197,6 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
 };
 
 const styles = StyleSheet.create({
-  // Styles remain unchanged
   container: {
     position: "absolute",
     bottom: 0,

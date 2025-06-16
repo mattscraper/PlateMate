@@ -26,6 +26,12 @@ import { SavedMealPlansScreen } from "./screens/SavedMealPlansScreen";
 import MealPlanDetail from "./screens/MealPlanDetail";
 import PersistentFooter from "./components/PersistentFooter"; // Import the footer component
 
+// Food Scanner Imports
+import FoodScannerHome from "./screens/FoodScannerHome";
+import BarcodeScannerScreen from "./screens/BarcodeScannerScreen";
+import ProductDetailScreen from "./screens/ProductDetailScreen";
+import ProductSearchScreen from "./screens/ProductSearchScreen";
+
 //import MealPlanLanding from "./screens/MealPlanLanding";
 
 const Stack = createStackNavigator();
@@ -172,10 +178,72 @@ export default function App() {
               name="SavedMealPlansScreen"
               component={SavedMealPlansScreen}
             />
-          <Stack.Screen
-            name="RecipeScreen"
-            component={RecipeScreen}
-          />
+            <Stack.Screen
+              name="RecipeScreen"
+              component={RecipeScreen}
+            />
+            
+            {/* Food Scanner Screens */}
+            <Stack.Screen
+              name="FoodScannerHome"
+              component={FoodScannerHome}
+              options={{
+                title: 'Food Scanner',
+                headerShown: true,
+                headerStyle: {
+                  backgroundColor: '#007AFF',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen
+              name="BarcodeScanner"
+              component={BarcodeScannerScreen}
+              options={{
+                title: 'Scan Barcode',
+                headerShown: true,
+                headerStyle: {
+                  backgroundColor: '#007AFF',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen
+              name="ProductDetail"
+              component={ProductDetailScreen}
+              options={{
+                title: 'Product Details',
+                headerShown: true,
+                headerStyle: {
+                  backgroundColor: '#007AFF',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
+            <Stack.Screen
+              name="ProductSearch"
+              component={ProductSearchScreen}
+              options={{
+                title: 'Search Products',
+                headerShown: true,
+                headerStyle: {
+                  backgroundColor: '#007AFF',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+              }}
+            />
           </Stack.Navigator>
         </NavigationContainer>
 
