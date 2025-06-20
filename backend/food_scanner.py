@@ -206,103 +206,114 @@ class FoodHealthAnalyzer:
                 return 'terrible'
 
     def calculate_health_score(self, nutrients: Dict, ingredients_analysis: Dict) -> int:
-        """Calculate strict health score (0-100)"""
-        base_score = 50  # Start with neutral score
+        """Calculate balanced health score (0-100) - strict but fair"""
+        base_score = 65  # Start with slightly positive score
         
-        # Major negative factors (strict penalties)
+        # Major negative factors (balanced penalties)
         
-        # Calories (heavy penalty for high calorie foods)
+        # Calories (moderate penalty for high calorie foods)
         energy = nutrients.get('energy-kcal_100g', 0) or nutrients.get('energy_100g', 0)
         if energy:
             level = self.evaluate_nutrient_level('energy-kcal_100g', energy)
-            if level == 'terrible': base_score -= 30
-            elif level == 'poor': base_score -= 20
-            elif level == 'fair': base_score -= 10
-            elif level == 'good': base_score += 5
-            elif level == 'excellent': base_score += 10
+            if level == 'terrible': base_score -= 20  # Reduced from 30
+            elif level == 'poor': base_score -= 12    # Reduced from 20
+            elif level == 'fair': base_score -= 6     # Reduced from 10
+            elif level == 'good': base_score += 3     # Reduced from 5
+            elif level == 'excellent': base_score += 5  # Reduced from 10
         
-        # Sugar (very strict on sugar)
+        # Sugar (strict but not excessive)
         sugar = nutrients.get('sugars_100g', 0)
         if sugar:
             level = self.evaluate_nutrient_level('sugars_100g', sugar)
-            if level == 'terrible': base_score -= 35  # Harsh penalty for high sugar
-            elif level == 'poor': base_score -= 25
-            elif level == 'fair': base_score -= 15
-            elif level == 'good': base_score += 5
-            elif level == 'excellent': base_score += 10
+            if level == 'terrible': base_score -= 25  # Reduced from 35
+            elif level == 'poor': base_score -= 18    # Reduced from 25
+            elif level == 'fair': base_score -= 10    # Reduced from 15
+            elif level == 'good': base_score += 3     # Reduced from 5
+            elif level == 'excellent': base_score += 5  # Reduced from 10
         
-        # Saturated fat (strict penalties)
+        # Saturated fat (balanced penalties)
         sat_fat = nutrients.get('saturated-fat_100g', 0)
         if sat_fat:
             level = self.evaluate_nutrient_level('saturated-fat_100g', sat_fat)
-            if level == 'terrible': base_score -= 25
-            elif level == 'poor': base_score -= 18
-            elif level == 'fair': base_score -= 10
-            elif level == 'good': base_score += 5
-            elif level == 'excellent': base_score += 8
+            if level == 'terrible': base_score -= 18  # Reduced from 25
+            elif level == 'poor': base_score -= 12    # Reduced from 18
+            elif level == 'fair': base_score -= 6     # Reduced from 10
+            elif level == 'good': base_score += 3     # Reduced from 5
+            elif level == 'excellent': base_score += 5  # Reduced from 8
         
-        # Total fat
+        # Total fat (lighter penalties)
         fat = nutrients.get('fat_100g', 0)
         if fat:
             level = self.evaluate_nutrient_level('fat_100g', fat)
-            if level == 'terrible': base_score -= 20
-            elif level == 'poor': base_score -= 15
-            elif level == 'fair': base_score -= 8
-            elif level == 'good': base_score += 3
-            elif level == 'excellent': base_score += 5
+            if level == 'terrible': base_score -= 12  # Reduced from 20
+            elif level == 'poor': base_score -= 8     # Reduced from 15
+            elif level == 'fair': base_score -= 4     # Reduced from 8
+            elif level == 'good': base_score += 2     # Reduced from 3
+            elif level == 'excellent': base_score += 3  # Reduced from 5
         
-        # Sodium/Salt (strict on sodium)
+        # Sodium/Salt (balanced on sodium)
         sodium = nutrients.get('sodium_100g', 0) or (nutrients.get('salt_100g', 0) * 0.4)
         if sodium:
             level = self.evaluate_nutrient_level('sodium_100g', sodium)
-            if level == 'terrible': base_score -= 25
-            elif level == 'poor': base_score -= 18
-            elif level == 'fair': base_score -= 10
-            elif level == 'good': base_score += 5
-            elif level == 'excellent': base_score += 8
+            if level == 'terrible': base_score -= 18  # Reduced from 25
+            elif level == 'poor': base_score -= 12    # Reduced from 18
+            elif level == 'fair': base_score -= 6     # Reduced from 10
+            elif level == 'good': base_score += 3     # Reduced from 5
+            elif level == 'excellent': base_score += 5  # Reduced from 8
         
-        # Positive factors (good nutrients)
+        # Positive factors (enhanced rewards for good nutrients)
         
-        # Fiber (reward high fiber)
+        # Fiber (better rewards for high fiber)
         fiber = nutrients.get('fiber_100g', 0)
         if fiber:
             level = self.evaluate_nutrient_level('fiber_100g', fiber)
-            if level == 'excellent': base_score += 15
-            elif level == 'good': base_score += 10
-            elif level == 'fair': base_score += 5
-            elif level == 'poor': base_score -= 5
-            elif level == 'terrible': base_score -= 10
+            if level == 'excellent': base_score += 18   # Increased from 15
+            elif level == 'good': base_score += 12      # Increased from 10
+            elif level == 'fair': base_score += 6       # Increased from 5
+            elif level == 'poor': base_score -= 3       # Reduced from 5
+            elif level == 'terrible': base_score -= 6   # Reduced from 10
         
-        # Protein (reward high protein)
+        # Protein (better rewards for high protein)
         protein = nutrients.get('proteins_100g', 0)
         if protein:
             level = self.evaluate_nutrient_level('proteins_100g', protein)
-            if level == 'excellent': base_score += 12
-            elif level == 'good': base_score += 8
-            elif level == 'fair': base_score += 4
-            elif level == 'poor': base_score -= 3
-            elif level == 'terrible': base_score -= 8
+            if level == 'excellent': base_score += 15   # Increased from 12
+            elif level == 'good': base_score += 10      # Increased from 8
+            elif level == 'fair': base_score += 5       # Increased from 4
+            elif level == 'poor': base_score -= 2       # Reduced from 3
+            elif level == 'terrible': base_score -= 4   # Reduced from 8
         
-        # Severe penalties for additives (very strict)
+        # Balanced penalties for additives
         additives = ingredients_analysis.get('additives', [])
         for additive in additives:
             if additive['risk_level'] == 'high':
-                base_score -= 30  # Severe penalty for high-risk additives
+                base_score -= 20  # Reduced from 30
             elif additive['risk_level'] == 'medium':
-                base_score -= 20  # Significant penalty for medium-risk
+                base_score -= 12  # Reduced from 20
             else:
-                base_score -= 10  # Penalty even for low-risk additives
+                base_score -= 6   # Reduced from 10
         
-        # Additional penalties for processed food indicators
+        # Lighter penalties for processed food indicators
         quality_score = ingredients_analysis.get('quality_score', 100)
-        if quality_score < 50:
-            base_score -= 15  # Penalty for poor ingredient quality
+        if quality_score < 30:
+            base_score -= 12  # Reduced from 15
+        elif quality_score < 50:
+            base_score -= 8   # New moderate tier
         elif quality_score < 70:
-            base_score -= 8
+            base_score -= 4   # Reduced from 8
         
-        # Bonus for very clean products
+        # Bonus for very clean products (more generous)
         if not additives and quality_score > 80:
-            base_score += 10  # Bonus for clean, natural products
+            base_score += 12  # Increased from 10
+        elif not additives and quality_score > 60:
+            base_score += 6   # New bonus tier
+        
+        # Additional bonus for natural, whole foods
+        ingredient_count = ingredients_analysis.get('ingredient_count', 0)
+        if ingredient_count <= 3 and not additives:
+            base_score += 8   # Bonus for very simple products
+        elif ingredient_count <= 5 and len(additives) <= 1:
+            base_score += 4   # Bonus for simple products
         
         # Ensure score is within bounds
         return max(0, min(100, base_score))
