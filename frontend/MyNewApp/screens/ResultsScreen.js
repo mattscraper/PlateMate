@@ -536,7 +536,7 @@ export default function ResultsScreen({ route }) {
                   <Text style={styles.modalMacroValue}>{macros.calories}</Text>
                   <Text style={styles.modalMacroLabel}>cal</Text>
                 </View>
-                <View style={styles.modalMacroDivider} />
+      r          <View style={styles.modalMacroDivider} />
                 <View style={styles.modalMacroItem}>
                   <Text style={styles.modalMacroValue}>{macros.protein}</Text>
                   <Text style={styles.modalMacroLabel}>protein</Text>
@@ -672,7 +672,7 @@ export default function ResultsScreen({ route }) {
         
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Recipe Results</Text>
-          <Text style={styles.headerSubtitle}>{recipes.length} recipes found</Text>
+          
         </View>
         
         <View style={styles.headerActions}>

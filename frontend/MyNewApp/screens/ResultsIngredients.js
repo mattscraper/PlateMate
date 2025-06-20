@@ -162,50 +162,109 @@ export default function ResultsIngredientsScreen({ route }) {
 
   const extractRecipeTitle = (recipeText) => {
     if (!recipeText) return "Delicious Recipe";
-    const lines = recipeText.split('\n');
+    const lines = recipeText.split('\n').map(line => line.trim()).filter(line => line);
+    
+    // Find the first non-empty line that doesn't contain common non-title patterns
     const titleLine = lines.find(line =>
-      line.trim() &&
+      line &&
       !line.includes('=') &&
       !line.toLowerCase().includes('ingredients') &&
-      !line.toLowerCase().includes('instructions')
+      !line.toLowerCase().includes('instructions') &&
+      !line.toLowerCase().includes('preparation time') &&
+      !line.toLowerCase().includes('cooking time') &&
+      !line.toLowerCase().includes('servings') &&
+      !line.toLowerCase().includes('calories') &&
+      !line.toLowerCase().includes('protein') &&
+      !line.toLowerCase().includes('nutritional') &&
+      !line.match(/^\d+\./) && // Not a numbered instruction
+      !line.includes('•') // Not an ingredient
     );
+    
     return titleLine ? titleLine.trim() : "Delicious Recipe";
   };
 
   const extractCookingTime = (recipeText) => {
     if (!recipeText) return "30 min";
-    const timeMatch = recipeText.match(/(\d+)\s*(min|minutes|hour|hours)/i);
-    return timeMatch ? timeMatch[0] : "30 min";
+    
+    // Look for cooking time, preparation time, or total time
+    const cookingTimeMatch = recipeText.match(/cooking time:\s*(\d+)\s*(min|minutes|hour|hours)/i);
+    const prepTimeMatch = recipeText.match(/preparation time:\s*(\d+)\s*(min|minutes|hour|hours)/i);
+    const totalTimeMatch = recipeText.match(/total time:\s*(\d+)\s*(min|minutes|hour|hours)/i);
+    const genericTimeMatch = recipeText.match(/(\d+)\s*(min|minutes|hour|hours)/i);
+    
+    if (cookingTimeMatch) return cookingTimeMatch[1] + ' ' + cookingTimeMatch[2];
+    if (prepTimeMatch) return prepTimeMatch[1] + ' ' + prepTimeMatch[2];
+    if (totalTimeMatch) return totalTimeMatch[1] + ' ' + totalTimeMatch[2];
+    if (genericTimeMatch) return genericTimeMatch[1] + ' ' + genericTimeMatch[2];
+    
+    return "30 min";
   };
 
-    const extractMacros = (recipeText) => {
-      if (!recipeText) return { calories: "250", protein: "15g", carbs: "30g", fat: "8g" };
+  const extractMacros = (recipeText) => {
+    if (!recipeText) return { calories: "250", protein: "15g", carbs: "30g", fat: "8g" };
+    
+    // Convert to lowercase for easier matching
+    const lowerText = recipeText.toLowerCase();
+    
+    // Enhanced regex patterns to catch various formats
+    const caloriesMatch = recipeText.match(/calories?:\s*(\d+)/i) ||
+                         recipeText.match(/(\d+)\s*calories?/i) ||
+                         recipeText.match(/(\d+)\s*cal\b/i);
+    
+    const proteinMatch = recipeText.match(/protein:\s*(\d+)\s*g?/i) ||
+                        recipeText.match(/(\d+)\s*g?\s*protein/i);
+    
+    const carbsMatch = recipeText.match(/carbohydrates?:\s*(\d+)\s*g?/i) ||
+                      recipeText.match(/carbs?:\s*(\d+)\s*g?/i) ||
+                      recipeText.match(/(\d+)\s*g?\s*carb/i);
+    
+    const fatMatch = recipeText.match(/fat:\s*(\d+)\s*g?/i) ||
+                    recipeText.match(/(\d+)\s*g?\s*fat/i);
 
-      // Regex patterns
-      const caloriesMatch = recipeText.match(/(\d{2,4})\s*(?:k?cal(?:ories)?)\b/i);
-      const proteinMatch = recipeText.match(/(\d{1,3})\s*(?:g\s*)?(?:protein)\b/i);
-      const carbsMatch = recipeText.match(/(\d{1,3})\s*(?:g\s*)?(?:carb(?:s)?)/i);
-      const fatMatch = recipeText.match(/(\d{1,3})\s*(?:g\s*)?(?:fat)\b/i);
-
-      // Helper to validate numeric range
-      const safeGrams = (val, min = 0, max = 100) => {
-        const num = parseInt(val, 10);
-        return (num >= min && num <= max) ? `${num}g` : `${Math.floor(Math.random() * (max - min + 1)) + min}g`;
-      };
-
-      return {
-        calories: caloriesMatch ? caloriesMatch[1] : `${Math.floor(Math.random() * 201) + 200}`,
-        protein: proteinMatch ? safeGrams(proteinMatch[1], 5, 50) : `${Math.floor(Math.random() * 15) + 10}g`,
-        carbs: carbsMatch ? safeGrams(carbsMatch[1], 10, 100) : `${Math.floor(Math.random() * 25) + 20}g`,
-        fat: fatMatch ? safeGrams(fatMatch[1], 3, 40) : `${Math.floor(Math.random() * 10) + 5}g`,
-      };
+    // Also try to find nutritional information block
+    const nutritionSection = recipeText.match(/nutritional information[:\s]*(.*?)(?=\n\n|\n[A-Z]|$)/is);
+    
+    let calories, protein, carbs, fat;
+    
+    if (nutritionSection) {
+      const nutrition = nutritionSection[1];
+      const nutritionCalories = nutrition.match(/calories?:\s*(\d+)/i) || nutrition.match(/(\d+)\s*calories?/i);
+      const nutritionProtein = nutrition.match(/protein:\s*(\d+)/i) || nutrition.match(/(\d+)\s*g?\s*protein/i);
+      const nutritionCarbs = nutrition.match(/carbohydrates?:\s*(\d+)/i) || nutrition.match(/carbs?:\s*(\d+)/i);
+      const nutritionFat = nutrition.match(/fat:\s*(\d+)/i) || nutrition.match(/(\d+)\s*g?\s*fat/i);
+      
+      calories = nutritionCalories ? nutritionCalories[1] : null;
+      protein = nutritionProtein ? nutritionProtein[1] : null;
+      carbs = nutritionCarbs ? nutritionCarbs[1] : null;
+      fat = nutritionFat ? nutritionFat[1] : null;
+    }
+    
+    // Fall back to general matches if not found in nutrition section
+    if (!calories && caloriesMatch) calories = caloriesMatch[1];
+    if (!protein && proteinMatch) protein = proteinMatch[1];
+    if (!carbs && carbsMatch) carbs = carbsMatch[1];
+    if (!fat && fatMatch) fat = fatMatch[1];
+    
+    return {
+      calories: calories || (Math.floor(Math.random() * 200) + 200).toString(),
+      protein: protein ? `${protein}g` : `${Math.floor(Math.random() * 15) + 10}g`,
+      carbs: carbs ? `${carbs}g` : `${Math.floor(Math.random() * 25) + 20}g`,
+      fat: fat ? `${fat}g` : `${Math.floor(Math.random() * 10) + 5}g`,
     };
-
+  };
 
   const extractDifficulty = (recipeText) => {
     if (!recipeText) return "Easy";
-    if (recipeText.toLowerCase().includes('difficult') || recipeText.toLowerCase().includes('advanced')) return "Hard";
-    if (recipeText.toLowerCase().includes('medium') || recipeText.toLowerCase().includes('intermediate')) return "Medium";
+    const lowerText = recipeText.toLowerCase();
+    
+    if (lowerText.includes('difficult') || lowerText.includes('advanced') || lowerText.includes('hard')) return "Hard";
+    if (lowerText.includes('medium') || lowerText.includes('intermediate') || lowerText.includes('moderate')) return "Medium";
+    
+    // Count the number of steps to estimate difficulty
+    const steps = recipeText.match(/\d+\./g);
+    if (steps && steps.length > 8) return "Hard";
+    if (steps && steps.length > 5) return "Medium";
+    
     return "Easy";
   };
 
@@ -214,33 +273,81 @@ export default function ResultsIngredientsScreen({ route }) {
     
     // Clean up the recipe text
     const cleanText = recipeText.replace(/={3,}/g, "").trim();
-    const sections = cleanText.split(/\n\s*\n/).filter(section => section.trim());
+    const lines = cleanText.split('\n').map(line => line.trim()).filter(line => line);
     
     let ingredients = [];
     let instructions = [];
     let title = extractRecipeTitle(recipeText);
     let macros = extractMacros(recipeText);
     
-    sections.forEach(section => {
-      if (section.includes("•")) {
-        // Extract ingredients
-        ingredients = section
-          .split("\n")
-          .filter(line => line.includes("•"))
-          .map(line => line.replace("•", "").trim())
-          .filter(line => line);
-      } else if (
-        section.toLowerCase().includes("instructions") ||
-        section.match(/^\d+\./m)
-      ) {
-        // Extract instructions
-        instructions = section
-          .split("\n")
-          .filter(line => line.match(/^\d+\./) || (!line.toLowerCase().includes("instructions") && line.trim()))
-          .map(line => line.replace(/^\d+\./, "").trim())
-          .filter(line => line);
+    let currentSection = 'none';
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lowerLine = line.toLowerCase();
+      
+      // Skip title, time, and serving lines
+      if (line === title ||
+          lowerLine.includes('preparation time') ||
+          lowerLine.includes('cooking time') ||
+          lowerLine.includes('servings') ||
+          lowerLine.includes('nutritional information') ||
+          lowerLine.includes('calories') ||
+          lowerLine.includes('protein') ||
+          lowerLine.includes('carbohydrates') ||
+          lowerLine.includes('fat:')) {
+        continue;
       }
-    });
+      
+      // Detect sections
+      if (lowerLine.includes('ingredients')) {
+        currentSection = 'ingredients';
+        continue;
+      } else if (lowerLine.includes('instructions')) {
+        currentSection = 'instructions';
+        continue;
+      }
+      
+      // Process ingredients
+      if (line.includes('•') || (currentSection === 'ingredients' && line && !line.match(/^\d+\./))) {
+        const ingredient = line.replace('•', '').trim();
+        if (ingredient && !ingredient.toLowerCase().includes('instructions')) {
+          ingredients.push(ingredient);
+        }
+      }
+      // Process instructions
+      else if (line.match(/^\d+\./) || (currentSection === 'instructions' && line && !line.includes('•'))) {
+        const instruction = line.replace(/^\d+\./, '').trim();
+        if (instruction && instruction.length > 5) { // Filter out very short non-instructions
+          instructions.push(instruction);
+        }
+      }
+    }
+    
+    // If we couldn't detect sections properly, try a different approach
+    if (ingredients.length === 0 || instructions.length === 0) {
+      const sections = cleanText.split(/\n\s*\n/).filter(section => section.trim());
+      
+      sections.forEach(section => {
+        if (section.includes('•')) {
+          // Extract ingredients
+          const sectionIngredients = section
+            .split('\n')
+            .filter(line => line.includes('•'))
+            .map(line => line.replace('•', '').trim())
+            .filter(line => line);
+          ingredients.push(...sectionIngredients);
+        } else if (section.match(/^\d+\./m) || section.toLowerCase().includes('instructions')) {
+          // Extract instructions
+          const sectionInstructions = section
+            .split('\n')
+            .filter(line => line.match(/^\d+\./) || (!line.toLowerCase().includes('instructions') && line.trim() && !line.includes('•')))
+            .map(line => line.replace(/^\d+\./, '').trim())
+            .filter(line => line && line.length > 5);
+          instructions.push(...sectionInstructions);
+        }
+      });
+    }
     
     return { ingredients, instructions, title, macros };
   };
@@ -598,7 +705,7 @@ export default function ResultsIngredientsScreen({ route }) {
         
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Your Recipes</Text>
-          <Text style={styles.headerSubtitle}>{recipes.length} recipes found</Text>
+        
         </View>
         
         <View style={styles.headerActions}>
