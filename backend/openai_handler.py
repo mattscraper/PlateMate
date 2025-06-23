@@ -144,22 +144,32 @@ class RecipeGenerator:
         selected_titles = titles[:count]
         titles_str = ", ".join([f'"{title}"' for title in selected_titles])
         
-        system_prompt = """You are a culinary expert creating multiple recipes. Follow these formatting instructions precisely:
+        # Calculate target calories per recipe
+        calories_per_recipe = getattr(self, 'target_calories_per_recipe', 500)
+        
+        system_prompt = f"""You are a culinary expert creating multiple recipes. Follow these formatting instructions precisely:
 
         CRITICAL FORMAT RULES:
         1. Each recipe must have these sections IN THIS ORDER:
-           - Title (first line)
+           - Title (first line, descriptive and clear)
            - Time/Servings information (in one paragraph)
            - Ingredients (with bullet points •)
            - Instructions (with numbers 1., 2., etc. ALL UNDER ONE "Instructions" HEADER)
-           - Nutritional information
+           - Nutritional information (MUST be accurate to target calories)
 
-        2. Section spacing:
+        2. CALORIE REQUIREMENTS:
+           - Each recipe should target approximately {calories_per_recipe} calories
+           - Nutritional information must be realistic and add up correctly
+           - Protein: aim for 20-30% of calories (divide calories by 4 for grams)
+           - Carbs: aim for 40-50% of calories (divide calories by 4 for grams) 
+           - Fat: aim for 25-35% of calories (divide calories by 9 for grams)
+
+        3. Section spacing:
            - EXACTLY ONE blank line between sections
            - NO extra blank lines within sections
            - NEVER use bullet points (•) except for ingredients
 
-        3. Recipe separation:
+        4. Recipe separation:
            - Separate each recipe with exactly five equals signs: =====
            - Always put a blank line before and after the separator
 
@@ -174,16 +184,15 @@ class RecipeGenerator:
         • 2 tablespoons ingredient two
         • 3 teaspoons ingredient three
 
-        (make sure instructions is in its own little category)
+        Instructions:
         1. First step instruction details.
         2. Second step with more details.
         3. Third step with final instructions.
 
-        (make sure nutrition is in its own little category)
-        Calories: 350
-        Protein: 15g
-        Fat: 12g
-        Carbohydrates: 45g
+        Calories: {calories_per_recipe}
+        Protein: {int(calories_per_recipe * 0.25 / 4)}g
+        Carbs: {int(calories_per_recipe * 0.45 / 4)}g
+        Fat: {int(calories_per_recipe * 0.30 / 9)}g
 
         =====
 
@@ -191,9 +200,9 @@ class RecipeGenerator:
         ...and so on.
         """
 
-        prompt = f"Create {len(selected_titles)} detailed recipes for these titles: {titles_str}. Each recipe must strictly follow my format requirements."
+        prompt = f"Create {len(selected_titles)} detailed recipes for these titles: {titles_str}. Each recipe must target {calories_per_recipe} calories and strictly follow my format requirements."
         if healthy:
-            prompt += " Make all recipes healthy and nutritious while maintaining the essence of each dish, you can change the name of the dish and come up with your own recipe if the title is obviously not healthy."
+            prompt += " Make all recipes healthy and nutritious while maintaining the target calorie count and essence of each dish."
         
         try:
             response = self.client.chat.completions.create(
@@ -202,8 +211,8 @@ class RecipeGenerator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.85,
-                max_tokens=2500,  # Increased to accommodate multiple recipes
+                temperature=0.7,
+                max_tokens=2500,
                 top_p=0.8
             )
             
@@ -322,45 +331,36 @@ class RecipeGenerator:
     
     def _generate_single_recipe_from_title(self, title, healthy):
         """Generate a single recipe based on a title with proper formatting to match frontend expectations"""
-        system_prompt = """You are a culinary expert that creates detailed recipes based on titles. Format requirements:
+        
+        # Calculate target calories
+        target_calories = getattr(self, 'target_calories_per_recipe', 500)
+        
+        system_prompt = f"""You are a culinary expert that creates detailed recipes based on titles. Format requirements:
         1. Generate a detailed recipe for the given title.
-        2. Format the recipe EXACTLY as follows:
-        - Title on the very first line (no word "recipe" in title)
+        2. Target calories: {target_calories} per serving
+        3. Format the recipe EXACTLY as follows:
+        - Title on the very first line (clear, descriptive, no word "recipe")
         - Leave a BLANK LINE after the title
-        - Time section: Put "Preparation Time: X minutes", "Cooking Time: X minutes", and "Servings: X" together in a SINGLE PARAGRAPH with NO BULLET POINTS
+        - Time section: Put "Preparation Time: X minutes", "Cooking Time: X minutes", and "Servings: X" together in a SINGLE PARAGRAPH
         - Leave a BLANK LINE after the time section
         - Ingredients section: Each ingredient on its own line, each starting with a bullet point (•)
         - Leave a BLANK LINE after the ingredients section
         - Instructions section: Each instruction on its own line, numbered (1., 2., etc.)
         - Leave a BLANK LINE after the instructions section
-        - Nutritional information section: Put on its own lines with no blank lines in between
-        3. CRITICAL: Make sure to have exactly ONE BLANK LINE between major sections, not multiple blank lines
-        4. CRITICAL: DO NOT use bullet points for anything except ingredients
-        5. Do not use bold formatting, asterisks, or any special characters except bullet points (•) for ingredients
-        6. Never include any separator line (====) in your response
-        7. Format example:
+        - Nutritional information section: Must be accurate to target calories
+        4. CRITICAL: Make sure calories = {target_calories}, and other macros are realistic
+        5. CRITICAL: Make sure to have exactly ONE BLANK LINE between major sections
+        6. Do not use bold formatting, asterisks, or any special characters except bullet points (•) for ingredients
+        7. Never include any separator line (====) in your response
         
-        Recipe Title
+        Macro targets for {target_calories} calories:
+        - Protein: {int(target_calories * 0.25 / 4)}g (25% of calories)
+        - Carbs: {int(target_calories * 0.45 / 4)}g (45% of calories) 
+        - Fat: {int(target_calories * 0.30 / 9)}g (30% of calories)"""
         
-        Preparation Time: 15 minutes, Cooking Time: 30 minutes, Servings: 4
-        
-        • Ingredient 1
-        • Ingredient 2
-        • Ingredient 3
-        
-        1. Instruction step one
-        2. Instruction step two
-        3. Instruction step three
-        
-        Nutritional Information (per serving):
-        Calories: 350
-        Protein: 15g
-        Fat: 12g
-        Carbohydrates: 45g"""
-        
-        prompt = f"Create a detailed recipe for: {title}"
+        prompt = f"Create a detailed recipe for: {title}. Must be exactly {target_calories} calories per serving."
         if healthy:
-            prompt += " Make it healthy and nutritious while maintaining the essence of the dish."
+            prompt += " Make it healthy and nutritious while maintaining the target calorie count."
         
         try:
             response = self.client.chat.completions.create(
@@ -369,9 +369,9 @@ class RecipeGenerator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,
+                temperature=0.7,
                 max_tokens=1500,
-                top_p=0.85
+                top_p=0.8
             )
             
             recipe_text = response.choices[0].message.content.strip()
@@ -550,12 +550,17 @@ class RecipeGenerator:
             print(f"Error generating recipes: {str(e)}")
             return []
     
-  
-  #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
-  
+    #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
+    
     #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-        """Simple, reliable meal plan generation with GPT-3.5"""
+        """Simple, reliable meal plan generation with GPT-3.5 and accurate calorie targeting"""
+        
+        # Store calories for use in recipe generation
+        self.calories_per_day = calories_per_day
+        self.target_calories_per_recipe = calories_per_day // meals_per_day
+        
+        print(f"Target calories per recipe: {self.target_calories_per_recipe}")
         
         random_themes = [
             "quick and easy", "chef-inspired", "american and italian", "greek and american",
@@ -606,6 +611,7 @@ class RecipeGenerator:
         """Generate complete meal plan in one call - optimized for GPT-3.5"""
         
         meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
+        calories_per_recipe = calories_per_day // meals_per_day
         
         system_prompt = f"""You are a meal planning expert. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day.
 
@@ -614,7 +620,14 @@ class RecipeGenerator:
         - Use these meal types in order: {', '.join(meal_types)}
         - NEVER repeat any recipe titles, ingredients combinations, or cooking methods
         - Each recipe MUST be from a different cuisine or cooking style
+        - Each recipe MUST target {calories_per_recipe} calories per serving
         - Each recipe MUST have: meal type, title, times, ingredients, instructions, nutrition
+
+        CALORIE REQUIREMENTS:
+        - Each recipe = {calories_per_recipe} calories
+        - Protein: {int(calories_per_recipe * 0.25 / 4)}g (25% of calories)
+        - Carbs: {int(calories_per_recipe * 0.45 / 4)}g (45% of calories)
+        - Fat: {int(calories_per_recipe * 0.30 / 9)}g (30% of calories)
 
         VARIETY REQUIREMENTS:
         - Use different protein sources: chicken, fish, beef, pork, tofu, eggs, beans, etc.
@@ -643,10 +656,10 @@ class RecipeGenerator:
         3. Step three
 
         Nutritional Information:
-        Calories: 400
-        Protein: 25g
-        Carbs: 30g
-        Fat: 15g
+        Calories: {calories_per_recipe}
+        Protein: {int(calories_per_recipe * 0.25 / 4)}g
+        Carbs: {int(calories_per_recipe * 0.45 / 4)}g
+        Fat: {int(calories_per_recipe * 0.30 / 9)}g
 
         =====
 
@@ -687,7 +700,7 @@ class RecipeGenerator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.9,  # Higher temperature for more variety
+                temperature=0.8,
                 max_tokens=4000,
                 timeout=120
             )
@@ -702,6 +715,7 @@ class RecipeGenerator:
         all_days = []
         used_titles = set()
         meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
+        calories_per_recipe = calories_per_day // meals_per_day
         
         for day_num in range(1, days + 1):
             print(f"Generating Day {day_num}...")
@@ -724,7 +738,7 @@ class RecipeGenerator:
                     system_prompt = f"""Generate EXACTLY {meals_per_day} completely unique meals for one day.
 
         REQUIRED MEALS: {', '.join(meal_types)}
-        Target: {calories_per_day} calories total
+        Target: {calories_per_day} calories total ({calories_per_recipe} calories per meal)
         Theme: {theme}
 
         {exclusion_text}
@@ -734,6 +748,12 @@ class RecipeGenerator:
         - Protein sources (chicken, fish, beef, tofu, eggs, beans, etc.)
         - Cuisines (Italian, Mexican, Asian, Mediterranean, etc.)
         - Ingredients and flavor profiles
+
+        CALORIE ACCURACY:
+        - Each recipe = {calories_per_recipe} calories
+        - Protein: {int(calories_per_recipe * 0.25 / 4)}g
+        - Carbs: {int(calories_per_recipe * 0.45 / 4)}g
+        - Fat: {int(calories_per_recipe * 0.30 / 9)}g
 
         FORMAT:
         Breakfast
@@ -754,10 +774,10 @@ class RecipeGenerator:
         3. Step three
 
         Nutritional Information:
-        Calories: {calories_per_day // meals_per_day}
-        Protein: 25g
-        Carbs: 30g
-        Fat: 15g
+        Calories: {calories_per_recipe}
+        Protein: {int(calories_per_recipe * 0.25 / 4)}g
+        Carbs: {int(calories_per_recipe * 0.45 / 4)}g
+        Fat: {int(calories_per_recipe * 0.30 / 9)}g
 
         =====
 
@@ -765,10 +785,10 @@ class RecipeGenerator:
 
         CRITICAL: Generate ALL {meals_per_day} meals completely. Make each recipe title creative and unique."""
 
-                    prompt = f"Generate {meals_per_day} UNIQUE meals for Day {day_num} with {theme} theme. Each recipe must be completely different from previous days."
+                    prompt = f"Generate {meals_per_day} UNIQUE meals for Day {day_num} with {theme} theme. Each recipe must be exactly {calories_per_recipe} calories and completely different from previous days."
                     
                     if healthy:
-                        prompt += " Make all meals healthy and nutritious."
+                        prompt += " Make all meals healthy and nutritious while maintaining exact calorie targets."
                     if allergies:
                         allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
                         prompt += f" Avoid these allergens: {allergies_list}."
@@ -784,7 +804,7 @@ class RecipeGenerator:
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": prompt}
                         ],
-                        temperature=0.9,  # Increased for more variety
+                        temperature=0.8,
                         max_tokens=3000,
                         timeout=90
                     )
