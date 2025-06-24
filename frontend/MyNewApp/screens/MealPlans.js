@@ -399,7 +399,7 @@ export default function MealPlans() {
               <Text style={styles.infoTitle}>Quick Planning</Text>
             </View>
             <Text style={styles.infoText}>
-              Perfect for meal prep, weekend planning, or trying new recipes without the commitment of a full week
+              Perfect for meal prep, weekend planning, or trying new recipes
             </Text>
           </View>
         </ScrollView>

@@ -12,7 +12,6 @@ class GroceryItem:
     quantity: str
     unit: str
     category: str
-    estimated_cost: float
     notes: str = ""
 
 @dataclass
@@ -22,6 +21,7 @@ class CostBreakdown:
     cost_per_meal: float
     category_breakdown: Dict[str, float]
     item_count: int
+    excluded_items: List[str]
 
 class GroceryListGenerator:
     def __init__(self):
@@ -40,7 +40,10 @@ class GroceryListGenerator:
             'beverages': ['water', 'juice', 'soda', 'coffee', 'tea', 'wine', 'beer']
         }
         
-        # Estimated costs per item (USD, rough averages)
+        # Categories that should be excluded from cost calculations (reusable items)
+        self.cost_excluded_categories = ['herbs_spices', 'condiments', 'pantry']
+        
+        # Estimated costs per item (USD, rough averages) - only for items that count toward total
         self.estimated_costs = {
             # Proteins (per lb/package)
             'chicken': 4.50, 'beef': 8.00, 'pork': 5.50, 'fish': 12.00, 'salmon': 15.00,
@@ -70,15 +73,16 @@ class GroceryListGenerator:
             'quinoa': 8.00, 'barley': 3.50, 'couscous': 4.00, 'noodles': 3.00,
             'cereal': 5.50, 'tortilla': 3.00, 'crackers': 4.00,
             
-            # Pantry staples
-            'olive oil': 6.00, 'vegetable oil': 4.00, 'salt': 2.00, 'pepper': 3.00,
-            'sugar': 3.50, 'honey': 6.00, 'vinegar': 3.00, 'soy sauce': 4.00,
-            'hot sauce': 3.50, 'ketchup': 4.00, 'mustard': 3.00, 'mayo': 4.50,
+            # Frozen foods
+            'frozen vegetables': 3.50, 'frozen fruit': 4.00, 'ice cream': 5.00,
+            'frozen pizza': 6.00, 'frozen chicken': 7.00,
             
-            # Herbs & Spices
-            'basil': 3.00, 'oregano': 2.50, 'thyme': 3.00, 'rosemary': 3.50,
-            'paprika': 3.00, 'cumin': 3.50, 'chili powder': 3.00, 'garlic powder': 2.50,
-            'onion powder': 2.50, 'cinnamon': 4.00, 'ginger': 4.50, 'turmeric': 4.00,
+            # Snacks
+            'nuts': 8.00, 'chips': 4.00, 'granola bars': 6.00, 'pretzels': 3.50,
+            
+            # Beverages
+            'water': 2.00, 'juice': 4.50, 'soda': 5.00, 'coffee': 8.00, 'tea': 6.00,
+            'wine': 12.00, 'beer': 8.00,
             
             # Default for unknown items
             'default': 4.00
@@ -159,9 +163,6 @@ class GroceryListGenerator:
             # Combine quantities intelligently
             total_quantity = self._combine_quantities(data['quantities'], list(data['units']))
             
-            # Get estimated cost
-            estimated_cost = self._estimate_cost(base_name, total_quantity)
-            
             # Combine notes
             notes = ' • '.join(filter(None, data['notes']))
             
@@ -170,7 +171,6 @@ class GroceryListGenerator:
                 quantity=total_quantity['display'],
                 unit=total_quantity['unit'],
                 category=data['category'],
-                estimated_cost=estimated_cost,
                 notes=notes[:100] if notes else ""  # Limit notes length
             )
             grocery_items.append(grocery_item)
@@ -291,8 +291,12 @@ class GroceryListGenerator:
         else:
             return {'display': f"{len(quantities)} portions", 'unit': 'needed'}
 
-    def _estimate_cost(self, ingredient_name: str, quantity_info: Dict) -> float:
-        """Estimate cost for an ingredient"""
+    def _estimate_cost(self, ingredient_name: str, quantity_info: Dict, category: str) -> float:
+        """Estimate cost for an ingredient if it's not in excluded categories"""
+        # Return 0 for excluded categories
+        if category in self.cost_excluded_categories:
+            return 0.0
+            
         base_cost = self.estimated_costs.get(ingredient_name.lower(), self.estimated_costs['default'])
         
         # Adjust based on quantity
@@ -336,23 +340,32 @@ class GroceryListGenerator:
         # Sort items by category
         grocery_items.sort(key=lambda x: (x.category, x.name))
         
-        # Calculate cost breakdown
-        total_cost = sum(item.estimated_cost for item in grocery_items)
+        # Calculate cost breakdown (only for non-excluded categories)
+        excluded_items = []
+        total_cost = 0.0
+        category_costs = defaultdict(float)
+        
+        for item in grocery_items:
+            if item.category in self.cost_excluded_categories:
+                excluded_items.append(item.name)
+            else:
+                # Calculate cost for this item
+                quantity_info = {'display': item.quantity}
+                item_cost = self._estimate_cost(item.name.lower(), quantity_info, item.category)
+                total_cost += item_cost
+                category_costs[item.category] += item_cost
+        
         cost_per_day = total_cost / days if days > 0 else 0
         total_meals = days * meals_per_day
         cost_per_meal = total_cost / total_meals if total_meals > 0 else 0
-        
-        # Category breakdown
-        category_costs = defaultdict(float)
-        for item in grocery_items:
-            category_costs[item.category] += item.estimated_cost
         
         cost_breakdown = CostBreakdown(
             total_cost=round(total_cost, 2),
             cost_per_day=round(cost_per_day, 2),
             cost_per_meal=round(cost_per_meal, 2),
             category_breakdown=dict(category_costs),
-            item_count=len(grocery_items)
+            item_count=len(grocery_items),
+            excluded_items=excluded_items
         )
         
         # Convert to serializable format
@@ -363,11 +376,12 @@ class GroceryListGenerator:
                 'quantity': item.quantity,
                 'unit': item.unit,
                 'category': item.category,
-                'estimated_cost': item.estimated_cost,
-                'notes': item.notes
+                'notes': item.notes,
+                'excluded_from_cost': item.category in self.cost_excluded_categories
             })
         
-        print(f"✅ Generated grocery list with {len(grocery_items)} items, total cost: ${total_cost:.2f}")
+        print(f"✅ Generated grocery list with {len(grocery_items)} items")
+        print(f"💰 Total cost: ${total_cost:.2f} (excluding {len(excluded_items)} reusable items)")
         
         return {
             'success': True,
@@ -377,37 +391,15 @@ class GroceryListGenerator:
                 'cost_per_day': cost_breakdown.cost_per_day,
                 'cost_per_meal': cost_breakdown.cost_per_meal,
                 'category_breakdown': cost_breakdown.category_breakdown,
-                'item_count': cost_breakdown.item_count
+                'item_count': cost_breakdown.item_count,
+                'excluded_items': cost_breakdown.excluded_items
             },
             'summary': {
                 'total_items': len(grocery_items),
                 'total_cost': cost_breakdown.total_cost,
+                'excluded_items_count': len(excluded_items),
                 'days': days,
                 'meals_per_day': meals_per_day,
                 'recipes_parsed': len(recipes)
             }
         }
-# Create a Blueprint for grocery lists
-grocery_routes = Blueprint('grocery', __name__)
-
-@dataclass
-class GroceryListRequest:
-    """Data class for validating grocery list requests"""
-    meal_plan: str
-    days: int
-    meals_per_day: int
-
-    @classmethod
-    def from_request(cls, data: dict) -> 'GroceryListRequest':
-        if not data.get("meal_plan"):
-            raise ValueError("meal_plan is required")
-        if not data.get("days"):
-            raise ValueError("days is required")
-        if not data.get("meals_per_day"):
-            raise ValueError("meals_per_day is required")
-        
-        return cls(
-            meal_plan=data["meal_plan"].strip(),
-            days=min(max(int(data["days"]), 1), 14),
-            meals_per_day=min(max(int(data["meals_per_day"]), 1), 5)
-        )

@@ -579,7 +579,7 @@ export default function LandingScreen({ navigation }) {
               <MenuCard
                 icon="book-outline"
                 title="Meal Plan"
-                description="Get personalized meal plans tailored for you!"
+                description="Get personalized meal plans and grocery lists tailored for you!"
                 onPress={() =>
                   handlePremiumFeaturePress("Meal Planning", "MealPlans")
                 }

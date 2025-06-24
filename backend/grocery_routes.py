@@ -1,4 +1,3 @@
-
 from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
 from typing import Optional
@@ -78,9 +77,9 @@ def get_grocery_categories():
             'fruits': 'Fresh Fruits',
             'dairy': 'Dairy & Eggs',
             'grains': 'Grains & Breads',
-            'pantry': 'Pantry Staples',
-            'herbs_spices': 'Herbs & Spices',
-            'condiments': 'Condiments & Sauces',
+            'pantry': 'Pantry Staples (excluded from cost)',
+            'herbs_spices': 'Herbs & Spices (excluded from cost)',
+            'condiments': 'Condiments & Sauces (excluded from cost)',
             'frozen': 'Frozen Foods',
             'snacks': 'Snacks & Nuts',
             'beverages': 'Beverages'
@@ -103,12 +102,4 @@ def init_grocery_routes(app):
     app.register_blueprint(grocery_routes)
     return app
 
-# Update your main routes file to include grocery routes:
-"""
-# In your main routes/app file, add:
 
-from backend.grocery_routes import init_grocery_routes
-
-# After creating your Flask app:
-app = init_grocery_routes(app)
-"""

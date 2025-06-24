@@ -613,9 +613,17 @@ export default function MealPlanResults() {
         
         <Text style={styles.headerTitle}>Your Meal Plan</Text>
         
-        <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={24} color="#008b8b" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={handleGroceryListPress}
+          >
+            <Ionicons name="basket-outline" size={20} color="#008b8b" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionButton} onPress={handleShare}>
+            <Ionicons name="share-outline" size={20} color="#008b8b" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Animated.ScrollView
@@ -675,30 +683,19 @@ export default function MealPlanResults() {
             </View>
           </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity
-              style={styles.groceryListButton}
-              onPress={handleGroceryListPress}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="basket-outline" size={18} color="#008b8b" />
-              <Text style={styles.groceryListButtonText}>Grocery List</Text>
-            </TouchableOpacity>
-
-            <View style={styles.saveButtonContainer}>
-              <SaveMealPlanButton
-                mealPlan={mealPlan}
-                days={days}
-                mealsPerDay={mealsPerDay}
-                caloriesPerDay={caloriesPerDay}
-                allergies={allergies}
-                healthy={healthy}
-                dietType={dietType}
-                onSaved={() => console.log("Plan saved")}
-                onLoginRequired={() => navigation.navigate("LandingPage")}
-              />
-            </View>
+          {/* Save Button - moved to controls area */}
+          <View style={styles.saveButtonContainer}>
+            <SaveMealPlanButton
+              mealPlan={mealPlan}
+              days={days}
+              mealsPerDay={mealsPerDay}
+              caloriesPerDay={caloriesPerDay}
+              allergies={allergies}
+              healthy={healthy}
+              dietType={dietType}
+              onSaved={() => console.log("Plan saved")}
+              onLoginRequired={() => navigation.navigate("LandingPage")}
+            />
           </View>
         </Animated.View>
 
@@ -1012,6 +1009,19 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     letterSpacing: -0.2,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   scrollContent: {
     paddingBottom: 40,
@@ -1051,42 +1061,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  saveButtonContainer: {
+    // Moved save button to controls area for better layout
   },
-
-  groceryListButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e6f3f3',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#008b8b',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#008b8b',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-
-  groceryListButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#008b8b',
-  },
-
-  saveButtonContainer: {},
 
   cardsContainer: {
     paddingHorizontal: 20,
