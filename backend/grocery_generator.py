@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 import random
+from flask import Blueprint
 
 @dataclass
 class GroceryItem:

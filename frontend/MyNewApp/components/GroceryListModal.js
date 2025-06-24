@@ -79,7 +79,7 @@ const GroceryListModal = ({
 
     setLoading(true);
     try {
-      const response = await fetch('YOUR_API_BASE_URL/api/grocery-list', {
+      const response = await fetch('https://platemate-6.onrender.com/api/grocery-list', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,6 +167,15 @@ const GroceryListModal = ({
         <Text style={styles.sectionTitle}>💰 Cost Breakdown</Text>
         
         <View style={styles.costCards}>
+          <View style={styles.costCard}>
+            <View style={styles.costCardHeader}>
+              <Ionicons name="cash-outline" size={24} color="#2ecc71" />
+              <Text style={styles.costCardTitle}>Total Cost</Text>
+            </View>
+            <Text style={styles.costCardValue}>${cost_breakdown.total_cost}</Text>
+            <Text style={styles.costCardSubtext}>{cost_breakdown.item_count} items</Text>
+          </View>
+
           <View style={styles.costCard}>
             <View style={styles.costCardHeader}>
               <Ionicons name="calendar-outline" size={24} color="#3498db" />
@@ -730,12 +739,3 @@ const styles = StyleSheet.create({
 });
 
 export default GroceryListModal;
-              <Ionicons name="cash-outline" size={24} color="#2ecc71" />
-              <Text style={styles.costCardTitle}>Total Cost</Text>
-            </View>
-            <Text style={styles.costCardValue}>${cost_breakdown.total_cost}</Text>
-            <Text style={styles.costCardSubtext}>{cost_breakdown.item_count} items</Text>
-          </View>
-
-          <View style={styles.costCard}>
-            <View style={styles.costCardHeader}>
