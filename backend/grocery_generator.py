@@ -43,49 +43,49 @@ class GroceryListGenerator:
         # Categories that should be excluded from cost calculations (reusable items)
         self.cost_excluded_categories = ['herbs_spices', 'condiments', 'pantry']
         
-        # Estimated costs per item (USD, rough averages) - only for items that count toward total
+        # Estimated costs per typical serving/recipe portion (USD, realistic grocery prices)
         self.estimated_costs = {
-            # Proteins (per lb/package)
-            'chicken': 4.50, 'beef': 8.00, 'pork': 5.50, 'fish': 12.00, 'salmon': 15.00,
-            'tuna': 3.00, 'eggs': 3.50, 'tofu': 4.00, 'beans': 2.00, 'lentils': 2.50,
-            'turkey': 6.00, 'shrimp': 18.00, 'lamb': 12.00,
+            # Proteins (per typical recipe serving, not per lb)
+            'chicken': 1.25, 'beef': 2.00, 'pork': 1.50, 'fish': 2.50, 'salmon': 3.00,
+            'tuna': 1.00, 'eggs': 0.50, 'tofu': 1.00, 'beans': 0.30, 'lentils': 0.25,
+            'turkey': 1.75, 'shrimp': 3.50, 'lamb': 2.50,
             
-            # Vegetables (per lb or unit)
-            'onion': 1.50, 'garlic': 2.00, 'tomato': 3.00, 'carrot': 1.80, 'celery': 2.50,
-            'bell pepper': 4.00, 'broccoli': 3.50, 'spinach': 4.00, 'lettuce': 3.00,
-            'cucumber': 2.00, 'potato': 2.00, 'sweet potato': 2.50, 'mushroom': 4.50,
-            'zucchini': 2.50, 'corn': 3.00, 'peas': 3.50, 'green beans': 4.00,
-            'cauliflower': 4.00, 'cabbage': 2.00, 'kale': 4.50, 'asparagus': 5.00,
-            'brussels sprouts': 4.50,
+            # Vegetables (per typical recipe serving)
+            'onion': 0.25, 'garlic': 0.10, 'tomato': 0.75, 'carrot': 0.30, 'celery': 0.40,
+            'bell pepper': 0.75, 'broccoli': 0.60, 'spinach': 0.50, 'lettuce': 0.40,
+            'cucumber': 0.50, 'potato': 0.35, 'sweet potato': 0.45, 'mushroom': 0.85,
+            'zucchini': 0.50, 'corn': 0.40, 'peas': 0.60, 'green beans': 0.70,
+            'cauliflower': 0.80, 'cabbage': 0.30, 'kale': 0.60, 'asparagus': 1.00,
+            'brussels sprouts': 0.80,
             
-            # Fruits
-            'apple': 3.00, 'banana': 1.50, 'orange': 3.50, 'lemon': 2.00, 'lime': 2.50,
-            'berries': 6.00, 'strawberry': 5.00, 'blueberry': 6.50, 'grape': 4.00,
-            'avocado': 2.50, 'mango': 3.00, 'pineapple': 4.00, 'peach': 4.50, 'pear': 3.50,
+            # Fruits (per typical serving)
+            'apple': 0.50, 'banana': 0.25, 'orange': 0.60, 'lemon': 0.35, 'lime': 0.30,
+            'berries': 1.25, 'strawberry': 1.00, 'blueberry': 1.50, 'grape': 0.75,
+            'avocado': 1.25, 'mango': 0.85, 'pineapple': 1.00, 'peach': 0.65, 'pear': 0.55,
             
-            # Dairy
-            'milk': 4.00, 'cheese': 6.00, 'butter': 5.00, 'yogurt': 5.50, 'cream': 4.50,
-            'sour cream': 3.50, 'cottage cheese': 4.00, 'mozzarella': 5.50, 'cheddar': 6.50,
-            'parmesan': 8.00,
+            # Dairy (per typical recipe portion)
+            'milk': 0.50, 'cheese': 1.00, 'butter': 0.40, 'yogurt': 0.75, 'cream': 0.60,
+            'sour cream': 0.50, 'cottage cheese': 0.65, 'mozzarella': 1.25, 'cheddar': 1.50,
+            'parmesan': 1.00,
             
-            # Grains
-            'rice': 3.00, 'pasta': 2.50, 'bread': 3.50, 'flour': 4.00, 'oats': 4.50,
-            'quinoa': 8.00, 'barley': 3.50, 'couscous': 4.00, 'noodles': 3.00,
-            'cereal': 5.50, 'tortilla': 3.00, 'crackers': 4.00,
+            # Grains (per typical serving)
+            'rice': 0.30, 'pasta': 0.40, 'bread': 0.50, 'flour': 0.20, 'oats': 0.35,
+            'quinoa': 0.80, 'barley': 0.25, 'couscous': 0.45, 'noodles': 0.50,
+            'cereal': 0.60, 'tortilla': 0.40, 'crackers': 0.60,
             
-            # Frozen foods
-            'frozen vegetables': 3.50, 'frozen fruit': 4.00, 'ice cream': 5.00,
-            'frozen pizza': 6.00, 'frozen chicken': 7.00,
+            # Frozen foods (per serving)
+            'frozen vegetables': 0.50, 'frozen fruit': 0.75, 'ice cream': 1.25,
+            'frozen pizza': 2.50, 'frozen chicken': 1.50,
             
-            # Snacks
-            'nuts': 8.00, 'chips': 4.00, 'granola bars': 6.00, 'pretzels': 3.50,
+            # Snacks (per serving)
+            'nuts': 0.85, 'chips': 0.75, 'granola bars': 1.00, 'pretzels': 0.50,
             
-            # Beverages
-            'water': 2.00, 'juice': 4.50, 'soda': 5.00, 'coffee': 8.00, 'tea': 6.00,
-            'wine': 12.00, 'beer': 8.00,
+            # Beverages (per serving)
+            'water': 0.10, 'juice': 0.60, 'soda': 0.75, 'coffee': 0.25, 'tea': 0.15,
+            'wine': 3.00, 'beer': 1.50,
             
             # Default for unknown items
-            'default': 4.00
+            'default': 0.75
         }
 
     def parse_meal_plan(self, meal_plan_text: str) -> List[Dict]:
@@ -299,16 +299,27 @@ class GroceryListGenerator:
             
         base_cost = self.estimated_costs.get(ingredient_name.lower(), self.estimated_costs['default'])
         
-        # Adjust based on quantity
+        # Adjust based on quantity - much more conservative multiplier
         try:
-            multiplier = float(quantity_info['display'])
-            if multiplier > 10:  # Cap large quantities
-                multiplier = min(multiplier, 20)
-        except ValueError:
+            quantity_str = quantity_info['display']
+            # Handle different quantity formats
+            if 'portions' in quantity_str:
+                # Extract number from "X portions"
+                multiplier = float(re.search(r'(\d+(?:\.\d+)?)', quantity_str).group(1)) if re.search(r'(\d+(?:\.\d+)?)', quantity_str) else 1.0
+            else:
+                multiplier = float(quantity_str)
+            
+            # Cap multiplier to prevent unrealistic costs
+            if multiplier > 5:  # Cap at 5x base cost
+                multiplier = min(multiplier, 8)
+            elif multiplier > 2:  # Reduce scaling for larger quantities
+                multiplier = 2 + (multiplier - 2) * 0.5
+                
+        except (ValueError, AttributeError):
             multiplier = 1.0
         
-        # Add some randomness for realism
-        variance = random.uniform(0.8, 1.2)
+        # Add smaller variance for more consistent estimates
+        variance = random.uniform(0.9, 1.1)
         
         estimated_cost = base_cost * multiplier * variance
         return round(estimated_cost, 2)

@@ -251,19 +251,31 @@ const styles = StyleSheet.create({
   container: {
     position: "relative",
   },
-  saveButton: {
-    backgroundColor: "#008b8b",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  savedButton: {
-    backgroundColor: "#27ae60",
-  },
+    saveButton: {
+      backgroundColor: "#000",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      borderRadius: 14,
+      gap: 8,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    savedButton: {
+      backgroundColor: "#333", // dark gray to indicate it's saved
+    },
+    saveModalButton: {
+      backgroundColor: "#000",
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+    },
+
   buttonText: {
     color: "white",
     fontWeight: "600",
@@ -333,12 +345,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  saveModalButton: {
-    backgroundColor: "#008b8b",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
+
   saveModalButtonText: {
     color: "white",
     fontSize: 16,

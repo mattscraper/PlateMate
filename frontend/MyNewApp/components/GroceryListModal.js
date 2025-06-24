@@ -131,7 +131,12 @@ const GroceryListModal = ({
       let shareText = `🛒 Grocery List for ${days}-Day Meal Plan\n\n`;
       shareText += `💰 Total Estimated Cost: $${groceryData.cost_breakdown.total_cost}\n`;
       shareText += `📅 Cost per day: $${groceryData.cost_breakdown.cost_per_day}\n`;
-      shareText += `🍽️ Cost per meal: $${groceryData.cost_breakdown.cost_per_meal}\n\n`;
+      shareText += `🍽️ Cost per meal: $${groceryData.cost_breakdown.cost_per_meal}\n`;
+      
+      if (groceryData.cost_breakdown.excluded_items && groceryData.cost_breakdown.excluded_items.length > 0) {
+        shareText += `\n✨ Excludes ${groceryData.cost_breakdown.excluded_items.length} pantry items you likely already have\n`;
+      }
+      shareText += '\n';
 
       // Group items by category
       const itemsByCategory = {};
@@ -146,7 +151,8 @@ const GroceryListModal = ({
       Object.entries(itemsByCategory).forEach(([category, items]) => {
         shareText += `${categoryNames[category] || category.toUpperCase()}:\n`;
         items.forEach(item => {
-          shareText += `• ${item.quantity} ${item.unit} ${item.name}\n`;
+          const excludedNote = item.excluded_from_cost ? ' (pantry item)' : '';
+          shareText += `• ${item.quantity} ${item.unit} ${item.name}${excludedNote}\n`;
         });
         shareText += '\n';
       });
@@ -195,24 +201,35 @@ const GroceryListModal = ({
           </View>
         </View>
 
-        {/* Category Breakdown */}
-        <View style={styles.categoryBreakdown}>
-          <Text style={styles.categoryBreakdownTitle}>Spending by Category</Text>
-          {Object.entries(cost_breakdown.category_breakdown)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 5)
-            .map(([category, cost]) => (
-              <View key={category} style={styles.categoryBreakdownItem}>
-                <View style={styles.categoryBreakdownLeft}>
-                  <View style={[styles.categoryDot, { backgroundColor: categoryColors[category] || '#95a5a6' }]} />
-                  <Text style={styles.categoryBreakdownName}>
-                    {categoryNames[category] || category}
-                  </Text>
+        {/* Excluded Items Notice */}
+        {cost_breakdown.excluded_items && cost_breakdown.excluded_items.length > 0 && (
+          <View style={styles.excludedNotice}>
+            <Ionicons name="information-circle-outline" size={20} color="#f39c12" />
+            <Text style={styles.excludedNoticeText}>
+              {cost_breakdown.excluded_items.length} pantry items excluded from cost (herbs, spices, condiments you likely already have)
+            </Text>
+          </View>
+        )}
+
+        {/* Category Breakdown - Only show categories that contribute to cost */}
+        {Object.keys(cost_breakdown.category_breakdown).length > 0 && (
+          <View style={styles.categoryBreakdown}>
+            <Text style={styles.categoryBreakdownTitle}>Spending by Category</Text>
+            {Object.entries(cost_breakdown.category_breakdown)
+              .sort(([,a], [,b]) => b - a)
+              .map(([category, cost]) => (
+                <View key={category} style={styles.categoryBreakdownItem}>
+                  <View style={styles.categoryBreakdownLeft}>
+                    <View style={[styles.categoryDot, { backgroundColor: categoryColors[category] || '#95a5a6' }]} />
+                    <Text style={styles.categoryBreakdownName}>
+                      {categoryNames[category] || category}
+                    </Text>
+                  </View>
+                  <Text style={styles.categoryBreakdownCost}>${cost.toFixed(2)}</Text>
                 </View>
-                <Text style={styles.categoryBreakdownCost}>${cost.toFixed(2)}</Text>
-              </View>
-            ))}
-        </View>
+              ))}
+          </View>
+        )}
       </View>
     );
   };
@@ -229,11 +246,19 @@ const GroceryListModal = ({
       itemsByCategory[item.category].push(item);
     });
 
-    // Sort categories by total cost (highest first)
+    // Sort categories: cost-contributing categories first, then excluded ones
     const sortedCategories = Object.keys(itemsByCategory).sort((a, b) => {
-      const costA = itemsByCategory[a].reduce((sum, item) => sum + item.estimated_cost, 0);
-      const costB = itemsByCategory[b].reduce((sum, item) => sum + item.estimated_cost, 0);
-      return costB - costA;
+      const aHasCost = groceryData.cost_breakdown.category_breakdown[a] !== undefined;
+      const bHasCost = groceryData.cost_breakdown.category_breakdown[b] !== undefined;
+      
+      if (aHasCost && !bHasCost) return -1;
+      if (!aHasCost && bHasCost) return 1;
+      
+      if (aHasCost && bHasCost) {
+        return groceryData.cost_breakdown.category_breakdown[b] - groceryData.cost_breakdown.category_breakdown[a];
+      }
+      
+      return a.localeCompare(b);
     });
 
     return (
@@ -249,8 +274,9 @@ const GroceryListModal = ({
 
         {sortedCategories.map(category => {
           const items = itemsByCategory[category];
-          const categoryTotal = items.reduce((sum, item) => sum + item.estimated_cost, 0);
+          const categoryTotal = groceryData.cost_breakdown.category_breakdown[category] || 0;
           const checkedInCategory = items.filter(item => checkedItems.has(item.name)).length;
+          const isExcludedCategory = categoryTotal === 0;
 
           return (
             <View key={category} style={styles.categorySection}>
@@ -268,26 +294,41 @@ const GroceryListModal = ({
                       {categoryNames[category] || category}
                     </Text>
                     <Text style={styles.categorySubtitle}>
-                      {items.length} items • ${categoryTotal.toFixed(2)}
+                      {items.length} items
+                      {!isExcludedCategory && ` • $${categoryTotal.toFixed(2)}`}
+                      {isExcludedCategory && ' • Pantry items'}
                     </Text>
                   </View>
                 </View>
-                {checkedInCategory > 0 && (
-                  <View style={styles.categoryProgress}>
-                    <Text style={styles.categoryProgressText}>
-                      {checkedInCategory}/{items.length}
-                    </Text>
-                  </View>
-                )}
+                <View style={styles.categoryHeaderRight}>
+                  {isExcludedCategory && (
+                    <View style={styles.excludedBadge}>
+                      <Text style={styles.excludedBadgeText}>Excluded</Text>
+                    </View>
+                  )}
+                  {checkedInCategory > 0 && (
+                    <View style={styles.categoryProgress}>
+                      <Text style={styles.categoryProgressText}>
+                        {checkedInCategory}/{items.length}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
 
               <View style={styles.categoryItems}>
                 {items.map((item, index) => {
                   const isChecked = checkedItems.has(item.name);
+                  const isExcluded = item.excluded_from_cost;
+                  
                   return (
                     <TouchableOpacity
                       key={`${item.name}-${index}`}
-                      style={[styles.groceryItem, isChecked && styles.groceryItemChecked]}
+                      style={[
+                        styles.groceryItem,
+                        isChecked && styles.groceryItemChecked,
+                        isExcluded && styles.groceryItemExcluded
+                      ]}
                       onPress={() => toggleItemCheck(item.name)}
                       activeOpacity={0.7}
                     >
@@ -309,9 +350,19 @@ const GroceryListModal = ({
                           )}
                         </View>
                       </View>
-                      <Text style={[styles.groceryItemCost, isChecked && styles.groceryItemCostChecked]}>
-                        ${item.estimated_cost.toFixed(2)}
-                      </Text>
+                      <View style={styles.groceryItemRight}>
+                        {isExcluded ? (
+                          <View style={styles.excludedTag}>
+                            <Ionicons name="home-outline" size={12} color="#f39c12" />
+                            <Text style={styles.excludedTagText}>Pantry</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.costIncludedTag}>
+                            <Ionicons name="checkmark-circle-outline" size={12} color="#2ecc71" />
+                            <Text style={styles.costIncludedTagText}>Costed</Text>
+                          </View>
+                        )}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -512,7 +563,7 @@ const styles = StyleSheet.create({
   costCards: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   costCard: {
     flex: 1,
@@ -555,6 +606,25 @@ const styles = StyleSheet.create({
   costCardSubtext: {
     fontSize: 12,
     color: '#64748b',
+  },
+
+  // Excluded Notice
+  excludedNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fffbeb',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    marginBottom: 16,
+    gap: 8,
+  },
+  excludedNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#92400e',
+    lineHeight: 16,
   },
 
   // Category Breakdown
@@ -637,6 +707,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  categoryHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   categoryIcon: {
     width: 36,
     height: 36,
@@ -666,6 +741,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
   },
+  excludedBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+  },
+  excludedBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#92400e',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
 
   // Category Items
   categoryItems: {
@@ -684,6 +774,10 @@ const styles = StyleSheet.create({
   groceryItemChecked: {
     backgroundColor: '#f8fafc',
     borderColor: '#cbd5e1',
+  },
+  groceryItemExcluded: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fed7aa',
   },
   groceryItemLeft: {
     flexDirection: 'row',
@@ -727,14 +821,38 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontStyle: 'italic',
   },
-  groceryItemCost: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#008b8b',
+  groceryItemRight: {
+    alignItems: 'flex-end',
   },
-  groceryItemCostChecked: {
-    color: '#94a3b8',
-    textDecorationLine: 'line-through',
+  excludedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+  },
+  excludedTagText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#92400e',
+    textTransform: 'uppercase',
+  },
+  costIncludedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+  },
+  costIncludedTagText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#166534',
+    textTransform: 'uppercase',
   },
 });
 
