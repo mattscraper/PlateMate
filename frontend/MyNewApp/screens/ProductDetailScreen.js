@@ -78,7 +78,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
   };
 
   const getNutrientDisplayData = (key, value, servingSize) => {
-    if (!value) return null;
+    if (!value || value === 0) return null;
     
     // Define thresholds and colors based on nutrient type
     const nutrientConfig = {
@@ -202,50 +202,29 @@ const ProductDetailScreen = ({ route, navigation }) => {
     };
   };
 
-  const NutrientIndicator = ({ nutrientData, servingSize }) => {
-    if (!nutrientData) return null;
-
-    const formattedValue = nutrientData.unit === 'Cal' ?
-      Math.round(nutrientData.value) :
-      nutrientData.value.toFixed(1);
-
-    return (
-      <View style={styles.indicatorRow}>
-        <View style={styles.indicatorIcon}>
-          <Ionicons name={nutrientData.icon} size={24} color="#6B7280" />
-        </View>
-        <View style={styles.indicatorContent}>
-          <Text style={styles.indicatorTitle}>{nutrientData.title}</Text>
-          <Text style={styles.indicatorSubtitle}>{nutrientData.description}</Text>
-        </View>
-        <View style={styles.indicatorValue}>
-          <View style={styles.valueContainer}>
-            <Text style={styles.valueText}>
-              {formattedValue}{nutrientData.unit}
-            </Text>
-            <View style={[styles.qualityDot, { backgroundColor: nutrientData.color }]} />
-            <Ionicons
-              name={nutrientData.isPositive && nutrientData.level === 'high' ? "chevron-up" :
-                    !nutrientData.isPositive && nutrientData.level === 'low' ? "chevron-up" : "chevron-down"}
-              size={16}
-              color={nutrientData.isPositive && nutrientData.level === 'high' ? "#10B981" :
-                     !nutrientData.isPositive && nutrientData.level === 'low' ? "#10B981" : "#9CA3AF"}
-            />
-          </View>
-        </View>
-      </View>
-    );
-  };
-
   const ProgressBar = ({ nutrientData }) => {
-    if (!nutrientData) return null;
+    // Add comprehensive null checks
+    if (!nutrientData || !nutrientData.thresholds || !nutrientData.colors || !Array.isArray(nutrientData.thresholds) || !Array.isArray(nutrientData.colors)) {
+      return null;
+    }
+
+    // Ensure we have valid data
+    const thresholds = nutrientData.thresholds || [];
+    const colors = nutrientData.colors || [];
+    const position = typeof nutrientData.position === 'number' ? nutrientData.position : 0;
+    const color = nutrientData.color || '#9CA3AF';
+    const maxScale = nutrientData.maxScale || 100;
+
+    if (thresholds.length === 0 || colors.length === 0) {
+      return null;
+    }
 
     // Create segments for the progress bar
     const segments = [];
-    const segmentWidth = 100 / nutrientData.thresholds.length;
+    const segmentWidth = 100 / thresholds.length;
     
-    for (let i = 0; i < nutrientData.thresholds.length; i++) {
-      const segmentColor = nutrientData.colors[i];
+    for (let i = 0; i < thresholds.length && i < colors.length; i++) {
+      const segmentColor = colors[i] || '#9CA3AF';
       segments.push(
         <View
           key={i}
@@ -269,25 +248,88 @@ const ProductDetailScreen = ({ route, navigation }) => {
           style={[
             styles.progressIndicator,
             {
-              left: `${Math.min(nutrientData.position, 95)}%`,
-              backgroundColor: nutrientData.color
+              left: `${Math.min(Math.max(position, 0), 95)}%`,
+              backgroundColor: color
             }
           ]}
         />
         <View style={styles.progressLabels}>
           <Text style={styles.progressLabel}>0</Text>
-          {nutrientData.thresholds.slice(1, -1).map((threshold, index) => (
+          {thresholds.slice(1, -1).map((threshold, index) => (
             <Text key={index} style={styles.progressLabel}>
-              {threshold}
+              {threshold || ''}
             </Text>
           ))}
-          <Text style={styles.progressLabel}>{nutrientData.maxScale}+</Text>
+          <Text style={styles.progressLabel}>{maxScale}+</Text>
         </View>
       </View>
     );
   };
 
-  // Loading and error states remain the same...
+  const NutrientIndicatorWithProgress = ({ nutrientKey, servingSize }) => {
+    if (!product?.nutriments?.[nutrientKey]) return null;
+    
+    const nutrientData = getNutrientDisplayData(nutrientKey, product.nutriments[nutrientKey], servingSize);
+    if (!nutrientData) return null;
+
+    const formattedValue = nutrientData.unit === 'Cal' ?
+      Math.round(nutrientData.value) :
+      nutrientData.value.toFixed(1);
+
+    return (
+      <View>
+        <View style={styles.indicatorRow}>
+          <View style={styles.indicatorIcon}>
+            <Ionicons name={nutrientData.icon} size={24} color="#6B7280" />
+          </View>
+          <View style={styles.indicatorContent}>
+            <Text style={styles.indicatorTitle}>{nutrientData.title}</Text>
+            <Text style={styles.indicatorSubtitle}>{nutrientData.description}</Text>
+          </View>
+          <View style={styles.indicatorValue}>
+            <View style={styles.valueContainer}>
+              <Text style={styles.valueText}>
+                {formattedValue}{nutrientData.unit}
+              </Text>
+              <View style={[styles.qualityDot, { backgroundColor: nutrientData.color }]} />
+              <Ionicons
+                name={nutrientData.isPositive && nutrientData.level === 'high' ? "chevron-up" :
+                      !nutrientData.isPositive && nutrientData.level === 'low' ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={nutrientData.isPositive && nutrientData.level === 'high' ? "#10B981" :
+                       !nutrientData.isPositive && nutrientData.level === 'low' ? "#10B981" : "#9CA3AF"}
+              />
+            </View>
+          </View>
+        </View>
+        <ProgressBar nutrientData={nutrientData} />
+      </View>
+    );
+  };
+
+  const SimpleIndicator = ({ icon, title, subtitle, value, quality, isPositive = true }) => (
+    <View style={styles.indicatorRow}>
+      <View style={styles.indicatorIcon}>
+        <Ionicons name={icon} size={24} color="#6B7280" />
+      </View>
+      <View style={styles.indicatorContent}>
+        <Text style={styles.indicatorTitle}>{title}</Text>
+        <Text style={styles.indicatorSubtitle}>{subtitle}</Text>
+      </View>
+      <View style={styles.indicatorValue}>
+        <View style={styles.valueContainer}>
+          {value && <Text style={styles.valueText}>{value}</Text>}
+          <View style={[styles.qualityDot, { backgroundColor: quality.color }]} />
+          <Ionicons
+            name={isPositive ? "checkmark" : "chevron-down"}
+            size={16}
+            color={isPositive ? "#10B981" : "#9CA3AF"}
+          />
+        </View>
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -330,30 +372,18 @@ const ProductDetailScreen = ({ route, navigation }) => {
   // Get serving size from backend
   const servingSize = product.serving_size || 33;
 
-  // Process nutrients
-  const nutrients = {
-    positives: ['fiber_100g', 'proteins_100g'],
-    negatives: ['energy_kcal_100g', 'saturated_fat_100g']
-  };
-
-  // Add sugar and sodium to appropriate sections based on their values
-  const sugarData = getNutrientDisplayData('sugars_100g', product.nutriments.sugars_100g, servingSize);
-  const sodiumData = getNutrientDisplayData('sodium_100g', product.nutriments.sodium_100g, servingSize);
-
-  if (sugarData && sugarData.level === 'low') {
-    nutrients.positives.push('sugars_100g');
-  } else if (sugarData) {
-    nutrients.negatives.push('sugars_100g');
-  }
-
-  if (sodiumData && sodiumData.level === 'low') {
-    nutrients.positives.push('sodium_100g');
-  } else if (sodiumData) {
-    nutrients.negatives.push('sodium_100g');
-  }
-
   // Check for additives
   const hasAdditives = product.ingredients_analysis?.additives?.length > 0;
+
+  // Determine which nutrients to show in which sections
+  const nutrients = product.nutriments || {};
+  
+  // Check sugar and sodium levels to determine section placement
+  const sugarData = getNutrientDisplayData('sugars_100g', nutrients.sugars_100g, servingSize);
+  const sodiumData = getNutrientDisplayData('sodium_100g', nutrients.sodium_100g, servingSize);
+  
+  const showSugarInPositives = sugarData && sugarData.level === 'low';
+  const showSodiumInPositives = sodiumData && sodiumData.level === 'low';
 
   return (
     <View style={styles.container}>
@@ -391,35 +421,31 @@ const ProductDetailScreen = ({ route, navigation }) => {
 
           {/* No Additives Indicator */}
           {!hasAdditives && (
-            <View style={styles.indicatorRow}>
-              <View style={styles.indicatorIcon}>
-                <Ionicons name="hand-right" size={24} color="#6B7280" />
-              </View>
-              <View style={styles.indicatorContent}>
-                <Text style={styles.indicatorTitle}>No additives</Text>
-                <Text style={styles.indicatorSubtitle}>No hazardous substances</Text>
-              </View>
-              <View style={styles.indicatorValue}>
-                <View style={styles.valueContainer}>
-                  <View style={[styles.qualityDot, { backgroundColor: '#10B981' }]} />
-                  <Ionicons name="checkmark" size={16} color="#10B981" />
-                </View>
-              </View>
-            </View>
+            <SimpleIndicator
+              icon="hand-right"
+              title="No additives"
+              subtitle="No hazardous substances"
+              value=""
+              quality={{ color: '#10B981' }}
+              isPositive={true}
+            />
           )}
 
-          {/* Positive Nutrients */}
-          {nutrients.positives.map((key) => {
-            const nutrientData = getNutrientDisplayData(key, product.nutriments[key], servingSize);
-            if (!nutrientData || (!nutrientData.isPositive && nutrientData.level !== 'low')) return null;
-            
-            return (
-              <View key={key}>
-                <NutrientIndicator nutrientData={nutrientData} servingSize={servingSize} />
-                <ProgressBar nutrientData={nutrientData} />
-              </View>
-            );
-          })}
+          {/* Protein */}
+          <NutrientIndicatorWithProgress nutrientKey="proteins_100g" servingSize={servingSize} />
+
+          {/* Fiber */}
+          <NutrientIndicatorWithProgress nutrientKey="fiber_100g" servingSize={servingSize} />
+
+          {/* Sugar (if low) */}
+          {showSugarInPositives && (
+            <NutrientIndicatorWithProgress nutrientKey="sugars_100g" servingSize={servingSize} />
+          )}
+
+          {/* Sodium (if low) */}
+          {showSodiumInPositives && (
+            <NutrientIndicatorWithProgress nutrientKey="sodium_100g" servingSize={servingSize} />
+          )}
         </View>
 
         {/* Negatives Section */}
@@ -429,43 +455,77 @@ const ProductDetailScreen = ({ route, navigation }) => {
             <Text style={styles.servingInfo}>per serving ({servingSize}g) •••</Text>
           </View>
 
-          {/* Negative Nutrients */}
-          {nutrients.negatives.map((key) => {
-            const nutrientData = getNutrientDisplayData(key, product.nutriments[key], servingSize);
-            if (!nutrientData || (nutrientData.isPositive && nutrientData.level === 'low')) return null;
-            
-            return (
-              <View key={key}>
-                <NutrientIndicator nutrientData={nutrientData} servingSize={servingSize} />
-                <ProgressBar nutrientData={nutrientData} />
-              </View>
-            );
-          })}
+          {/* Calories */}
+          <NutrientIndicatorWithProgress nutrientKey="energy_kcal_100g" servingSize={servingSize} />
+
+          {/* Saturated Fat */}
+          <NutrientIndicatorWithProgress nutrientKey="saturated_fat_100g" servingSize={servingSize} />
+
+          {/* Sugar (if not low) */}
+          {!showSugarInPositives && nutrients.sugars_100g && (
+            <NutrientIndicatorWithProgress nutrientKey="sugars_100g" servingSize={servingSize} />
+          )}
+
+          {/* Sodium (if not low) */}
+          {!showSodiumInPositives && nutrients.sodium_100g && (
+            <NutrientIndicatorWithProgress nutrientKey="sodium_100g" servingSize={servingSize} />
+          )}
+
+          {/* Total Fat (if significant) */}
+          {nutrients.fat_100g && nutrients.fat_100g > 3 && (
+            <NutrientIndicatorWithProgress nutrientKey="fat_100g" servingSize={servingSize} />
+          )}
 
           {/* Show additives if present */}
           {hasAdditives && (
-            <View style={styles.indicatorRow}>
-              <View style={styles.indicatorIcon}>
-                <Ionicons name="warning" size={24} color="#6B7280" />
-              </View>
-              <View style={styles.indicatorContent}>
-                <Text style={styles.indicatorTitle}>Contains additives</Text>
-                <Text style={styles.indicatorSubtitle}>
-                  {product.ingredients_analysis.additives.length} potentially harmful substances
-                </Text>
-              </View>
-              <View style={styles.indicatorValue}>
-                <View style={styles.valueContainer}>
-                  <View style={[styles.qualityDot, { backgroundColor: '#EF4444' }]} />
-                  <Ionicons name="chevron-down" size={16} color="#9CA3AF" />
-                </View>
-              </View>
-            </View>
+            <SimpleIndicator
+              icon="warning"
+              title="Contains additives"
+              subtitle={`${product.ingredients_analysis.additives.length} potentially harmful substances`}
+              value=""
+              quality={{ color: '#EF4444' }}
+              isPositive={false}
+            />
           )}
         </View>
 
-        {/* Rest of the component remains the same... */}
-        {/* (Additive Details, Ingredients sections) */}
+        {/* Additives Detail (if any) */}
+        {hasAdditives && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Additive Details</Text>
+            </View>
+            {product.ingredients_analysis.additives.map((additive, index) => (
+              <View key={index} style={styles.additiveDetailCard}>
+                <View style={styles.additiveDetailHeader}>
+                  <Text style={styles.additiveDetailName}>{additive.name}</Text>
+                  <View style={[styles.riskBadge, {
+                    backgroundColor: additive.risk_level === 'high' ? '#EF4444' :
+                                    additive.risk_level === 'medium' ? '#F59E0B' : '#10B981'
+                  }]}>
+                    <Text style={styles.riskText}>{additive.risk_level.toUpperCase()}</Text>
+                  </View>
+                </View>
+                <Text style={styles.additiveCode}>{additive.code}</Text>
+                <Text style={styles.additiveEffects}>
+                  Potential effects: {additive.effects.join(', ')}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Ingredients */}
+        {product.ingredients_text && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Ingredients</Text>
+            </View>
+            <View style={styles.ingredientsCard}>
+              <Text style={styles.ingredientsText}>{product.ingredients_text}</Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -474,7 +534,6 @@ const ProductDetailScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  // ... existing styles remain the same ...
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
@@ -483,7 +542,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Loading & Error States (keep existing)
+  // Loading & Error States
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -571,7 +630,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // Product Header (keep existing)
+  // Product Header
   productHeader: {
     backgroundColor: 'white',
     padding: 24,
@@ -614,7 +673,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Health Score (keep existing)
+  // Health Score
   healthScoreContainer: {
     alignItems: 'center',
   },
@@ -728,7 +787,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
 
-  // NEW: Progress Bar Styles
+  // Progress Bar Styles
   progressContainer: {
     marginLeft: 56, // Align with indicator content
     marginRight: 24,
@@ -777,7 +836,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Additive Details (keep existing)
+  // Additive Details
   additiveDetailCard: {
     backgroundColor: '#FEF2F2',
     borderLeftWidth: 4,
@@ -822,7 +881,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Ingredients (keep existing)
+  // Ingredients
   ingredientsCard: {
     backgroundColor: '#F9FAFB',
     padding: 16,
@@ -837,3 +896,6 @@ const styles = StyleSheet.create({
   bottomSpacer: {
     height: 40,
   },
+});
+
+export default ProductDetailScreen;

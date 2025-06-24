@@ -147,169 +147,250 @@ class FoodHealthAnalyzer:
             'salad dressing': 30
         }
 
-    def get_serving_size(self, product: Dict) -> float:
-        """Determine appropriate serving size based on product data and category with better API extraction"""
+    def get_serving_size_from_api(self, product: Dict) -> Dict:
+        """
+        Extract serving size from OpenFoodFacts API with comprehensive field checking
+        Based on official API documentation: https://wiki.openfoodfacts.org/API_Fields
+        """
+        import re
         
-        # Priority 1: Try various serving size fields from OpenFoodFacts API
-        serving_fields = [
-            'serving_size',           # Main field
-            'serving_quantity',       # Alternative field
-            'product_quantity',       # Sometimes used for single serve
-            'net_weight',            # For single-serve items
-        ]
+        def parse_serving_string(serving_str):
+            """Parse serving size string and extract numeric value in grams"""
+            if not serving_str or not isinstance(serving_str, str):
+                return None
+                
+            serving_str = serving_str.strip().lower()
+            
+            # Extract numeric value
+            numbers = re.findall(r'\d+\.?\d*', serving_str)
+            if not numbers:
+                return None
+                
+            value = float(numbers[0])
+            
+            # Convert based on unit
+            if any(unit in serving_str for unit in ['ml', 'milliliter', 'millilitre']):
+                return value  # 1ml ≈ 1g for most liquids
+            elif any(unit in serving_str for unit in ['cl', 'centiliter', 'centilitre']):
+                return value * 10  # 1cl = 10ml
+            elif any(unit in serving_str for unit in ['dl', 'deciliter', 'decilitre']):
+                return value * 100  # 1dl = 100ml
+            elif any(unit in serving_str for unit in ['l', 'liter', 'litre', 'lt']):
+                return value * 1000  # 1l = 1000ml
+            elif any(unit in serving_str for unit in ['fl oz', 'fl.oz', 'fluid ounce']):
+                return value * 29.5735  # 1 fl oz = 29.5735ml
+            elif any(unit in serving_str for unit in ['oz', 'ounce']):
+                return value * 28.3495  # 1 oz = 28.3495g
+            elif any(unit in serving_str for unit in ['lb', 'pound']):
+                return value * 453.592  # 1 lb = 453.592g
+            elif any(unit in serving_str for unit in ['kg', 'kilogram']):
+                return value * 1000  # 1kg = 1000g
+            elif any(unit in serving_str for unit in ['mg', 'milligram']):
+                return value / 1000  # 1mg = 0.001g
+            elif any(unit in serving_str for unit in ['g', 'gram', 'gr']):
+                return value
+            elif any(unit in serving_str for unit in ['tbsp', 'tablespoon', 'table spoon']):
+                return value * 15  # 1 tbsp ≈ 15g (varies by ingredient)
+            elif any(unit in serving_str for unit in ['tsp', 'teaspoon', 'tea spoon']):
+                return value * 5   # 1 tsp ≈ 5g (varies by ingredient)
+            elif any(unit in serving_str for unit in ['cup']):
+                return value * 240  # 1 cup ≈ 240g (varies by ingredient)
+            else:
+                # No unit specified, assume grams if reasonable
+                if 1 <= value <= 1000:
+                    return value
+                return None
         
-        for field in serving_fields:
-            serving = product.get(field)
-            if serving:
-                try:
-                    # Handle string values with units (e.g., "33g", "250ml")
-                    if isinstance(serving, str):
-                        # Extract numeric value from string like "33g" or "250 ml"
-                        import re
-                        numbers = re.findall(r'\d+\.?\d*', serving)
-                        if numbers:
-                            value = float(numbers[0])
-                            # Convert ml to grams (approximate for liquids)
-                            if 'ml' in serving.lower():
-                                return value * 1.0  # 1ml ≈ 1g for most liquids
-                            return value
-                    else:
-                        return float(serving)
-                except (ValueError, TypeError):
-                    continue
+        # Priority 1: Check serving_size field (string with units)
+        serving_size = product.get('serving_size')
+        if serving_size:
+            parsed = parse_serving_string(serving_size)
+            if parsed:
+                return {
+                    'serving_size': parsed,
+                    'confidence': 'high',
+                    'source': 'serving_size_field',
+                    'original_value': serving_size,
+                    'unit': 'g'
+                }
         
-        # Priority 2: Check nutrition table serving size
-        nutriments = product.get('nutriments', {})
-        if 'serving_size' in nutriments:
+        # Priority 2: Check serving_quantity field (usually numeric in grams)
+        serving_quantity = product.get('serving_quantity')
+        if serving_quantity:
             try:
-                return float(nutriments['serving_size'])
+                value = float(serving_quantity)
+                if 1 <= value <= 1000:  # Reasonable serving size range
+                    return {
+                        'serving_size': value,
+                        'confidence': 'high',
+                        'source': 'serving_quantity_field',
+                        'original_value': serving_quantity,
+                        'unit': 'g'
+                    }
             except (ValueError, TypeError):
                 pass
         
-        # Priority 3: Intelligent category-based defaults (improved)
+        # Priority 3: Check nutriments for serving-specific data
+        nutriments = product.get('nutriments', {})
+        
+        # Look for any nutrient with _serving suffix to infer serving size
+        for key, value in nutriments.items():
+            if key.endswith('_serving') and value:
+                try:
+                    serving_value = float(value)
+                    # Find corresponding _100g value to calculate serving size
+                    base_key = key.replace('_serving', '_100g')
+                    per_100g_value = nutriments.get(base_key)
+                    
+                    if per_100g_value and float(per_100g_value) > 0:
+                        # Calculate serving size: (serving_value / per_100g_value) * 100
+                        calculated_serving = (serving_value / float(per_100g_value)) * 100
+                        if 5 <= calculated_serving <= 500:  # Reasonable range
+                            return {
+                                'serving_size': calculated_serving,
+                                'confidence': 'medium',
+                                'source': f'calculated_from_{key}',
+                                'original_value': f'{key}: {value}',
+                                'unit': 'g'
+                            }
+                except (ValueError, TypeError, ZeroDivisionError):
+                    continue
+        
+        # Priority 4: Check product_quantity for single-serve items
+        product_quantity = product.get('product_quantity')
+        if product_quantity:
+            try:
+                value = float(product_quantity)
+                # For single-serve items, the product quantity might be the serving size
+                if 10 <= value <= 500:
+                    return {
+                        'serving_size': value,
+                        'confidence': 'medium',
+                        'source': 'product_quantity_field',
+                        'original_value': product_quantity,
+                        'unit': 'g'
+                    }
+            except (ValueError, TypeError):
+                pass
+        
+        # Priority 5: Parse quantity field for serving clues
+        quantity = product.get('quantity')
+        if quantity:
+            parsed = parse_serving_string(quantity)
+            if parsed and 10 <= parsed <= 500:
+                return {
+                    'serving_size': parsed,
+                    'confidence': 'low',
+                    'source': 'quantity_field',
+                    'original_value': quantity,
+                    'unit': 'g'
+                }
+        
+        # Priority 6: Enhanced category-based defaults
         categories = product.get('categories', '').lower()
         product_name = product.get('product_name', '').lower()
         
-        # More specific category matching
+        # More comprehensive category mapping
         category_mappings = {
-            # Spreads and condiments
-            'peanut butter': 32,
-            'peanut-butters': 32,
-            'nut butter': 32,
-            'almond butter': 32,
-            'jam': 20,
-            'jams': 20,
-            'honey': 21,
-            'spread': 20,
-            'spreads': 20,
-            'condiment': 15,
-            
-            # Breakfast items
-            'cereal': 40,
-            'cereals': 40,
-            'breakfast cereal': 40,
-            'granola': 55,
-            'granolas': 55,
-            'oatmeal': 40,
-            'muesli': 45,
+            # Beverages
+            'sodas': 355, 'soft-drinks': 355, 'carbonated-drinks': 355,
+            'fruit-juices': 240, 'orange-juices': 240, 'apple-juices': 240,
+            'energy-drinks': 250, 'sports-drinks': 355,
+            'waters': 240, 'mineral-waters': 240,
+            'teas': 240, 'coffees': 240,
+            'plant-based-milk': 240, 'almond-milk': 240, 'soy-milk': 240,
+            'dairy-milk': 240, 'milks': 240,
             
             # Dairy
-            'yogurt': 170,
-            'yoghurt': 170,
-            'yogurts': 170,
-            'greek yogurt': 170,
-            'milk': 240,
-            'milks': 240,
-            'cheese': 28,
-            'cheeses': 28,
-            'ice cream': 65,
-            'ice-cream': 65,
+            'yogurts': 170, 'greek-yogurt': 170, 'plain-yogurts': 170,
+            'cheeses': 28, 'hard-cheeses': 28, 'soft-cheeses': 28,
+            'ice-creams': 65, 'frozen-desserts': 65,
+            'butter': 14, 'margarine': 14,
             
-            # Beverages
-            'juice': 240,
-            'juices': 240,
-            'fruit juice': 240,
-            'soda': 355,
-            'soft drink': 355,
-            'energy drink': 240,
-            'water': 240,
+            # Spreads & Condiments
+            'peanut-butters': 32, 'nut-butters': 32, 'almond-butters': 32,
+            'jams': 20, 'fruit-preserves': 20, 'marmalades': 20,
+            'honey': 21, 'maple-syrup': 20,
+            'spreads': 20, 'chocolate-spreads': 20,
+            'condiments': 15, 'sauces': 30, 'salad-dressings': 30,
+            'mayonnaise': 15, 'ketchup': 17,
+            
+            # Breakfast & Cereals
+            'breakfast-cereals': 40, 'cereals': 40, 'muesli': 45,
+            'granola': 55, 'oat-flakes': 40, 'corn-flakes': 30,
+            'instant-oatmeal': 40, 'porridge': 40,
             
             # Snacks
-            'chocolate': 40,
-            'chocolates': 40,
-            'candy': 30,
-            'candies': 30,
-            'chips': 28,
-            'crackers': 30,
-            'cookies': 30,
-            'biscuits': 30,
-            'nuts': 28,
+            'chocolates': 40, 'dark-chocolates': 40, 'milk-chocolates': 40,
+            'chocolate-bars': 45, 'candy-bars': 45,
+            'candies': 30, 'gummies': 30, 'hard-candies': 15,
+            'chips': 28, 'potato-chips': 28, 'corn-chips': 28,
+            'crackers': 30, 'biscuits': 30, 'cookies': 30,
+            'pretzels': 30, 'popcorn': 25,
+            'nuts': 28, 'mixed-nuts': 28, 'almonds': 28, 'peanuts': 28,
+            'dried-fruits': 30, 'raisins': 30,
             
             # Staples
-            'bread': 25,
-            'breads': 25,
-            'pasta': 85,
-            'pastas': 85,
-            'rice': 80,
-            'oil': 14,
-            'oils': 14,
-            'butter': 14,
-            'margarine': 14,
+            'breads': 25, 'white-bread': 25, 'whole-wheat-bread': 25,
+            'bagels': 85, 'muffins': 60, 'croissants': 60,
+            'pasta': 85, 'spaghetti': 85, 'noodles': 85,
+            'rice': 80, 'white-rice': 80, 'brown-rice': 80,
+            'quinoa': 80, 'couscous': 80,
+            'oils': 14, 'olive-oil': 14, 'vegetable-oil': 14,
             
             # Prepared foods
-            'soup': 245,
-            'soups': 245,
-            'salad': 85,
-            'salads': 85,
-            'sandwich': 150,
-            'sandwiches': 150,
+            'soups': 245, 'canned-soups': 245, 'instant-soups': 245,
+            'frozen-meals': 280, 'ready-meals': 280,
+            'sandwiches': 150, 'wraps': 150,
+            'pizza': 120, 'frozen-pizza': 120,
+            'salads': 85, 'prepared-salads': 85,
         }
         
-        # Check categories first
-        for category, size in category_mappings.items():
-            if category in categories:
-                return size
+        # Check categories with higher specificity first
+        for category, size in sorted(category_mappings.items(), key=lambda x: len(x[0]), reverse=True):
+            if category in categories or category in product_name:
+                return {
+                    'serving_size': size,
+                    'confidence': 'medium',
+                    'source': f'category_match_{category}',
+                    'original_value': categories,
+                    'unit': 'g'
+                }
         
-        # Check product name
-        for category, size in category_mappings.items():
-            if category in product_name:
-                return size
-        
-        # Priority 4: Use package size for single-serve items
-        quantity = product.get('quantity')
-        if quantity:
+        # Priority 7: Nutrition-based estimation
+        energy_per_100g = nutriments.get('energy-kcal_100g', 0) or nutriments.get('energy_100g', 0)
+        if energy_per_100g:
             try:
-                if isinstance(quantity, str):
-                    # Extract numeric value and check if it's reasonable for a serving
-                    import re
-                    numbers = re.findall(r'\d+\.?\d*', quantity)
-                    if numbers:
-                        value = float(numbers[0])
-                        # If package size is reasonable for single serving (10g - 500g)
-                        if 10 <= value <= 500:
-                            return value
-                else:
-                    value = float(quantity)
-                    if 10 <= value <= 500:
-                        return value
+                energy = float(energy_per_100g)
+                if energy > 500:  # High calorie density (nuts, oils, chocolate)
+                    estimated_serving = 25
+                elif energy > 350:  # Medium-high (baked goods, snacks)
+                    estimated_serving = 35
+                elif energy > 200:  # Medium (bread, pasta)
+                    estimated_serving = 45
+                elif energy > 100:  # Medium-low (fruits, some dairy)
+                    estimated_serving = 80
+                else:  # Low calorie (vegetables, diet drinks)
+                    estimated_serving = 120
+                    
+                return {
+                    'serving_size': estimated_serving,
+                    'confidence': 'low',
+                    'source': f'nutrition_based_estimation_{energy}kcal',
+                    'original_value': f'{energy} kcal/100g',
+                    'unit': 'g'
+                }
             except (ValueError, TypeError):
                 pass
         
-        # Priority 5: Smart defaults based on nutrition density
-        energy_per_100g = nutriments.get('energy-kcal_100g', 0)
-        if energy_per_100g:
-            if energy_per_100g > 500:  # High calorie density (nuts, oils, etc.)
-                return 25
-            elif energy_per_100g > 350:  # Medium-high (chocolate, etc.)
-                return 35
-            elif energy_per_100g > 200:  # Medium (bread, etc.)
-                return 45
-            elif energy_per_100g < 100:  # Low calorie (vegetables, some drinks)
-                return 100
-        
         # Final fallback
-        return 33
-
+        return {
+            'serving_size': 33,
+            'confidence': 'very_low',
+            'source': 'default_fallback',
+            'original_value': 'no_data_available',
+            'unit': 'g'
+        }
     def get_intelligent_serving_size_with_context(self, product: Dict) -> Dict:
         """Get serving size with additional context for better accuracy"""
         serving_size = self.get_serving_size(product)
@@ -820,13 +901,13 @@ analyzer = FoodHealthAnalyzer()
 
 @food_scanner_bp.route('/product/<barcode>', methods=['GET'])
 def get_product_info(barcode):
-    """Get product information by barcode with enhanced analysis"""
+    """Get product information by barcode with enhanced serving size extraction"""
     try:
         # Validate barcode
         if not barcode or not barcode.isdigit():
             return jsonify({'error': 'Invalid barcode format'}), 400
         
-        # Query OpenFoodFacts API
+        # Query OpenFoodFacts API with additional fields for serving size
         url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
         headers = {
             'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
@@ -842,8 +923,8 @@ def get_product_info(barcode):
         
         product = data['product']
         
-        # Get improved serving size with context
-        serving_info = analyzer.get_intelligent_serving_size_with_context(product)
+        # Get comprehensive serving size information
+        serving_info = analyzer.get_serving_size_from_api(product)
         serving_size = serving_info['serving_size']
         
         # Analyze ingredients
@@ -853,42 +934,13 @@ def get_product_info(barcode):
         # Calculate Nutri-Score
         nutri_score = analyzer.calculate_nutri_score(product.get('nutriments', {}))
         
-        # Analyze each nutrient
-        nutrient_analysis = {}
-        main_nutrients = ['energy-kcal_100g', 'fat_100g', 'saturated-fat_100g', 'carbohydrates_100g',
-                         'sugars_100g', 'fiber_100g', 'proteins_100g', 'salt_100g', 'sodium_100g']
-        
-        for key in main_nutrients:
-            value = product.get('nutriments', {}).get(key)
-            if value is not None:
-                nutrient_analysis[key] = analyzer.analyze_nutrient_quality(key, value, serving_size)
-        
-        # Calculate strict health score
+        # Calculate health score
         health_score = analyzer.calculate_health_score(
             product.get('nutriments', {}),
             ingredients_analysis
         )
         
-        # Categorize nutrients
-        positive_nutrients = []
-        negative_nutrients = []
-        
-        for key, analysis in nutrient_analysis.items():
-            if analysis['category'] == 'positive':
-                positive_nutrients.append(key)
-            else:
-                negative_nutrients.append(key)
-        
-        # Generate recommendations
-        enhanced_product_data = {
-            'nutriments': product.get('nutriments', {}),
-            'nutri_score': nutri_score,
-            'ingredients_analysis': ingredients_analysis,
-            'health_score': health_score
-        }
-        recommendations = analyzer.get_health_recommendations(enhanced_product_data, serving_size)
-        
-        # Clean and normalize nutrient data for frontend
+        # Clean and normalize nutrient data
         clean_nutrients = {}
         nutriment_mapping = {
             'energy-kcal_100g': 'energy_kcal_100g',
@@ -896,10 +948,8 @@ def get_product_info(barcode):
         }
         
         for key, value in product.get('nutriments', {}).items():
-            # Normalize key names (remove hyphens)
             clean_key = nutriment_mapping.get(key, key)
             
-            # Only include main nutrients and ensure they're numeric
             if clean_key in ['energy_kcal_100g', 'fat_100g', 'saturated_fat_100g', 'carbohydrates_100g',
                             'sugars_100g', 'fiber_100g', 'proteins_100g', 'salt_100g', 'sodium_100g']:
                 try:
@@ -907,9 +957,18 @@ def get_product_info(barcode):
                 except (ValueError, TypeError):
                     clean_nutrients[clean_key] = None
         
-        # Ensure sodium is available (convert from salt if needed)
+        # Ensure sodium is available
         if not clean_nutrients.get('sodium_100g') and clean_nutrients.get('salt_100g'):
             clean_nutrients['sodium_100g'] = clean_nutrients['salt_100g'] * 0.4
+        
+        # Generate recommendations
+        enhanced_product_data = {
+            'nutriments': clean_nutrients,
+            'nutri_score': nutri_score,
+            'ingredients_analysis': ingredients_analysis,
+            'health_score': health_score
+        }
+        recommendations = analyzer.get_health_recommendations(enhanced_product_data, serving_size)
         
         # Prepare response data
         result = {
@@ -922,22 +981,12 @@ def get_product_info(barcode):
             
             # Enhanced serving size information
             'serving_size': serving_size,
-            'serving_info': {
-                'size': serving_size,
-                'unit': 'g',
-                'confidence': serving_info['confidence'],
-                'source': serving_info['source']
-            },
+            'serving_info': serving_info,
             
             'nutri_score': nutri_score,
             'ingredients_analysis': ingredients_analysis,
             'nutriments': clean_nutrients,
-            'nutrient_analysis': nutrient_analysis,
             'health_score': health_score,
-            'categorized_nutrients': {
-                'positive': positive_nutrients,
-                'negative': negative_nutrients
-            },
             'recommendations': recommendations,
             'quality_indicators': {
                 'is_ultra_processed': ingredients_analysis.get('ingredient_count', 0) > 10,
@@ -946,14 +995,14 @@ def get_product_info(barcode):
                 'overall_quality': 'excellent' if health_score >= 80 else 'good' if health_score >= 60 else 'fair' if health_score >= 40 else 'poor'
             },
             
-            # Debug info (remove in production)
-            'debug': {
-                'original_serving_fields': {
-                    'serving_size': product.get('serving_size'),
-                    'serving_quantity': product.get('serving_quantity'),
-                    'quantity': product.get('quantity')
-                },
-                'categories_detected': product.get('categories', '').lower().split(',')[:5]
+            # Debug info for serving size (remove in production)
+            'debug_serving': {
+                'raw_serving_size': product.get('serving_size'),
+                'raw_serving_quantity': product.get('serving_quantity'),
+                'raw_quantity': product.get('quantity'),
+                'raw_product_quantity': product.get('product_quantity'),
+                'has_serving_nutrients': any(k.endswith('_serving') for k in product.get('nutriments', {}).keys()),
+                'serving_calculation': serving_info
             }
         }
         
@@ -966,7 +1015,6 @@ def get_product_info(barcode):
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
-
 @food_scanner_bp.route('/search/<query>', methods=['GET'])
 def search_products(query):
     """Search for products by name"""
