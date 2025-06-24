@@ -170,7 +170,7 @@ const GroceryListModal = ({
     
     return (
       <View style={styles.costSection}>
-        <Text style={styles.sectionTitle}>💰 Cost Breakdown</Text>
+        <Text style={styles.sectionTitle}>💰 Estimated Cost Breakdown</Text>
         
         <View style={styles.costCards}>
           <View style={styles.costCard}>
@@ -179,7 +179,7 @@ const GroceryListModal = ({
               <Text style={styles.costCardTitle}>Total Cost</Text>
             </View>
             <Text style={styles.costCardValue}>${cost_breakdown.total_cost}</Text>
-            <Text style={styles.costCardSubtext}>{cost_breakdown.item_count} items</Text>
+           
           </View>
 
           <View style={styles.costCard}>
@@ -188,7 +188,7 @@ const GroceryListModal = ({
               <Text style={styles.costCardTitle}>Per Day</Text>
             </View>
             <Text style={styles.costCardValue}>${cost_breakdown.cost_per_day}</Text>
-            <Text style={styles.costCardSubtext}>{days} days</Text>
+            
           </View>
 
           <View style={styles.costCard}>
@@ -197,7 +197,7 @@ const GroceryListModal = ({
               <Text style={styles.costCardTitle}>Per Meal</Text>
             </View>
             <Text style={styles.costCardValue}>${cost_breakdown.cost_per_meal}</Text>
-            <Text style={styles.costCardSubtext}>{days * mealsPerDay} meals</Text>
+        
           </View>
         </View>
 
@@ -591,7 +591,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   costCardTitle: {
-    fontSize: 12,
+    fontSize: 11,
+    marginRight:2,
     fontWeight: '600',
     color: '#64748b',
     textTransform: 'uppercase',

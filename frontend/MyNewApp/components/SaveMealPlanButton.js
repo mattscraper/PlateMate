@@ -265,6 +265,7 @@ const styles = StyleSheet.create({
       shadowOpacity: 0.2,
       shadowRadius: 4,
       elevation: 4,
+        
     },
     savedButton: {
       backgroundColor: "#333", // dark gray to indicate it's saved

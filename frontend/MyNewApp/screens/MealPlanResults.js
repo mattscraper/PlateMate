@@ -614,12 +614,6 @@ export default function MealPlanResults() {
         <Text style={styles.headerTitle}>Your Meal Plan</Text>
         
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerActionButton}
-            onPress={handleGroceryListPress}
-          >
-            <Ionicons name="basket-outline" size={20} color="#008b8b" />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.headerActionButton} onPress={handleShare}>
             <Ionicons name="share-outline" size={20} color="#008b8b" />
           </TouchableOpacity>
@@ -698,6 +692,30 @@ export default function MealPlanResults() {
             />
           </View>
         </Animated.View>
+
+        {/* Prominent Grocery List Button */}
+        <View style={styles.groceryButtonContainer}>
+          <TouchableOpacity
+            style={styles.prominentGroceryButton}
+            onPress={handleGroceryListPress}
+            activeOpacity={0.8}
+          >
+            <View style={styles.groceryButtonContent}>
+              <View style={styles.groceryButtonLeft}>
+                <View style={styles.groceryButtonIcon}>
+                  <Ionicons name="basket" size={24} color="#ffffff" />
+                </View>
+                <View style={styles.groceryButtonText}>
+                  <Text style={styles.groceryButtonTitle}>Generate Grocery List</Text>
+                  <Text style={styles.groceryButtonSubtitle}>Get shopping list with cost estimates</Text>
+                </View>
+              </View>
+              <View style={styles.groceryButtonArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#ffffff" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
 
         {/* Content */}
         {viewMode === 'cards' ? (
@@ -1063,6 +1081,64 @@ const styles = StyleSheet.create({
 
   saveButtonContainer: {
     // Moved save button to controls area for better layout
+  },
+
+  // Prominent Grocery List Button
+  groceryButtonContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  prominentGroceryButton: {
+    backgroundColor: '#008b8b',
+    borderRadius: 16,
+    padding: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  groceryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  groceryButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  groceryButtonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  groceryButtonText: {
+    flex: 1,
+  },
+  groceryButtonTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  groceryButtonSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 18,
+  },
+  groceryButtonArrow: {
+    marginLeft: 12,
   },
 
   cardsContainer: {

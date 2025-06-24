@@ -486,17 +486,18 @@ const styles = StyleSheet.create({
   },
   
   // Header
-  header: {
-    backgroundColor: 'white',
-      marginTop:0,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5ea',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: "#008b8b",
+      backgroundColor: "#f8f9fa",
+      marginTop: -10,
+      borderRadius: 10,
+      borderBlockColor: "#008b8b",
+    },
   backButton: {
     width: 44,
     height: 44,

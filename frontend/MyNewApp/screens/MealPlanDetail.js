@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import GroceryListModal from "../components/GroceryListModal";
 
 const { width } = Dimensions.get('window');
 
@@ -23,9 +24,8 @@ export default function MealPlanDetail() {
   const route = useRoute();
   const mealPlanData = route.params?.mealPlan || {};
 
-  // Extract meal plan properties
   const {
-    mealPlan, // This is the actual plan content text
+    mealPlan,
     days = 7,
     mealsPerDay = 3,
     healthy = false,
@@ -34,151 +34,96 @@ export default function MealPlanDetail() {
     caloriesPerDay = 2000,
   } = mealPlanData;
 
-  // Parse meal plan data
   const [parsedDays, setParsedDays] = useState([]);
   const [selectedMeal, setSelectedMeal] = useState(null);
   const [viewMode, setViewMode] = useState('cards');
   const [isLoading, setIsLoading] = useState(true);
+  const [showGroceryList, setShowGroceryList] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
-  const scrollViewRef = useRef();
 
-  // Create smooth animated values for summary card
-  const summaryOpacity = scrollY.interpolate({
-    inputRange: [0, 50, 120],
-    outputRange: [1, 0.8, 0],
+  const controlsMarginTop = scrollY.interpolate({
+    inputRange: [0, 60, 100],
+    outputRange: [16, 8, 4],
     extrapolate: 'clamp',
   });
 
-  const summaryTranslateY = scrollY.interpolate({
-    inputRange: [0, 120],
-    outputRange: [0, -60],
+  const controlsTranslateY = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, -8],
     extrapolate: 'clamp',
   });
 
-  const summaryScale = scrollY.interpolate({
-    inputRange: [0, 50, 120],
-    outputRange: [1, 0.98, 0.95],
-    extrapolate: 'clamp',
-  });
-
-  // Animated height for collapsing the summary card
-  const summaryHeight = scrollY.interpolate({
-    inputRange: [0, 80, 120],
-    outputRange: [180, 80, 0],
-    extrapolate: 'clamp',
-  });
-
-  // Animated margin for smooth spacing
-  const summaryMargin = scrollY.interpolate({
-    inputRange: [0, 80, 120],
-    outputRange: [8, 4, 0],
-    extrapolate: 'clamp',
-  });
-
-  // Animated spacing for toggle container to move up and touch header
-  const toggleMarginTop = scrollY.interpolate({
-    inputRange: [0, 80, 120],
-    outputRange: [8, 4, 0],
-    extrapolate: 'clamp',
-  });
-
-  const togglePaddingVertical = scrollY.interpolate({
-    inputRange: [0, 80, 120],
-    outputRange: [8, 4, 0],
-    extrapolate: 'clamp',
-  });
-
-  // Parse the meal plan text when component mounts
   useEffect(() => {
-    console.log("MealPlanDetail props:", {
-      mealPlanType: typeof mealPlan,
-      mealPlanLength: mealPlan ? mealPlan.length : 0,
-      days,
-      mealsPerDay,
-      parsedDays,
-    });
-
-    if (mealPlan && typeof mealPlan === "string") {
-      const parsedData = parseMealPlanRobust(mealPlan);
-      setParsedDays(parsedData);
-    } else {
-      console.warn("Invalid meal plan format:", mealPlanData);
-      setParsedDays([]);
-    }
-    setIsLoading(false);
-  }, [mealPlan, days, mealsPerDay]);
-
-  // ROBUST PARSING WITH PROPER MEAL ORDER AND TITLE EXTRACTION
-  const parseMealPlanRobust = (mealPlanText) => {
-    if (!mealPlanText || typeof mealPlanText !== "string") {
-      console.warn("Invalid meal plan text");
-      return generateFallbackMealPlan();
+    if (!mealPlan || mealPlan.trim().length < 100) {
+      setIsLoading(false);
+      return;
     }
 
     try {
-      // Clean the text first
-      const cleanedText = mealPlanText
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n')
-        .trim();
-
-      // Split by day separators - handle both formats
-      let dayTexts = [];
-      
-      if (cleanedText.includes('=====')) {
-        dayTexts = cleanedText.split('=====').filter(text => text.trim());
-      } else if (cleanedText.includes('====================')) {
-        dayTexts = cleanedText.split('====================').filter(text => text.trim());
-      } else {
-        const dayPattern = /(?=Day\s+\d+)/gi;
-        dayTexts = cleanedText.split(dayPattern).filter(text => text.trim());
-      }
-      
-      if (dayTexts.length < days) {
-        dayTexts = cleanedText.split(/\n\s*\n/).filter(text => text.trim());
-      }
-
-      const parsedDays = [];
-      
-      for (let i = 0; i < Math.max(dayTexts.length, days); i++) {
-        const dayText = dayTexts[i] || '';
-        const dayNumber = i + 1;
-        
-        if (dayNumber > days) break;
-        
-        const dayData = parseDayContent(dayText, dayNumber);
-        parsedDays.push(dayData);
-      }
-
-      // Ensure we have the right number of days
-      while (parsedDays.length < days) {
-        const missingDay = parsedDays.length + 1;
-        parsedDays.push(generateFallbackDay(missingDay));
-      }
-
-      return parsedDays;
+      const parsed = parseEnhancedMealPlan(mealPlan);
+      setParsedDays(parsed);
+      setIsLoading(false);
     } catch (error) {
-      console.error("Parsing error:", error);
-      return generateFallbackMealPlan();
+      console.error("Parsing failed:", error);
+      setIsLoading(false);
     }
+  }, [mealPlan, days, mealsPerDay]);
+
+  const parseEnhancedMealPlan = (text) => {
+    const cleanedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    const dayPattern = /Day\s+(\d+)/gi;
+    const dayMatches = [...cleanedText.matchAll(dayPattern)];
+    
+    const parsedDays = [];
+    
+    for (let i = 0; i < days; i++) {
+      const dayNumber = i + 1;
+      let dayText = '';
+      
+      if (i < dayMatches.length) {
+        const currentDayStart = dayMatches[i].index;
+        const nextDayStart = i + 1 < dayMatches.length ? dayMatches[i + 1].index : cleanedText.length;
+        dayText = cleanedText.substring(currentDayStart, nextDayStart).trim();
+      }
+      
+      if (!dayText) {
+        parsedDays.push(createBasicDay(dayNumber));
+        continue;
+      }
+      
+      const dayData = parseDay(dayText, dayNumber);
+      parsedDays.push(dayData);
+    }
+    
+    while (parsedDays.length < days) {
+      const missingDay = parsedDays.length + 1;
+      parsedDays.push(createBasicDay(missingDay));
+    }
+    
+    return parsedDays;
   };
 
-  const parseDayContent = (dayText, dayNumber) => {
-    const lines = dayText.split('\n').map(line => line.trim()).filter(line => line);
+  const parseDay = (dayText, dayNumber) => {
+    const mealBlocks = dayText.split('=====').filter(block => block.trim());
+    const meals = [];
+    const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
     
-    // Extract meals and ensure proper order
-    const extractedMeals = extractMealsFromLines(lines);
-    const orderedMeals = ensureProperMealOrder(extractedMeals);
-    
-    // Ensure we have the right number of meals
-    while (orderedMeals.length < mealsPerDay) {
-      const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
-      const missingMealType = mealTypes[orderedMeals.length] || 'Meal';
-      orderedMeals.push(generateFallbackMeal(missingMealType, orderedMeals.length + 1));
+    for (let i = 0; i < mealBlocks.length && meals.length < mealsPerDay; i++) {
+      const mealBlock = mealBlocks[i].trim();
+      if (!mealBlock) continue;
+      
+      const meal = parseMeal(mealBlock, mealTypes[meals.length] || 'Meal');
+      if (meal) {
+        meals.push(meal);
+      }
     }
-
-    // Calculate totals for the day
-    const totals = orderedMeals.slice(0, mealsPerDay).reduce((sum, meal) => ({
+    
+    while (meals.length < mealsPerDay) {
+      const mealType = mealTypes[meals.length] || 'Meal';
+      meals.push(createBasicMeal(mealType));
+    }
+    
+    const totals = meals.reduce((sum, meal) => ({
       calories: sum.calories + meal.calories,
       protein: sum.protein + meal.protein,
       carbs: sum.carbs + meal.carbs,
@@ -186,227 +131,201 @@ export default function MealPlanDetail() {
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
     return {
+      dayNumber,
       title: `Day ${dayNumber}`,
-      dayNumber: dayNumber,
-      meals: orderedMeals.slice(0, mealsPerDay),
+      meals: meals.slice(0, mealsPerDay),
       ...totals
     };
   };
 
-  const extractMealsFromLines = (lines) => {
-    const meals = [];
-    const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+  const parseMeal = (mealBlock, expectedMealType) => {
+    const lines = mealBlock.split('\n').map(line => line.trim()).filter(line => line);
     
-    let currentMealType = null;
-    let currentMealLines = [];
-
-    for (const line of lines) {
-      // Check if this line indicates a new meal
-      const foundMealType = mealTypes.find(type =>
-        line.toLowerCase().includes(type.toLowerCase()) &&
-        (line.toLowerCase().indexOf(type.toLowerCase()) < 5 || line.toLowerCase().startsWith(type.toLowerCase()))
-      );
-
-      if (foundMealType) {
-        // Save previous meal if exists
-        if (currentMealType && currentMealLines.length > 0) {
-          meals.push(parseIndividualMeal(currentMealLines, currentMealType));
-        }
-        
-        // Start new meal
-        currentMealType = foundMealType;
-        currentMealLines = [line];
-      } else if (currentMealType) {
-        currentMealLines.push(line);
-      }
-    }
-
-    // Don't forget the last meal
-    if (currentMealType && currentMealLines.length > 0) {
-      meals.push(parseIndividualMeal(currentMealLines, currentMealType));
-    }
-
-    return meals;
-  };
-
-  // Ensure meals are in proper order: Breakfast, Lunch, Dinner, Snack
-  const ensureProperMealOrder = (meals) => {
-    const mealOrder = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
-    const orderedMeals = [];
-    
-    // Add meals in the correct order
-    for (const mealType of mealOrder) {
-      const meal = meals.find(m => m.mealType === mealType);
-      if (meal) {
-        orderedMeals.push(meal);
-      }
-    }
-    
-    // If we don't have enough meals, generate missing ones
-    while (orderedMeals.length < mealsPerDay && orderedMeals.length < mealOrder.length) {
-      const missingMealType = mealOrder[orderedMeals.length];
-      orderedMeals.push(generateFallbackMeal(missingMealType, orderedMeals.length + 1));
-    }
-    
-    return orderedMeals;
-  };
-
-  const parseIndividualMeal = (lines, mealType) => {
+    let mealType = expectedMealType;
     let title = '';
     let ingredients = [];
     let instructions = [];
     let timings = [];
-    let calories = 0;
-    let protein = 0;
-    let carbs = 0;
-    let fat = 0;
+    let calories = Math.round(caloriesPerDay / mealsPerDay);
+    let protein = Math.round(calories * 0.25 / 4);
+    let carbs = Math.round(calories * 0.45 / 4);
+    let fat = Math.round(calories * 0.30 / 9);
 
-    // SIMPLIFIED AND MORE EFFECTIVE TITLE EXTRACTION
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
+    const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+    for (let i = 0; i < Math.min(3, lines.length); i++) {
+      const foundType = mealTypes.find(type =>
+        lines[i].toLowerCase().includes(type.toLowerCase())
+      );
+      if (foundType) {
+        mealType = foundType;
+        break;
+      }
+    }
+
+    let titleFound = false;
+    for (let i = 0; i < lines.length && !titleFound; i++) {
+      const line = lines[i];
+      const lowerLine = line.toLowerCase();
       
-      // Skip empty lines and obvious non-titles
-      if (!line ||
+      if (mealTypes.some(type => lowerLine.includes(type.toLowerCase())) ||
+          lowerLine.match(/^day\s+\d+/i) ||
+          lowerLine.includes('preparation') ||
+          lowerLine.includes('cooking') ||
+          lowerLine.includes('servings') ||
+          lowerLine.includes('prep:') ||
+          lowerLine.includes('cook:') ||
+          lowerLine.match(/\d+\s*minutes?\b/i) ||
+          lowerLine.match(/\d+\s*hours?\b/i) ||
+          lowerLine.includes('calories') ||
+          lowerLine.includes('protein') ||
+          lowerLine.includes('carbs') ||
+          lowerLine.includes('carbohydrates') ||
+          lowerLine.includes('fat') ||
           line.startsWith('•') ||
-          line.startsWith('-') ||
           line.match(/^\d+\./) ||
-          line.toLowerCase().includes('preparation') ||
-          line.toLowerCase().includes('cooking') ||
-          line.toLowerCase().includes('servings') ||
-          line.toLowerCase().includes('calorie') ||
-          line.toLowerCase().includes('protein') ||
-          line.toLowerCase().includes('carb') ||
-          line.toLowerCase().includes('fat') ||
-          line.toLowerCase().includes('ingredients:') ||
-          line.toLowerCase().includes('instructions:') ||
-          line.toLowerCase().includes('nutritional') ||
+          lowerLine.includes('ingredients') ||
+          lowerLine.includes('instructions') ||
+          line === '=====' ||
           line === '-----' ||
-          line === '----' ||
-          line.match(/^=+$/)) {
+          line.length < 3) {
         continue;
       }
       
-      // Look for a substantial line that could be a title
-      if (line.length >= 3 && !line.endsWith(':')) {
-        title = line.replace(/[^\w\s\-'&(),.]/g, '').trim();
-        
-        // Only reject if it's clearly an ingredient (has measurements)
-        if (!title.match(/\d+\s*(cup|tbsp|tsp|lb|oz|gram|ml|liter)/i)) {
-          break;
+      if (line.length >= 3) {
+        title = line;
+        titleFound = true;
+        break;
+      }
+    }
+
+    if (!title || title.length < 3) {
+      const adjectives = ['Delicious', 'Healthy', 'Fresh', 'Nutritious', 'Tasty', 'Hearty'];
+      const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
+      title = `${randomAdj} ${mealType} Bowl`;
+    }
+
+    for (const line of lines) {
+      if (line.startsWith('•')) {
+        const ingredient = line.substring(1).trim();
+        if (ingredient && ingredient.length > 1) {
+          ingredients.push(ingredient);
         }
       }
     }
 
-    // Only generate fallback title if we truly have nothing
-    if (!title || title.length < 3) {
-      const titleWords = ['Delicious', 'Healthy', 'Fresh', 'Nutritious', 'Gourmet', 'Classic', 'Hearty', 'Tasty'];
-      const randomWord = titleWords[Math.floor(Math.random() * titleWords.length)];
-      title = `${randomWord} ${mealType}`;
+    for (const line of lines) {
+      if (line.match(/^\d+\./)) {
+        instructions.push(line);
+      }
     }
 
-    // Extract other components with better filtering
     for (const line of lines) {
-      const trimmedLine = line.trim();
+      const lowerLine = line.toLowerCase();
       
-      if (!trimmedLine || trimmedLine === title) continue;
-
-      // Parse nutrition values
-      if (trimmedLine.toLowerCase().includes('calorie') && calories === 0) {
-        const patterns = [
+      if (lowerLine.includes('calories')) {
+        const caloriePatterns = [
           /calories?\s*:?\s*(\d+)/i,
           /(\d+)\s*calories?/i,
-          /(\d+)\s*kcal/i,
-          /cal\s*:?\s*(\d+)/i
+          /cal\s*:?\s*(\d+)/i,
+          /(\d+)\s*cal\b/i
         ];
-        for (const pattern of patterns) {
-          const match = trimmedLine.match(pattern);
+        
+        for (const pattern of caloriePatterns) {
+          const match = line.match(pattern);
           if (match) {
-            calories = parseInt(match[1]);
-            break;
+            const extractedCals = parseInt(match[1]);
+            if (extractedCals > 50 && extractedCals < 3000) {
+              calories = extractedCals;
+              break;
+            }
           }
         }
       }
       
-      if (trimmedLine.toLowerCase().includes('protein') && protein === 0) {
-        const match = trimmedLine.match(/(\d+)/);
-        if (match) {
-          protein = parseInt(match[1]);
-        }
-      }
-      
-      if (trimmedLine.toLowerCase().includes('carb') && carbs === 0) {
-        const match = trimmedLine.match(/(\d+)/);
-        if (match) {
-          carbs = parseInt(match[1]);
-        }
-      }
-      
-      if (trimmedLine.toLowerCase().includes('fat') && fat === 0) {
-        const match = trimmedLine.match(/(\d+)/);
-        if (match) {
-          fat = parseInt(match[1]);
-        }
-      }
-
-      // Timing information
-      if ((trimmedLine.toLowerCase().includes('preparation') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
-          (trimmedLine.toLowerCase().includes('cooking') && (trimmedLine.toLowerCase().includes('time') || trimmedLine.match(/\d+\s*min/i))) ||
-          (trimmedLine.toLowerCase().includes('servings') && trimmedLine.match(/\d+/)) ||
-          (trimmedLine.toLowerCase().startsWith('prep') && trimmedLine.match(/\d+\s*min/i)) ||
-          (trimmedLine.toLowerCase().startsWith('cook') && trimmedLine.match(/\d+\s*min/i)) ||
-          (trimmedLine.match(/^(prep|cook|preparation|cooking).*time.*\d+/i)) ||
-          (trimmedLine.match(/^servings?\s*:\s*\d+/i)) ||
-          (trimmedLine.match(/^\d+\s*(minute|hour|serving)/i) && !trimmedLine.match(/^\d+\.\s/))) {
-        timings.push(trimmedLine);
-      }
-      // Ingredients (bullet points or dashes)
-      else if (trimmedLine.match(/^[•\-\*]\s/)) {
-        const ingredient = trimmedLine.replace(/^[•\-\*]\s*/, '').trim();
+      if (lowerLine.includes('protein')) {
+        const proteinPatterns = [
+          /protein\s*:?\s*(\d+)g?/i,
+          /(\d+)g?\s*protein/i
+        ];
         
-        if (ingredient &&
-            ingredient !== '-----' &&
-            ingredient !== '----' &&
-            ingredient.length > 1 &&
-            !ingredient.match(/^=+$/) &&
-            !ingredient.toLowerCase().startsWith('instruction') &&
-            !ingredient.match(/^\d+\.\s/)) {
-          ingredients.push(ingredient);
+        for (const pattern of proteinPatterns) {
+          const match = line.match(pattern);
+          if (match) {
+            const extractedProtein = parseInt(match[1]);
+            if (extractedProtein > 0 && extractedProtein < 200) {
+              protein = extractedProtein;
+              break;
+            }
+          }
         }
       }
-      // Instructions (numbered)
-      else if (trimmedLine.match(/^\d+\./)) {
-        instructions.push(trimmedLine);
+      
+      if (lowerLine.includes('carbs') || lowerLine.includes('carbohydrates')) {
+        const carbPatterns = [
+          /carbs?\s*:?\s*(\d+)g?/i,
+          /carbohydrates?\s*:?\s*(\d+)g?/i,
+          /(\d+)g?\s*carbs?/i
+        ];
+        
+        for (const pattern of carbPatterns) {
+          const match = line.match(pattern);
+          if (match) {
+            const extractedCarbs = parseInt(match[1]);
+            if (extractedCarbs > 0 && extractedCarbs < 500) {
+              carbs = extractedCarbs;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (lowerLine.includes('fat') && !lowerLine.includes('fatigue')) {
+        const fatPatterns = [
+          /fat\s*:?\s*(\d+)g?/i,
+          /(\d+)g?\s*fat\b/i
+        ];
+        
+        for (const pattern of fatPatterns) {
+          const match = line.match(pattern);
+          if (match) {
+            const extractedFat = parseInt(match[1]);
+            if (extractedFat > 0 && extractedFat < 200) {
+              fat = extractedFat;
+              break;
+            }
+          }
+        }
       }
     }
 
-    // Set default values if not found
-    if (calories === 0) {
-      calories = Math.round(caloriesPerDay / mealsPerDay);
+    for (const line of lines) {
+      if (line.toLowerCase().includes('preparation') ||
+          line.toLowerCase().includes('cooking') ||
+          line.toLowerCase().includes('servings') ||
+          line.toLowerCase().includes('prep:') ||
+          line.toLowerCase().includes('cook:')) {
+        timings.push(line);
+      }
     }
-    if (protein === 0) protein = Math.round(calories * 0.25 / 4);
-    if (carbs === 0) carbs = Math.round(calories * 0.45 / 4);
-    if (fat === 0) fat = Math.round(calories * 0.30 / 9);
 
-    // Ensure we have some content with better defaults
     if (ingredients.length === 0) {
       ingredients = [
-        'Fresh, high-quality ingredients as specified',
+        'Fresh, high-quality ingredients',
         'Seasonings and spices to taste',
-        'Additional ingredients per complete recipe'
+        'Additional ingredients as needed'
       ];
     }
 
     if (instructions.length === 0) {
       instructions = [
-        '1. Prepare all ingredients according to recipe specifications',
-        '2. Follow proper cooking techniques for this meal type',
-        '3. Season and adjust flavors as needed',
-        '4. Serve immediately while fresh and hot'
+        '1. Prepare all ingredients according to recipe',
+        '2. Cook using appropriate methods',
+        '3. Season and serve as desired'
       ];
     }
 
     if (timings.length === 0) {
-      timings = ['Prep: 15 min', 'Cook: 20 min'];
+      timings = ['Prep: 15 min', 'Cook: 20 min', 'Servings: 2'];
     }
 
     return {
@@ -422,42 +341,9 @@ export default function MealPlanDetail() {
     };
   };
 
-  const generateFallbackMeal = (mealType, mealIndex) => {
-    const avgCals = Math.round(caloriesPerDay / mealsPerDay);
-    const mealTitles = {
-      'Breakfast': ['Protein Power Bowl', 'Morning Energy Plate', 'Sunrise Special', 'Hearty Breakfast Skillet', 'Golden Morning Toast'],
-      'Lunch': ['Midday Balance Bowl', 'Power Lunch Plate', 'Afternoon Fuel', 'Fresh Garden Salad', 'Savory Lunch Wrap'],
-      'Dinner': ['Evening Comfort Meal', 'Dinner Delight', 'Night Nourishment', 'Sunset Feast', 'Cozy Dinner Bowl'],
-      'Snack': ['Energy Boost', 'Quick Bite', 'Healthy Snack', 'Power Snack', 'Midday Treat']
-    };
-
-    const titles = mealTitles[mealType] || ['Healthy Meal'];
-    const randomTitle = titles[Math.floor(Math.random() * titles.length)];
-
-    return {
-      mealType,
-      title: randomTitle,
-      ingredients: [
-        'Premium quality ingredients',
-        'Fresh vegetables and proteins',
-        'Healthy fats and complex carbohydrates'
-      ],
-      instructions: [
-        '1. Prepare ingredients using proper food safety techniques',
-        '2. Cook according to dietary requirements and preferences',
-        '3. Season appropriately and serve fresh'
-      ],
-      timings: ['Prep: 15 min', 'Cook: 20 min'],
-      calories: avgCals,
-      protein: Math.round(avgCals * 0.25 / 4),
-      carbs: Math.round(avgCals * 0.45 / 4),
-      fat: Math.round(avgCals * 0.30 / 9)
-    };
-  };
-
-  const generateFallbackDay = (dayNumber) => {
-    const mealTypes = ['Breakfast', 'Lunch', 'Dinner'].slice(0, mealsPerDay);
-    const meals = mealTypes.map((type, index) => generateFallbackMeal(type, index + 1));
+  const createBasicDay = (dayNumber) => {
+    const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'].slice(0, mealsPerDay);
+    const meals = mealTypes.map(type => createBasicMeal(type));
     
     const totals = meals.reduce((sum, meal) => ({
       calories: sum.calories + meal.calories,
@@ -467,17 +353,46 @@ export default function MealPlanDetail() {
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
     return {
-      title: `Day ${dayNumber}`,
       dayNumber,
+      title: `Day ${dayNumber}`,
       meals,
       ...totals
     };
   };
 
-  const generateFallbackMealPlan = () => {
-    return Array.from({ length: days }, (_, index) =>
-      generateFallbackDay(index + 1)
-    );
+  const createBasicMeal = (mealType) => {
+    const avgCals = Math.round(caloriesPerDay / mealsPerDay);
+    
+    const mealTitles = {
+      'Breakfast': ['Protein Power Bowl', 'Morning Energy Plate', 'Sunrise Special'],
+      'Lunch': ['Balanced Midday Plate', 'Power Lunch Bowl', 'Afternoon Fuel'],
+      'Dinner': ['Evening Comfort Meal', 'Dinner Delight', 'Sunset Feast'],
+      'Snack': ['Energy Boost', 'Quick Bite', 'Healthy Snack']
+    };
+
+    const titles = mealTitles[mealType] || ['Healthy Meal'];
+    const randomTitle = titles[Math.floor(Math.random() * titles.length)];
+
+    return {
+      mealType,
+      title: randomTitle,
+      ingredients: [
+        'High-quality protein source',
+        'Fresh seasonal vegetables',
+        'Healthy whole grains',
+        'Nutritious fats and oils'
+      ],
+      instructions: [
+        '1. Prepare ingredients according to preferences',
+        '2. Cook using healthy cooking methods',
+        '3. Season with herbs and spices to taste'
+      ],
+      timings: ['Prep: 15 min', 'Cook: 20 min', 'Servings: 1'],
+      calories: avgCals,
+      protein: Math.round(avgCals * 0.25 / 4),
+      carbs: Math.round(avgCals * 0.45 / 4),
+      fat: Math.round(avgCals * 0.30 / 9)
+    };
   };
 
   const getMealTypeColor = (mealType) => {
@@ -490,10 +405,14 @@ export default function MealPlanDetail() {
     return colors[mealType] || '#008b8b';
   };
 
-  // Share the meal plan
+  const handleGroceryListPress = () => {
+    setShowGroceryList(true);
+  };
+
   const handleShare = async () => {
     try {
-      const shareText = `My ${days}-Day Meal Plan\n\n` +
+      const planLength = days === 1 ? 'Day' : `${days}-Day`;
+      const shareText = `My ${planLength} Meal Plan\n\n` +
         parsedDays.map(day =>
           `${day.title}: ${day.calories} calories\n` +
           day.meals.map(meal => `• ${meal.title} (${meal.calories} cal)`).join('\n')
@@ -504,12 +423,6 @@ export default function MealPlanDetail() {
       console.error("Share failed:", error);
     }
   };
-
-  // Calculate averages for compact summary
-  const avgCalories = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.calories, 0) / days) : caloriesPerDay;
-  const avgProtein = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.protein, 0) / days) : Math.round(caloriesPerDay * 0.25 / 4);
-  const avgCarbs = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.carbs, 0) / days) : Math.round(caloriesPerDay * 0.45 / 4);
-  const avgFat = parsedDays.length > 0 ? Math.round(parsedDays.reduce((sum, day) => sum + day.fat, 0) / days) : Math.round(caloriesPerDay * 0.30 / 9);
 
   if (isLoading) {
     return (
@@ -531,171 +444,135 @@ export default function MealPlanDetail() {
       
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+          <Ionicons name="arrow-back" size={24} color="#008b8b" />
         </TouchableOpacity>
         
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{mealPlanData.name || "Saved Meal Plan"}</Text>
-          <Text style={styles.headerStats}>
-            {days} days
-          </Text>
-        </View>
+        <Text style={styles.headerTitle}>{mealPlanData.name || "Saved Meal Plan"}</Text>
         
         <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
           <Ionicons name="share-outline" size={24} color="#008b8b" />
         </TouchableOpacity>
       </View>
 
-      <Animated.View
-        style={[
-          styles.compactSummaryCard,
-          {
-            opacity: summaryOpacity,
-            height: summaryHeight,
-            marginTop: summaryMargin,
-            marginBottom: summaryMargin,
-            overflow: 'hidden',
-            transform: [
-              { translateY: summaryTranslateY },
-              { scale: summaryScale }
-            ]
-          }
-        ]}
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+        bounces={true}
       >
-        <View style={styles.summaryTopRow}>
-          <View style={styles.summaryMainInfo}>
-            <Text style={styles.summaryTitle}>{days} Day Plan</Text>
-            <Text style={styles.summarySubtitle}>{caloriesPerDay} cal/day</Text>
-            {dietType && (
-              <View style={styles.dietTypeBadge}>
-                <Text style={styles.dietTypeBadgeText}>{dietType}</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.summaryRecipeCount}>
-            <Text style={styles.recipeCountNumber}>{days * mealsPerDay}</Text>
-            <Text style={styles.recipeCountLabel}>recipes</Text>
-          </View>
-        </View>
-        
-        <View style={styles.avgNutritionSection}>
-          <Text style={styles.avgSectionTitle}>Daily Averages</Text>
-          <View style={styles.avgStatsGrid}>
-            <View style={styles.avgStatItem}>
-              <Text style={styles.avgStatValue}>{avgCalories}</Text>
-              <Text style={styles.avgStatLabel}>Calories</Text>
-            </View>
-            <View style={styles.avgStatItem}>
-              <Text style={styles.avgStatValue}>{avgProtein}g</Text>
-              <Text style={styles.avgStatLabel}>Protein</Text>
-            </View>
-            <View style={styles.avgStatItem}>
-              <Text style={styles.avgStatValue}>{avgCarbs}g</Text>
-              <Text style={styles.avgStatLabel}>Carbs</Text>
-            </View>
-            <View style={styles.avgStatItem}>
-              <Text style={styles.avgStatValue}>{avgFat}g</Text>
-              <Text style={styles.avgStatLabel}>Fat</Text>
-            </View>
-          </View>
-        </View>
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.toggleContainer,
-          {
-            marginTop: toggleMarginTop,
-            paddingVertical: togglePaddingVertical,
-          }
-        ]}
-      >
-        <View style={styles.toggleWrapper}>
-          <TouchableOpacity
-            style={[styles.toggleOption, viewMode === 'cards' && styles.toggleOptionActive]}
-            onPress={() => setViewMode('cards')}
-          >
-            <Ionicons name="grid" size={18} color={viewMode === 'cards' ? '#fff' : '#7f8c8d'} />
-            <Text style={[styles.toggleText, viewMode === 'cards' && styles.toggleTextActive]}>Cards</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleOption, viewMode === 'list' && styles.toggleOptionActive]}
-            onPress={() => setViewMode('list')}
-          >
-            <Ionicons name="list" size={18} color={viewMode === 'list' ? '#fff' : '#7f8c8d'} />
-            <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>List</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      {parsedDays.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="restaurant-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyStateTitle}>No Meal Plan Data</Text>
-          <Text style={styles.emptyStateText}>
-            The meal plan data couldn't be loaded properly.
-          </Text>
-        </View>
-      ) : (
-        <Animated.ScrollView
-          ref={scrollViewRef}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        <Animated.View
+          style={[
+            styles.controlsContainer,
             {
-              useNativeDriver: false,
-              listener: (event) => {
-                // Optional: Add any additional scroll logic here
-              }
+              marginTop: controlsMarginTop,
+              transform: [{ translateY: controlsTranslateY }]
             }
-          )}
-          scrollEventThrottle={1}
-          decelerationRate="normal"
-          bounces={true}
+          ]}
         >
-          {viewMode === 'cards' ? (
-            <View style={styles.cardsContainer}>
-              {parsedDays.map((day) => (
-                <View key={day.dayNumber} style={styles.dayCard}>
-                  <View style={styles.dayHeader}>
-                    <View style={styles.dayHeaderLeft}>
-                      <Text style={styles.dayTitle}>{day.title}</Text>
-                      <Text style={styles.dayCalories}>{day.calories} calories</Text>
-                    </View>
-                    <View style={styles.dayProgress}>
-                      <View style={styles.progressRing}>
-                        <Text style={styles.progressText}>{Math.round((day.calories / caloriesPerDay) * 100)}%</Text>
-                      </View>
+          <View style={styles.viewToggleContainer}>
+            <View style={styles.viewToggle}>
+              <TouchableOpacity
+                style={[styles.toggleButton, viewMode === 'cards' && styles.toggleButtonActive]}
+                onPress={() => setViewMode('cards')}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="grid-outline"
+                  size={16}
+                  color={viewMode === 'cards' ? '#ffffff' : '#6b7280'}
+                />
+                <Text style={[styles.toggleButtonText, viewMode === 'cards' && styles.toggleButtonTextActive]}>
+                  Cards
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
+                onPress={() => setViewMode('list')}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="list-outline"
+                  size={16}
+                  color={viewMode === 'list' ? '#ffffff' : '#6b7280'}
+                />
+                <Text style={[styles.toggleButtonText, viewMode === 'list' && styles.toggleButtonTextActive]}>
+                  List
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+
+        <View style={styles.groceryButtonContainer}>
+          <TouchableOpacity
+            style={styles.prominentGroceryButton}
+            onPress={handleGroceryListPress}
+            activeOpacity={0.8}
+          >
+            <View style={styles.groceryButtonContent}>
+              <View style={styles.groceryButtonLeft}>
+                <View style={styles.groceryButtonIcon}>
+                  <Ionicons name="basket" size={24} color="#ffffff" />
+                </View>
+                <View style={styles.groceryButtonText}>
+                  <Text style={styles.groceryButtonTitle}>View Grocery List</Text>
+                  <Text style={styles.groceryButtonSubtitle}>See shopping list with cost estimates</Text>
+                </View>
+              </View>
+              <View style={styles.groceryButtonArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#ffffff" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {viewMode === 'cards' ? (
+          <View style={styles.cardsContainer}>
+            {parsedDays.map((day) => (
+              <View key={day.dayNumber} style={styles.dayCard}>
+                <View style={styles.dayHeader}>
+                  <View style={styles.dayHeaderLeft}>
+                    <Text style={styles.dayTitle}>{day.title}</Text>
+                    <Text style={styles.dayCalories}>{day.calories} calories</Text>
+                  </View>
+                  <View style={styles.dayProgress}>
+                    <View style={styles.progressRing}>
+                      <Text style={styles.progressText}>{Math.round((day.calories / caloriesPerDay) * 100)}%</Text>
                     </View>
                   </View>
+                </View>
 
-                  <View style={styles.macroSection}>
-                    <View style={styles.macroBar}>
-                      <View style={[styles.macroBarSegment, { backgroundColor: '#f39c12', flex: day.protein }]} />
-                      <View style={[styles.macroBarSegment, { backgroundColor: '#3498db', flex: day.carbs }]} />
-                      <View style={[styles.macroBarSegment, { backgroundColor: '#9b59b6', flex: day.fat }]} />
-                    </View>
-                    <View style={styles.macroLabels}>
-                      <Text style={styles.macroLabel}>
-                        <Text style={styles.macroBold}>{day.protein}g</Text> Protein
-                      </Text>
-                      <Text style={styles.macroLabel}>
-                        <Text style={styles.macroBold}>{day.carbs}g</Text> Carbs
-                      </Text>
-                      <Text style={styles.macroLabel}>
-                        <Text style={styles.macroBold}>{day.fat}g</Text> Fat
-                      </Text>
-                    </View>
+                <View style={styles.macroSection}>
+                  <View style={styles.macroBar}>
+                    <View style={[styles.macroBarSegment, { backgroundColor: '#f39c12', flex: day.protein }]} />
+                    <View style={[styles.macroBarSegment, { backgroundColor: '#3498db', flex: day.carbs }]} />
+                    <View style={[styles.macroBarSegment, { backgroundColor: '#9b59b6', flex: day.fat }]} />
                   </View>
+                  <View style={styles.macroLabels}>
+                    <Text style={styles.macroLabel}>
+                      <Text style={styles.macroBold}>{day.protein}g</Text> Protein
+                    </Text>
+                    <Text style={styles.macroLabel}>
+                      <Text style={styles.macroBold}>{day.carbs}g</Text> Carbs
+                    </Text>
+                    <Text style={styles.macroLabel}>
+                      <Text style={styles.macroBold}>{day.fat}g</Text> Fat
+                    </Text>
+                  </View>
+                </View>
 
-                  <View style={styles.mealsGrid}>
-                    {day.meals.map((meal, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={styles.mealGridItem}
-                        onPress={() => setSelectedMeal(meal)}
-                      >
+                <View style={styles.mealsContainer}>
+                  {day.meals.map((meal, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.mealCard}
+                      onPress={() => setSelectedMeal(meal)}
+                    >
+                      <View style={styles.mealCardLeft}>
                         <View style={[styles.mealIcon, { backgroundColor: getMealTypeColor(meal.mealType) }]}>
                           <Ionicons
                             name={
@@ -703,68 +580,79 @@ export default function MealPlanDetail() {
                               meal.mealType === 'Lunch' ? 'partly-sunny' :
                               meal.mealType === 'Dinner' ? 'moon' : 'cafe'
                             }
-                            size={16}
+                            size={20}
                             color="#fff"
                           />
                         </View>
-                        <Text style={styles.mealGridType}>{meal.mealType}</Text>
-                        <Text style={styles.mealGridTitle} numberOfLines={2}>{meal.title}</Text>
-                        <Text style={styles.mealGridCalories}>{meal.calories} cal</Text>
-                      </TouchableOpacity>
-                    ))}
+                        <View style={styles.mealInfo}>
+                          <Text style={styles.mealType}>{meal.mealType}</Text>
+                          <Text style={styles.mealTitle} numberOfLines={2}>{meal.title}</Text>
+                          <View style={styles.mealMacros}>
+                            <Text style={styles.mealMacro}>{meal.protein}g P</Text>
+                            <Text style={styles.mealMacro}>{meal.carbs}g C</Text>
+                            <Text style={styles.mealMacro}>{meal.fat}g F</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.mealCardRight}>
+                        <Text style={styles.mealCalories}>{meal.calories}</Text>
+                        <Text style={styles.mealCaloriesLabel}>cal</Text>
+                        <Ionicons name="chevron-forward" size={16} color="#bbb" />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.listContainer}>
+            {parsedDays.flatMap(day =>
+              day.meals.map((meal, mealIndex) => ({
+                ...meal,
+                dayTitle: day.title,
+                key: `${day.dayNumber}-${meal.mealType}`,
+                dayNumber: day.dayNumber
+              }))
+            ).map((meal) => (
+              <TouchableOpacity
+                key={meal.key}
+                style={styles.listItem}
+                onPress={() => setSelectedMeal(meal)}
+              >
+                <View style={styles.listItemLeft}>
+                  <View style={[styles.listMealIcon, { backgroundColor: getMealTypeColor(meal.mealType) }]}>
+                    <Ionicons
+                      name={
+                        meal.mealType === 'Breakfast' ? 'sunny' :
+                        meal.mealType === 'Lunch' ? 'partly-sunny' :
+                        meal.mealType === 'Dinner' ? 'moon' : 'cafe'
+                      }
+                      size={20}
+                      color="#fff"
+                    />
+                  </View>
+                  <View style={styles.listMealInfo}>
+                    <Text style={styles.listMealType}>{meal.mealType} • Day {meal.dayNumber}</Text>
+                    <Text style={styles.listMealTitle}>{meal.title}</Text>
+                    <View style={styles.listMealMacros}>
+                      <Text style={styles.listMealMacro}>{meal.protein}g P</Text>
+                      <Text style={styles.listMealMacro}>{meal.carbs}g C</Text>
+                      <Text style={styles.listMealMacro}>{meal.fat}g F</Text>
+                    </View>
                   </View>
                 </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.listContainer}>
-              {parsedDays.flatMap(day =>
-                day.meals.map((meal, mealIndex) => ({
-                  ...meal,
-                  dayTitle: day.title,
-                  key: `${day.dayNumber}-${meal.mealType}`,
-                  dayNumber: day.dayNumber
-                }))
-              ).map((meal) => (
-                <TouchableOpacity
-                  key={meal.key}
-                  style={styles.listItem}
-                  onPress={() => setSelectedMeal(meal)}
-                >
-                  <View style={styles.listItemLeft}>
-                    <View style={[styles.listMealIcon, { backgroundColor: getMealTypeColor(meal.mealType) }]}>
-                      <Ionicons
-                        name={
-                          meal.mealType === 'Breakfast' ? 'sunny' :
-                          meal.mealType === 'Lunch' ? 'partly-sunny' :
-                          meal.mealType === 'Dinner' ? 'moon' : 'cafe'
-                        }
-                        size={20}
-                        color="#fff"
-                      />
-                    </View>
-                    <View style={styles.listMealInfo}>
-                      <Text style={styles.listMealType}>{meal.mealType} • Day {meal.dayNumber}</Text>
-                      <Text style={styles.listMealTitle}>{meal.title}</Text>
-                      <View style={styles.listMealMacros}>
-                        <Text style={styles.listMealMacro}>{meal.protein}g P</Text>
-                        <Text style={styles.listMealMacro}>{meal.carbs}g C</Text>
-                        <Text style={styles.listMealMacro}>{meal.fat}g F</Text>
-                      </View>
-                    </View>
-                  </View>
-                  <View style={styles.listItemRight}>
-                    <Text style={styles.listMealCalories}>{meal.calories}</Text>
-                    <Text style={styles.listMealCaloriesLabel}>cal</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          
-          <View style={styles.scrollBottom} />
-        </Animated.ScrollView>
-      )}
+                <View style={styles.listItemRight}>
+                  <Text style={styles.listMealCalories}>{meal.calories}</Text>
+                  <Text style={styles.listMealCaloriesLabel}>cal</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        
+        <View style={styles.scrollBottom} />
+      </Animated.ScrollView>
 
       <Modal
         visible={selectedMeal !== null}
@@ -868,6 +756,15 @@ export default function MealPlanDetail() {
           </SafeAreaView>
         )}
       </Modal>
+
+      <GroceryListModal
+        visible={showGroceryList}
+        onClose={() => setShowGroceryList(false)}
+        mealPlan={mealPlan}
+        days={days}
+        mealsPerDay={mealsPerDay}
+        caloriesPerDay={caloriesPerDay}
+      />
     </SafeAreaView>
   );
 }
@@ -875,14 +772,14 @@ export default function MealPlanDetail() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f8fafc',
   },
   
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f8fafc',
   },
   loadingIcon: {
     width: 80,
@@ -908,197 +805,154 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: 'white',
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: '#e2e8f0',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
-        shadowRadius: 8,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 2,
+        elevation: 1,
       },
     }),
   },
   headerButton: {
-    padding: 8,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     backgroundColor: '#f1f5f9',
-  },
-  headerCenter: {
-    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 20,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginBottom: 2,
-  },
-  headerStats: {
-    fontSize: 12,
-    color: '#7f8c8d',
-  },
-
-  // Compact Summary Card - improved design with smooth animations and collapsing
-  compactSummaryCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    borderRadius: 16,
-    padding: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#008b8b',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  summaryMainInfo: {
-    flex: 1,
-  },
-  summaryTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginBottom: 4,
-  },
-  summarySubtitle: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    marginBottom: 8,
-  },
-  dietTypeBadge: {
-    backgroundColor: '#008b8b',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  dietTypeBadgeText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  summaryRecipeCount: {
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  recipeCountNumber: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#008b8b',
-  },
-  recipeCountLabel: {
-    fontSize: 11,
-    color: '#7f8c8d',
-    fontWeight: '600',
-  },
-  avgNutritionSection: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
-  },
-  avgSectionTitle: {
-    fontSize: 14,
-    color: '#2c3e50',
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  avgStatsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  avgStatItem: {
-    alignItems: 'center',
-  },
-  avgStatValue: {
     fontSize: 16,
-    color: '#2c3e50',
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  avgStatLabel: {
-    fontSize: 11,
-    color: '#7f8c8d',
-    fontWeight: '500',
-  },
-
-  toggleContainer: {
-    paddingHorizontal: 20,
-    // paddingVertical is now animated, removed from here
-  },
-  toggleWrapper: {
-    flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    padding: 4,
-  },
-  toggleOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 6,
-    gap: 6,
-  },
-  toggleOptionActive: {
-    backgroundColor: '#008b8b',
-  },
-  toggleText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#7f8c8d',
-  },
-  toggleTextActive: {
-    color: '#fff',
     fontWeight: '600',
+    color: '#1e293b',
+    letterSpacing: -0.2,
   },
 
   scrollContent: {
     paddingBottom: 40,
   },
 
-  cardsContainer: {
+  controlsContainer: {
     paddingHorizontal: 20,
-    gap: 16,
-    paddingTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
-  dayCard: {
-    backgroundColor: 'white',
+
+  viewToggleContainer: {},
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 2,
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#1e293b',
+  },
+  toggleButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  toggleButtonTextActive: {
+    color: '#ffffff',
+  },
+
+  groceryButtonContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  prominentGroceryButton: {
+    backgroundColor: '#008b8b',
     borderRadius: 16,
     padding: 20,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 6,
+      },
+    }),
+  },
+  groceryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  groceryButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  groceryButtonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  groceryButtonText: {
+    flex: 1,
+  },
+  groceryButtonTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  groceryButtonSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 18,
+  },
+  groceryButtonArrow: {
+    marginLeft: 12,
+  },
+
+  cardsContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 16,
+  },
+  dayCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
       },
     }),
   },
@@ -1107,44 +961,50 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   dayHeaderLeft: {},
   dayTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2c3e50',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    letterSpacing: -0.3,
     marginBottom: 4,
   },
   dayCalories: {
-    fontSize: 14,
-    color: '#7f8c8d',
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
   },
   dayProgress: {},
   progressRing: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#f1f5f9',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f8fafc',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#008b8b',
   },
   progressText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: '#008b8b',
   },
 
   macroSection: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   macroBar: {
     flexDirection: 'row',
-    height: 6,
-    borderRadius: 3,
+    height: 4,
+    borderRadius: 2,
     overflow: 'hidden',
     marginBottom: 8,
+    backgroundColor: '#f1f5f9',
   },
   macroBarSegment: {
     height: '100%',
@@ -1154,71 +1014,102 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   macroLabel: {
-    fontSize: 12,
-    color: '#7f8c8d',
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '500',
   },
   macroBold: {
     fontWeight: '600',
-    color: '#2c3e50',
+    color: '#1e293b',
   },
 
-  mealsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+  mealsContainer: {
+    gap: 8,
   },
-  mealGridItem: {
-    width: (width - 64) / 2,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
+  mealCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  mealCardLeft: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
   },
   mealIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginRight: 12,
   },
-  mealGridType: {
-    fontSize: 10,
-    color: '#7f8c8d',
-    fontWeight: '600',
-    marginBottom: 4,
+  mealInfo: {
+    flex: 1,
   },
-  mealGridTitle: {
+  mealType: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '500',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  mealTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2c3e50',
-    textAlign: 'center',
-    marginBottom: 8,
-    minHeight: 36,
+    color: '#1e293b',
+    marginBottom: 4,
+    lineHeight: 18,
   },
-  mealGridCalories: {
-    fontSize: 12,
-    color: '#008b8b',
+  mealMacros: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  mealMacro: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  mealCardRight: {
+    alignItems: 'flex-end',
+  },
+  mealCalories: {
+    fontSize: 15,
     fontWeight: '600',
+    color: '#008b8b',
+  },
+  mealCaloriesLabel: {
+    fontSize: 9,
+    color: '#64748b',
+    marginBottom: 2,
+    fontWeight: '500',
   },
 
   listContainer: {
     paddingHorizontal: 20,
-    gap: 8,
-    paddingTop: 12,
+    paddingTop: 16,
+    gap: 6,
   },
   listItem: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
       },
       android: {
         elevation: 1,
@@ -1231,47 +1122,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listMealIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   listMealInfo: {
     flex: 1,
   },
   listMealType: {
-    fontSize: 12,
-    color: '#7f8c8d',
+    fontSize: 10,
+    color: '#64748b',
     fontWeight: '500',
-    marginBottom: 2,
+    marginBottom: 1,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   listMealTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#2c3e50',
-    marginBottom: 4,
+    color: '#1e293b',
+    marginBottom: 3,
   },
   listMealMacros: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   listMealMacro: {
-    fontSize: 11,
-    color: '#7f8c8d',
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '500',
   },
   listItemRight: {
     alignItems: 'flex-end',
   },
   listMealCalories: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#008b8b',
   },
   listMealCaloriesLabel: {
-    fontSize: 10,
-    color: '#7f8c8d',
+    fontSize: 9,
+    color: '#64748b',
+    fontWeight: '500',
   },
 
   scrollBottom: {
@@ -1280,7 +1175,7 @@ const styles = StyleSheet.create({
 
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f8fafc',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1476,25 +1371,5 @@ const styles = StyleSheet.create({
 
   modalBottom: {
     height: 40,
-  },
-
-  // Empty State
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  emptyStateTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#7f8c8d',
-    textAlign: 'center',
   },
 });

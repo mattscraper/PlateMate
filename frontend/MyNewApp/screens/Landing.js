@@ -432,7 +432,7 @@ export default function LandingScreen({ navigation }) {
         />
         <View style={styles.headerTextContainer}>
           <Text style={styles.dashboardTitle}>Kitchly</Text>
-          <Text style={styles.dashboardSubtitle}>Recipe Assistant</Text>
+          <Text style={styles.dashboardSubtitle}>Nutrition Assistant</Text>
         </View>
       </View>
       <View style={styles.headerRight}>
@@ -618,7 +618,7 @@ export default function LandingScreen({ navigation }) {
               <View style={styles.modalHeaderIcon}>
                 <Ionicons name="person" size={32} color="#008b8b" />
               </View>
-              <Text style={styles.modalTitle}>Welcome to Kitch</Text>
+              <Text style={styles.modalTitle}>Welcome to Kitchly</Text>
               <Text style={styles.modalSubtitle}>
                 {isNewUser
                   ? "Create an account to start your culinary journey"
