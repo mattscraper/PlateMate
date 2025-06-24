@@ -17,7 +17,7 @@ init_recipe_routes(app)
 from backend.food_scanner import init_food_scanner_routes
 init_food_scanner_routes(app)
 
-from backend.grocery_routes import init_grocery_routes
+from backend.grocery_generator import init_grocery_routes
 init_grocery_routes(app)
 
 jwt.init_app(app)
