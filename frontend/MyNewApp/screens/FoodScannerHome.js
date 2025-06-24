@@ -25,6 +25,7 @@ const FoodScannerHome = ({ navigation }) => {
         headerTintColor: '#2c3e50',
         headerTitle: () => null, // No title component
         headerBackTitleVisible: false, // Hide "Back" text on iOS
+        headerBackTitle: '', // Remove back title text completely
       });
     }, [navigation])
   );

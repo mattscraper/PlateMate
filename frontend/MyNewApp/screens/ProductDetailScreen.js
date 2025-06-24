@@ -111,11 +111,11 @@ const ProductDetailScreen = ({ route, navigation }) => {
     return { level: 'low', color: '#10B981', label: 'Low impact' };
   };
 
-  const formatNutrientValue = (key, value) => {
+  const formatNutrientValue = (key, value, servingSize) => {
     if (!value) return 'N/A';
     
-    // Convert per 100g to per serving (33g)
-    const servingValue = (value * 33 / 100);
+    // Convert per 100g to per serving using actual serving size
+    const servingValue = (value * servingSize / 100);
     
     if (key === 'energy_kcal_100g') return `${Math.round(servingValue)} Cal`;
     if (key === 'sodium_100g') return `${Math.round(servingValue * 1000)}mg`;
@@ -213,6 +213,9 @@ const ProductDetailScreen = ({ route, navigation }) => {
     );
   }
 
+  // Get serving size from backend (fallback to 33g if not available)
+  const servingSize = product.serving_size || 33;
+
   // Categorize nutrients into positives and negatives
   const positiveNutrients = [
     { key: 'fiber_100g', title: 'Fiber', icon: 'leaf' },
@@ -258,7 +261,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Positives</Text>
-            <Text style={styles.servingInfo}>per serving (33g) •••</Text>
+            <Text style={styles.servingInfo}>per serving ({servingSize}g) •••</Text>
           </View>
 
           {/* No Additives */}
@@ -276,7 +279,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
             if (!value) return null;
             
             const quality = getNutrientQuality(key, value);
-            const formattedValue = formatNutrientValue(key, value);
+            const formattedValue = formatNutrientValue(key, value, servingSize);
             
             return (
               <PositiveIndicator
@@ -299,7 +302,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
             if (quality.level !== 'low') return null; // Only show if low (good)
             
             const title = key === 'sugars_100g' ? 'Sugar' : 'Sodium';
-            const formattedValue = formatNutrientValue(key, value);
+            const formattedValue = formatNutrientValue(key, value, servingSize);
             
             return (
               <PositiveIndicator
@@ -318,7 +321,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Negatives</Text>
-            <Text style={styles.servingInfo}>per serving (33g) •••</Text>
+            <Text style={styles.servingInfo}>per serving ({servingSize}g) •••</Text>
           </View>
 
           {negativeNutrients.map(({ key, title, icon }) => {
@@ -326,7 +329,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
             if (!value) return null;
             
             const quality = getNutrientQuality(key, value);
-            const formattedValue = formatNutrientValue(key, value);
+            const formattedValue = formatNutrientValue(key, value, servingSize);
             
             return (
               <NegativeIndicator
@@ -354,7 +357,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
               'fat_100g': 'Fat'
             };
             
-            const formattedValue = formatNutrientValue(key, value);
+            const formattedValue = formatNutrientValue(key, value, servingSize);
             
             return (
               <NegativeIndicator
@@ -569,21 +572,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   healthScoreCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 80,  // Increased from 60
+    height: 80, // Increased from 60
+    borderRadius: 40, // Increased from 30
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
     flexDirection: 'row',
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   healthScoreText: {
-    fontSize: 24,
+    fontSize: 28, // Increased from 24
     fontWeight: '700',
     color: 'white',
   },
   healthScoreMax: {
-    fontSize: 14,
+    fontSize: 16, // Increased from 14
     fontWeight: '500',
     color: 'white',
     marginLeft: 2,

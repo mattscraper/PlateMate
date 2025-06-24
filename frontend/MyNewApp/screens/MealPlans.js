@@ -26,8 +26,8 @@ const { width, height } = Dimensions.get("window");
 export default function MealPlans() {
   const navigation = useNavigation();
 
-  // Core state
-  const [days, setDays] = useState(7);
+  // Core state - Updated max days to 3
+  const [days, setDays] = useState(1);
   const [caloriesPerDay, setCaloriesPerDay] = useState(2000);
   const [mealsPerDay, setMealsPerDay] = useState(3);
   const [healthy, setHealthy] = useState(false);
@@ -60,17 +60,18 @@ export default function MealPlans() {
     { id: "highProtein", label: "High Protein", value: "High Protein", icon: "fitness", color: "#ff2d92" },
   ];
 
+  // Updated loading texts for shorter plans
   const loadingTexts = [
-    "Planning your perfect menu...",
-    "Crafting balanced meals...",
-    "Organizing your week...",
-    "Adding variety to your diet...",
-    "Calculating nutritional balance...",
-    "Personalizing your meal plan...",
-    "Creating delicious combinations...",
-    "Optimizing your nutrition...",
-    "Building healthy habits...",
-    "Finalizing your week ahead...",
+    "Crafting your perfect meals...",
+    "Planning delicious combinations...",
+    "Balancing nutrition and flavor...",
+    "Creating your custom menu...",
+    "Optimizing meal variety...",
+    "Selecting fresh ingredients...",
+    "Building your meal schedule...",
+    "Personalizing your plan...",
+    "Almost ready to serve...",
+    "Finalizing your menu...",
   ];
 
   useEffect(() => {
@@ -165,6 +166,13 @@ export default function MealPlans() {
       : "Including all meal types from comfort food to gourmet";
   };
 
+  // Helper function to get day text
+  const getDayText = (dayCount) => {
+    if (dayCount === 1) return "Quick day plan";
+    if (dayCount === 2) return "Weekend planning";
+    return "Short week plan";
+  };
+
   // Loading screen
   if (isLoading) {
     return (
@@ -230,8 +238,8 @@ export default function MealPlans() {
           <Ionicons name="arrow-back" size={24} color="#008b8b" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Meal Plan Builder</Text>
-          <Text style={styles.headerSubtitle}>Plan your perfect week of meals</Text>
+          <Text style={styles.headerTitle}>Quick Meal Planner</Text>
+          <Text style={styles.headerSubtitle}>Plan up to 3 days of perfect meals</Text>
         </View>
         <View style={{ width: 44 }} />
       </View>
@@ -246,9 +254,9 @@ export default function MealPlans() {
             <View style={styles.heroIconContainer}>
               <Ionicons name="calendar-outline" size={32} color="#008b8b" />
             </View>
-            <Text style={styles.heroTitle}>Plan your perfect week</Text>
+            <Text style={styles.heroTitle}>Quick meal planning</Text>
             <Text style={styles.heroSubtitle}>
-              Create a personalized meal plan that fits your lifestyle, dietary needs, and nutritional goals
+              Create a personalized 1-3 day meal plan that fits your lifestyle and dietary needs
             </Text>
           </View>
 
@@ -266,9 +274,9 @@ export default function MealPlans() {
               value={days}
               onChange={setDays}
               min={1}
-              max={7}
+              max={3}
               unit={days === 1 ? "day" : "days"}
-              description="How many days to plan for"
+              description={getDayText(days)}
             />
 
             <Counter
@@ -383,6 +391,17 @@ export default function MealPlans() {
             <Ionicons name="calendar" size={24} color="white" />
             <Text style={styles.generateButtonText}>Create My Meal Plan</Text>
           </TouchableOpacity>
+
+          {/* Quick Info Card */}
+          <View style={styles.infoCard}>
+            <View style={styles.infoHeader}>
+              <Ionicons name="information-circle" size={20} color="#008b8b" />
+              <Text style={styles.infoTitle}>Quick Planning</Text>
+            </View>
+            <Text style={styles.infoText}>
+              Perfect for meal prep, weekend planning, or trying new recipes without the commitment of a full week
+            </Text>
+          </View>
         </ScrollView>
       </Animated.View>
 
@@ -789,6 +808,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     gap: 8,
     marginTop: 20,
+    marginBottom: 16,
     ...Platform.select({
       ios: {
         shadowColor: '#008b8b',
@@ -808,6 +828,31 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: 'white',
+  },
+
+  // Info Card
+  infoCard: {
+    backgroundColor: 'rgba(0, 139, 139, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: '#008b8b',
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#008b8b',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#5a6169',
+    lineHeight: 20,
   },
 
   // Loading
