@@ -618,6 +618,7 @@ class RecipeGenerator:
         CRITICAL REQUIREMENTS:
         - Generate ALL {days * meals_per_day} completely UNIQUE recipes
         - Use these meal types in order: {', '.join(meal_types)}
+        - Make the meals simple to make with 3-6 ingredients
         - NEVER repeat any recipe titles, ingredients combinations, or cooking methods
         - Each recipe MUST be from a different cuisine or cooking style
         - Each recipe MUST target {calories_per_recipe} calories per serving
@@ -743,7 +744,9 @@ class RecipeGenerator:
 
         {exclusion_text}
 
-        CRITICAL: Each recipe MUST be completely different from any previous recipes. Use different:
+        CRITICAL: Each recipe MUST be completely different from any previous recipes.
+        - Make the meals simple to make with 3-6 ingredients
+        Use different:
         - Cooking methods (grilled, baked, sautéed, steamed, roasted, etc.)
         - Protein sources (chicken, fish, beef, tofu, eggs, beans, etc.)
         - Cuisines (Italian, Mexican, Asian, Mediterranean, etc.)

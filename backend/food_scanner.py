@@ -120,94 +120,70 @@ class FoodHealthAnalyzer:
             }
         }
 
-        # Serving size defaults by category
-        self.default_serving_sizes = {
-            'peanut butter': 32,
-            'spread': 20,
-            'jam': 20,
-            'honey': 21,
-            'cereal': 40,
-            'granola': 55,
-            'yogurt': 170,
-            'milk': 240,
-            'juice': 240,
-            'soda': 355,
-            'chocolate': 40,
-            'candy': 30,
-            'chips': 28,
-            'crackers': 30,
-            'cookies': 30,
-            'bread': 25,
-            'pasta': 85,
-            'rice': 80,
-            'oil': 14,
-            'butter': 14,
-            'cheese': 28,
-            'ice cream': 65,
-            'salad dressing': 30
-        }
+    def parse_serving_string(self, serving_str):
+        """Parse serving size string and extract numeric value in grams"""
+        if not serving_str or not isinstance(serving_str, str):
+            return None
+            
+        serving_str = serving_str.strip().lower()
+        
+        # Extract numeric value - handle multiple numbers (e.g., "2 tbsp (32g)")
+        numbers = re.findall(r'\d+\.?\d*', serving_str)
+        if not numbers:
+            return None
+        
+        # Look for grams explicitly first
+        gram_match = re.search(r'(\d+\.?\d*)\s*g(?:ram)?', serving_str)
+        if gram_match:
+            return float(gram_match.group(1))
+            
+        # If no grams found, use first number and convert based on unit
+        value = float(numbers[0])
+        
+        # Convert based on unit
+        if any(unit in serving_str for unit in ['ml', 'milliliter', 'millilitre']):
+            return value  # 1ml ≈ 1g for most liquids
+        elif any(unit in serving_str for unit in ['cl', 'centiliter', 'centilitre']):
+            return value * 10  # 1cl = 10ml
+        elif any(unit in serving_str for unit in ['dl', 'deciliter', 'decilitre']):
+            return value * 100  # 1dl = 100ml
+        elif any(unit in serving_str for unit in ['l', 'liter', 'litre', 'lt']):
+            return value * 1000  # 1l = 1000ml
+        elif any(unit in serving_str for unit in ['fl oz', 'fl.oz', 'fluid ounce']):
+            return value * 29.5735  # 1 fl oz = 29.5735ml
+        elif any(unit in serving_str for unit in ['oz', 'ounce']):
+            return value * 28.3495  # 1 oz = 28.3495g
+        elif any(unit in serving_str for unit in ['lb', 'pound']):
+            return value * 453.592  # 1 lb = 453.592g
+        elif any(unit in serving_str for unit in ['kg', 'kilogram']):
+            return value * 1000  # 1kg = 1000g
+        elif any(unit in serving_str for unit in ['mg', 'milligram']):
+            return value / 1000  # 1mg = 0.001g
+        elif any(unit in serving_str for unit in ['tbsp', 'tablespoon', 'table spoon']):
+            return value * 15  # 1 tbsp ≈ 15g (varies by ingredient)
+        elif any(unit in serving_str for unit in ['tsp', 'teaspoon', 'tea spoon']):
+            return value * 5   # 1 tsp ≈ 5g (varies by ingredient)
+        elif any(unit in serving_str for unit in ['cup']):
+            return value * 240  # 1 cup ≈ 240g (varies by ingredient)
+        else:
+            # No unit specified, assume grams if reasonable
+            if 1 <= value <= 1000:
+                return value
+            return None
 
     def get_serving_size_from_api(self, product: Dict) -> Dict:
         """
         Extract serving size from OpenFoodFacts API with comprehensive field checking
-        Based on official API documentation: https://wiki.openfoodfacts.org/API_Fields
+        This is the ONLY method that should be used for serving size calculation
         """
-        import re
-        
-        def parse_serving_string(serving_str):
-            """Parse serving size string and extract numeric value in grams"""
-            if not serving_str or not isinstance(serving_str, str):
-                return None
-                
-            serving_str = serving_str.strip().lower()
-            
-            # Extract numeric value
-            numbers = re.findall(r'\d+\.?\d*', serving_str)
-            if not numbers:
-                return None
-                
-            value = float(numbers[0])
-            
-            # Convert based on unit
-            if any(unit in serving_str for unit in ['ml', 'milliliter', 'millilitre']):
-                return value  # 1ml ≈ 1g for most liquids
-            elif any(unit in serving_str for unit in ['cl', 'centiliter', 'centilitre']):
-                return value * 10  # 1cl = 10ml
-            elif any(unit in serving_str for unit in ['dl', 'deciliter', 'decilitre']):
-                return value * 100  # 1dl = 100ml
-            elif any(unit in serving_str for unit in ['l', 'liter', 'litre', 'lt']):
-                return value * 1000  # 1l = 1000ml
-            elif any(unit in serving_str for unit in ['fl oz', 'fl.oz', 'fluid ounce']):
-                return value * 29.5735  # 1 fl oz = 29.5735ml
-            elif any(unit in serving_str for unit in ['oz', 'ounce']):
-                return value * 28.3495  # 1 oz = 28.3495g
-            elif any(unit in serving_str for unit in ['lb', 'pound']):
-                return value * 453.592  # 1 lb = 453.592g
-            elif any(unit in serving_str for unit in ['kg', 'kilogram']):
-                return value * 1000  # 1kg = 1000g
-            elif any(unit in serving_str for unit in ['mg', 'milligram']):
-                return value / 1000  # 1mg = 0.001g
-            elif any(unit in serving_str for unit in ['g', 'gram', 'gr']):
-                return value
-            elif any(unit in serving_str for unit in ['tbsp', 'tablespoon', 'table spoon']):
-                return value * 15  # 1 tbsp ≈ 15g (varies by ingredient)
-            elif any(unit in serving_str for unit in ['tsp', 'teaspoon', 'tea spoon']):
-                return value * 5   # 1 tsp ≈ 5g (varies by ingredient)
-            elif any(unit in serving_str for unit in ['cup']):
-                return value * 240  # 1 cup ≈ 240g (varies by ingredient)
-            else:
-                # No unit specified, assume grams if reasonable
-                if 1 <= value <= 1000:
-                    return value
-                return None
         
         # Priority 1: Check serving_size field (string with units)
         serving_size = product.get('serving_size')
         if serving_size:
-            parsed = parse_serving_string(serving_size)
-            if parsed:
+            parsed = self.parse_serving_string(serving_size)
+            if parsed and 1 <= parsed <= 1000:
                 return {
-                    'serving_size': parsed,
+                    'serving_size': round(parsed, 1),
                     'confidence': 'high',
                     'source': 'serving_size_field',
                     'original_value': serving_size,
@@ -221,7 +197,7 @@ class FoodHealthAnalyzer:
                 value = float(serving_quantity)
                 if 1 <= value <= 1000:  # Reasonable serving size range
                     return {
-                        'serving_size': value,
+                        'serving_size': round(value, 1),
                         'confidence': 'high',
                         'source': 'serving_quantity_field',
                         'original_value': serving_quantity,
@@ -247,10 +223,10 @@ class FoodHealthAnalyzer:
                         calculated_serving = (serving_value / float(per_100g_value)) * 100
                         if 5 <= calculated_serving <= 500:  # Reasonable range
                             return {
-                                'serving_size': calculated_serving,
+                                'serving_size': round(calculated_serving, 1),
                                 'confidence': 'medium',
                                 'source': f'calculated_from_{key}',
-                                'original_value': f'{key}: {value}',
+                                'original_value': f'{key}: {value}, {base_key}: {per_100g_value}',
                                 'unit': 'g'
                             }
                 except (ValueError, TypeError, ZeroDivisionError):
@@ -264,7 +240,7 @@ class FoodHealthAnalyzer:
                 # For single-serve items, the product quantity might be the serving size
                 if 10 <= value <= 500:
                     return {
-                        'serving_size': value,
+                        'serving_size': round(value, 1),
                         'confidence': 'medium',
                         'source': 'product_quantity_field',
                         'original_value': product_quantity,
@@ -276,10 +252,10 @@ class FoodHealthAnalyzer:
         # Priority 5: Parse quantity field for serving clues
         quantity = product.get('quantity')
         if quantity:
-            parsed = parse_serving_string(quantity)
+            parsed = self.parse_serving_string(quantity)
             if parsed and 10 <= parsed <= 500:
                 return {
-                    'serving_size': parsed,
+                    'serving_size': round(parsed, 1),
                     'confidence': 'low',
                     'source': 'quantity_field',
                     'original_value': quantity,
@@ -292,68 +268,79 @@ class FoodHealthAnalyzer:
         
         # More comprehensive category mapping
         category_mappings = {
-            # Beverages
-            'sodas': 355, 'soft-drinks': 355, 'carbonated-drinks': 355,
-            'fruit-juices': 240, 'orange-juices': 240, 'apple-juices': 240,
-            'energy-drinks': 250, 'sports-drinks': 355,
-            'waters': 240, 'mineral-waters': 240,
-            'teas': 240, 'coffees': 240,
-            'plant-based-milk': 240, 'almond-milk': 240, 'soy-milk': 240,
-            'dairy-milk': 240, 'milks': 240,
+            # Beverages (most specific first)
+            'energy-drinks': 250, 'sports-drinks': 355, 'soft-drinks': 355, 'sodas': 355,
+            'carbonated-drinks': 355, 'fruit-juices': 240, 'orange-juices': 240,
+            'apple-juices': 240, 'vegetable-juices': 240, 'smoothies': 240,
+            'plant-based-milks': 240, 'almond-milk': 240, 'soy-milk': 240, 'oat-milk': 240,
+            'dairy-milk': 240, 'milks': 240, 'waters': 240, 'mineral-waters': 240,
+            'teas': 240, 'coffees': 240, 'iced-teas': 240, 'kombucha': 240,
             
-            # Dairy
-            'yogurts': 170, 'greek-yogurt': 170, 'plain-yogurts': 170,
-            'cheeses': 28, 'hard-cheeses': 28, 'soft-cheeses': 28,
-            'ice-creams': 65, 'frozen-desserts': 65,
-            'butter': 14, 'margarine': 14,
+            # Dairy & Refrigerated
+            'greek-yogurts': 170, 'yogurts': 170, 'plain-yogurts': 170, 'yoghurts': 170,
+            'hard-cheeses': 28, 'soft-cheeses': 28, 'cheeses': 28, 'cottage-cheese': 113,
+            'cream-cheese': 28, 'ice-creams': 65, 'frozen-desserts': 65, 'gelato': 65,
+            'butter': 14, 'margarine': 14, 'ghee': 14,
             
-            # Spreads & Condiments
-            'peanut-butters': 32, 'nut-butters': 32, 'almond-butters': 32,
-            'jams': 20, 'fruit-preserves': 20, 'marmalades': 20,
-            'honey': 21, 'maple-syrup': 20,
-            'spreads': 20, 'chocolate-spreads': 20,
-            'condiments': 15, 'sauces': 30, 'salad-dressings': 30,
-            'mayonnaise': 15, 'ketchup': 17,
+            # Spreads & Condiments (most specific first)
+            'peanut-butters': 32, 'almond-butters': 32, 'cashew-butters': 32, 'nut-butters': 32,
+            'chocolate-spreads': 20, 'fruit-preserves': 20, 'jams': 20, 'jellies': 20,
+            'marmalades': 20, 'honey': 21, 'maple-syrups': 20, 'agave-nectar': 21,
+            'spreads': 20, 'tahini': 16, 'hummus': 30,
+            'salad-dressings': 30, 'mayonnaise': 15, 'mustard': 5, 'ketchup': 17,
+            'hot-sauce': 5, 'barbecue-sauce': 17, 'soy-sauce': 6, 'condiments': 15,
+            'sauces': 30, 'marinara-sauce': 60, 'pasta-sauces': 60,
             
             # Breakfast & Cereals
-            'breakfast-cereals': 40, 'cereals': 40, 'muesli': 45,
-            'granola': 55, 'oat-flakes': 40, 'corn-flakes': 30,
-            'instant-oatmeal': 40, 'porridge': 40,
+            'granolas': 55, 'muesli': 45, 'breakfast-cereals': 40, 'cereals': 40,
+            'oat-flakes': 40, 'corn-flakes': 30, 'rice-cereals': 30,
+            'instant-oatmeal': 40, 'oatmeal': 40, 'porridge': 40, 'quinoa-flakes': 40,
             
-            # Snacks
-            'chocolates': 40, 'dark-chocolates': 40, 'milk-chocolates': 40,
-            'chocolate-bars': 45, 'candy-bars': 45,
-            'candies': 30, 'gummies': 30, 'hard-candies': 15,
-            'chips': 28, 'potato-chips': 28, 'corn-chips': 28,
-            'crackers': 30, 'biscuits': 30, 'cookies': 30,
-            'pretzels': 30, 'popcorn': 25,
-            'nuts': 28, 'mixed-nuts': 28, 'almonds': 28, 'peanuts': 28,
-            'dried-fruits': 30, 'raisins': 30,
+            # Snacks (most specific first)
+            'dark-chocolates': 40, 'milk-chocolates': 40, 'white-chocolates': 40, 'chocolates': 40,
+            'chocolate-bars': 45, 'candy-bars': 45, 'protein-bars': 45, 'granola-bars': 35,
+            'energy-bars': 40, 'nutrition-bars': 40,
+            'gummy-candies': 30, 'hard-candies': 15, 'candies': 30, 'gummies': 30,
+            'lollipops': 15, 'mints': 2,
+            'potato-chips': 28, 'corn-chips': 28, 'tortilla-chips': 28, 'chips': 28,
+            'pretzels': 30, 'popcorn': 25, 'rice-cakes': 9, 'crackers': 30,
+            'cookies': 30, 'biscuits': 30, 'wafers': 30, 'sandwich-cookies': 30,
+            'mixed-nuts': 28, 'almonds': 28, 'peanuts': 28, 'cashews': 28, 'nuts': 28,
+            'dried-fruits': 30, 'raisins': 30, 'dried-cranberries': 30,
+            'jerky': 14, 'beef-jerky': 14, 'turkey-jerky': 14,
             
-            # Staples
-            'breads': 25, 'white-bread': 25, 'whole-wheat-bread': 25,
-            'bagels': 85, 'muffins': 60, 'croissants': 60,
-            'pasta': 85, 'spaghetti': 85, 'noodles': 85,
-            'rice': 80, 'white-rice': 80, 'brown-rice': 80,
-            'quinoa': 80, 'couscous': 80,
-            'oils': 14, 'olive-oil': 14, 'vegetable-oil': 14,
+            # Staples & Grains
+            'whole-wheat-breads': 25, 'white-breads': 25, 'sourdough-bread': 25, 'breads': 25,
+            'bagels': 85, 'english-muffins': 60, 'muffins': 60, 'croissants': 60,
+            'tortillas': 45, 'wraps': 45, 'pita-bread': 30,
+            'spaghetti': 85, 'pasta': 85, 'noodles': 85, 'ramen': 85, 'macaroni': 85,
+            'brown-rice': 80, 'white-rice': 80, 'rice': 80, 'wild-rice': 80,
+            'quinoa': 80, 'couscous': 80, 'bulgur': 80, 'barley': 80,
+            'olive-oils': 14, 'vegetable-oils': 14, 'coconut-oil': 14, 'oils': 14,
+            'vinegars': 15, 'balsamic-vinegar': 15,
             
-            # Prepared foods
-            'soups': 245, 'canned-soups': 245, 'instant-soups': 245,
-            'frozen-meals': 280, 'ready-meals': 280,
-            'sandwiches': 150, 'wraps': 150,
-            'pizza': 120, 'frozen-pizza': 120,
-            'salads': 85, 'prepared-salads': 85,
+            # Prepared Foods
+            'canned-soups': 245, 'instant-soups': 245, 'soups': 245, 'broths': 240,
+            'frozen-meals': 280, 'ready-meals': 280, 'tv-dinners': 280,
+            'frozen-pizza': 120, 'pizza': 120, 'calzones': 150,
+            'sandwiches': 150, 'wraps': 150, 'burritos': 200,
+            'prepared-salads': 85, 'salads': 85, 'coleslaw': 85,
+            'deli-meats': 56, 'lunch-meats': 56, 'ham': 56, 'turkey-slices': 56,
+            
+            # Canned & Packaged
+            'canned-beans': 130, 'beans': 130, 'lentils': 130, 'chickpeas': 130,
+            'canned-tomatoes': 120, 'tomato-paste': 16, 'tomato-sauce': 60,
+            'pickles': 30, 'olives': 15, 'capers': 5,
         }
         
-        # Check categories with higher specificity first
+        # Check categories with higher specificity first (longer strings first)
         for category, size in sorted(category_mappings.items(), key=lambda x: len(x[0]), reverse=True):
             if category in categories or category in product_name:
                 return {
-                    'serving_size': size,
+                    'serving_size': round(float(size), 1),
                     'confidence': 'medium',
                     'source': f'category_match_{category}',
-                    'original_value': categories,
+                    'original_value': f'category: {category}',
                     'unit': 'g'
                 }
         
@@ -374,7 +361,7 @@ class FoodHealthAnalyzer:
                     estimated_serving = 120
                     
                 return {
-                    'serving_size': estimated_serving,
+                    'serving_size': round(float(estimated_serving), 1),
                     'confidence': 'low',
                     'source': f'nutrition_based_estimation_{energy}kcal',
                     'original_value': f'{energy} kcal/100g',
@@ -385,37 +372,11 @@ class FoodHealthAnalyzer:
         
         # Final fallback
         return {
-            'serving_size': 33,
+            'serving_size': 33.0,
             'confidence': 'very_low',
             'source': 'default_fallback',
             'original_value': 'no_data_available',
             'unit': 'g'
-        }
-    def get_intelligent_serving_size_with_context(self, product: Dict) -> Dict:
-        """Get serving size with additional context for better accuracy"""
-        serving_size = self.get_serving_size(product)
-        
-        # Determine confidence level
-        confidence = "medium"
-        source = "estimated"
-        
-        # Check if we got it from actual product data
-        if any(field in product for field in ['serving_size', 'serving_quantity']):
-            confidence = "high"
-            source = "product_data"
-        elif any(cat in product.get('categories', '').lower()
-                for cat in ['peanut butter', 'yogurt', 'cereal', 'juice']):
-            confidence = "medium"
-            source = "category_match"
-        else:
-            confidence = "low"
-            source = "default"
-        
-        return {
-            'serving_size': serving_size,
-            'confidence': confidence,
-            'source': source,
-            'unit': 'g'  # Always return grams for consistency
         }
 
     def evaluate_nutrient_level(self, key: str, value: float) -> str:
@@ -458,54 +419,54 @@ class FoodHealthAnalyzer:
         # Major negative factors (balanced penalties)
         
         # Calories (moderate penalty for high calorie foods)
-        energy = nutrients.get('energy-kcal_100g', 0) or nutrients.get('energy_100g', 0)
+        energy = nutrients.get('energy_kcal_100g', 0) or nutrients.get('energy_100g', 0)
         if energy:
             level = self.evaluate_nutrient_level('energy-kcal_100g', energy)
-            if level == 'terrible': base_score -= 20  # Reduced from 30
-            elif level == 'poor': base_score -= 12    # Reduced from 20
-            elif level == 'fair': base_score -= 6     # Reduced from 10
-            elif level == 'good': base_score += 3     # Reduced from 5
-            elif level == 'excellent': base_score += 5  # Reduced from 10
+            if level == 'terrible': base_score -= 20
+            elif level == 'poor': base_score -= 12
+            elif level == 'fair': base_score -= 6
+            elif level == 'good': base_score += 3
+            elif level == 'excellent': base_score += 5
         
         # Sugar (strict but not excessive)
         sugar = nutrients.get('sugars_100g', 0)
         if sugar:
             level = self.evaluate_nutrient_level('sugars_100g', sugar)
-            if level == 'terrible': base_score -= 25  # Reduced from 35
-            elif level == 'poor': base_score -= 18    # Reduced from 25
-            elif level == 'fair': base_score -= 10    # Reduced from 15
-            elif level == 'good': base_score += 3     # Reduced from 5
-            elif level == 'excellent': base_score += 5  # Reduced from 10
+            if level == 'terrible': base_score -= 25
+            elif level == 'poor': base_score -= 18
+            elif level == 'fair': base_score -= 10
+            elif level == 'good': base_score += 3
+            elif level == 'excellent': base_score += 5
         
         # Saturated fat (balanced penalties)
-        sat_fat = nutrients.get('saturated-fat_100g', 0)
+        sat_fat = nutrients.get('saturated_fat_100g', 0)
         if sat_fat:
             level = self.evaluate_nutrient_level('saturated-fat_100g', sat_fat)
-            if level == 'terrible': base_score -= 18  # Reduced from 25
-            elif level == 'poor': base_score -= 12    # Reduced from 18
-            elif level == 'fair': base_score -= 6     # Reduced from 10
-            elif level == 'good': base_score += 3     # Reduced from 5
-            elif level == 'excellent': base_score += 5  # Reduced from 8
+            if level == 'terrible': base_score -= 18
+            elif level == 'poor': base_score -= 12
+            elif level == 'fair': base_score -= 6
+            elif level == 'good': base_score += 3
+            elif level == 'excellent': base_score += 5
         
         # Total fat (lighter penalties)
         fat = nutrients.get('fat_100g', 0)
         if fat:
             level = self.evaluate_nutrient_level('fat_100g', fat)
-            if level == 'terrible': base_score -= 12  # Reduced from 20
-            elif level == 'poor': base_score -= 8     # Reduced from 15
-            elif level == 'fair': base_score -= 4     # Reduced from 8
-            elif level == 'good': base_score += 2     # Reduced from 3
-            elif level == 'excellent': base_score += 3  # Reduced from 5
+            if level == 'terrible': base_score -= 12
+            elif level == 'poor': base_score -= 8
+            elif level == 'fair': base_score -= 4
+            elif level == 'good': base_score += 2
+            elif level == 'excellent': base_score += 3
         
         # Sodium/Salt (balanced on sodium)
-        sodium = nutrients.get('sodium_100g', 0) or (nutrients.get('salt_100g', 0) * 0.4)
+        sodium = nutrients.get('sodium_100g', 0) or (nutrients.get('salt_100g', 0) * 0.4 if nutrients.get('salt_100g') else 0)
         if sodium:
             level = self.evaluate_nutrient_level('sodium_100g', sodium)
-            if level == 'terrible': base_score -= 18  # Reduced from 25
-            elif level == 'poor': base_score -= 12    # Reduced from 18
-            elif level == 'fair': base_score -= 6     # Reduced from 10
-            elif level == 'good': base_score += 3     # Reduced from 5
-            elif level == 'excellent': base_score += 5  # Reduced from 8
+            if level == 'terrible': base_score -= 18
+            elif level == 'poor': base_score -= 12
+            elif level == 'fair': base_score -= 6
+            elif level == 'good': base_score += 3
+            elif level == 'excellent': base_score += 5
         
         # Positive factors (enhanced rewards for good nutrients)
         
@@ -513,53 +474,53 @@ class FoodHealthAnalyzer:
         fiber = nutrients.get('fiber_100g', 0)
         if fiber:
             level = self.evaluate_nutrient_level('fiber_100g', fiber)
-            if level == 'excellent': base_score += 18   # Increased from 15
-            elif level == 'good': base_score += 12      # Increased from 10
-            elif level == 'fair': base_score += 6       # Increased from 5
-            elif level == 'poor': base_score -= 3       # Reduced from 5
-            elif level == 'terrible': base_score -= 6   # Reduced from 10
+            if level == 'excellent': base_score += 18
+            elif level == 'good': base_score += 12
+            elif level == 'fair': base_score += 6
+            elif level == 'poor': base_score -= 3
+            elif level == 'terrible': base_score -= 6
         
         # Protein (better rewards for high protein)
         protein = nutrients.get('proteins_100g', 0)
         if protein:
             level = self.evaluate_nutrient_level('proteins_100g', protein)
-            if level == 'excellent': base_score += 15   # Increased from 12
-            elif level == 'good': base_score += 10      # Increased from 8
-            elif level == 'fair': base_score += 5       # Increased from 4
-            elif level == 'poor': base_score -= 2       # Reduced from 3
-            elif level == 'terrible': base_score -= 4   # Reduced from 8
+            if level == 'excellent': base_score += 15
+            elif level == 'good': base_score += 10
+            elif level == 'fair': base_score += 5
+            elif level == 'poor': base_score -= 2
+            elif level == 'terrible': base_score -= 4
         
         # Balanced penalties for additives
         additives = ingredients_analysis.get('additives', [])
         for additive in additives:
             if additive['risk_level'] == 'high':
-                base_score -= 20  # Reduced from 30
+                base_score -= 20
             elif additive['risk_level'] == 'medium':
-                base_score -= 12  # Reduced from 20
+                base_score -= 12
             else:
-                base_score -= 6   # Reduced from 10
+                base_score -= 6
         
         # Lighter penalties for processed food indicators
         quality_score = ingredients_analysis.get('quality_score', 100)
         if quality_score < 30:
-            base_score -= 12  # Reduced from 15
+            base_score -= 12
         elif quality_score < 50:
-            base_score -= 8   # New moderate tier
+            base_score -= 8
         elif quality_score < 70:
-            base_score -= 4   # Reduced from 8
+            base_score -= 4
         
         # Bonus for very clean products (more generous)
         if not additives and quality_score > 80:
-            base_score += 12  # Increased from 10
+            base_score += 12
         elif not additives and quality_score > 60:
-            base_score += 6   # New bonus tier
+            base_score += 6
         
         # Additional bonus for natural, whole foods
         ingredient_count = ingredients_analysis.get('ingredient_count', 0)
         if ingredient_count <= 3 and not additives:
-            base_score += 8   # Bonus for very simple products
+            base_score += 8
         elif ingredient_count <= 5 and len(additives) <= 1:
-            base_score += 4   # Bonus for simple products
+            base_score += 4
         
         # Ensure score is within bounds
         return max(0, min(100, base_score))
@@ -637,7 +598,7 @@ class FoodHealthAnalyzer:
     def analyze_ingredients(self, ingredients_text: str) -> Dict:
         """Analyze ingredients for harmful additives and overall quality"""
         if not ingredients_text:
-            return {'additives': [], 'quality_score': 50, 'warnings': []}
+            return {'additives': [], 'quality_score': 50, 'warnings': [], 'ingredient_count': 0}
         
         ingredients_lower = ingredients_text.lower()
         found_additives = []
@@ -666,7 +627,7 @@ class FoodHealthAnalyzer:
             'palm oil': 'medium',
             'modified corn starch': 'low',
             'maltodextrin': 'medium',
-            'natural flavor': 'low',  # Even natural flavors get a small penalty
+            'natural flavor': 'low',
             'caramel color': 'medium',
             'phosphoric acid': 'medium',
             'potassium sorbate': 'low',
@@ -677,7 +638,7 @@ class FoodHealthAnalyzer:
             if keyword in ingredients_lower:
                 warnings.append(f"Contains {keyword}")
         
-        # Calculate quality score based on findings (stricter scoring)
+        # Calculate quality score based on findings
         quality_score = 100
         
         # Heavy penalties for additives
@@ -692,7 +653,7 @@ class FoodHealthAnalyzer:
         # Penalties for problematic ingredients
         quality_score -= len(warnings) * 8
         
-        # Additional penalty for long ingredient lists (ultra-processed indicator)
+        # Additional penalty for long ingredient lists
         ingredient_count = len([i.strip() for i in ingredients_text.split(',') if i.strip()])
         if ingredient_count > 15:
             quality_score -= 15
@@ -715,20 +676,20 @@ class FoodHealthAnalyzer:
         }
 
     def calculate_nutri_score(self, nutrients: Dict) -> Dict:
-        """Calculate Nutri-Score based on nutritional values (unchanged - this is standardized)"""
+        """Calculate Nutri-Score based on nutritional values"""
         if not nutrients:
             return {'score': 'Unknown', 'points': 0, 'grade': 'Unknown'}
         
         # Extract nutrients (per 100g)
-        energy = nutrients.get('energy-kcal_100g', 0) or nutrients.get('energy_100g', 0)
+        energy = nutrients.get('energy_kcal_100g', 0) or nutrients.get('energy_100g', 0)
         sugars = nutrients.get('sugars_100g', 0)
-        saturated_fat = nutrients.get('saturated-fat_100g', 0)
+        saturated_fat = nutrients.get('saturated_fat_100g', 0)
         sodium = nutrients.get('sodium_100g', 0)
         fiber = nutrients.get('fiber_100g', 0)
         protein = nutrients.get('proteins_100g', 0)
         fruits_vegetables = nutrients.get('fruits-vegetables-nuts_100g', 0)
         
-        # Calculate negative points (unchanged - official algorithm)
+        # Calculate negative points
         negative_points = 0
         
         # Energy points
@@ -820,11 +781,10 @@ class FoodHealthAnalyzer:
         }
 
     def get_health_recommendations(self, product_data: Dict, serving_size: float) -> List[str]:
-        """Generate health recommendations based on strict product analysis"""
+        """Generate health recommendations based on product analysis"""
         recommendations = []
         
         nutrients = product_data.get('nutriments', {})
-        nutri_score = product_data.get('nutri_score', {})
         health_score = product_data.get('health_score', 50)
         
         # Overall health assessment
@@ -837,32 +797,33 @@ class FoodHealthAnalyzer:
         else:
             recommendations.append("This product should be limited in your diet due to poor nutritional quality")
         
-        # Specific nutrient warnings (stricter thresholds)
+        # Specific nutrient warnings
         sugar = nutrients.get('sugars_100g', 0)
-        if sugar > 22.5:
+        if sugar and sugar > 22.5:
             recommendations.append("Very high sugar content - limit consumption and choose alternatives when possible")
-        elif sugar > 12.5:
+        elif sugar and sugar > 12.5:
             recommendations.append("High sugar content - consume in small portions")
         
         # Sodium warnings
-        sodium = nutrients.get('sodium_100g', 0) or (nutrients.get('salt_100g', 0) * 0.4)
-        if sodium > 0.6:
+        sodium = nutrients.get('sodium_100g', 0) or (nutrients.get('salt_100g', 0) * 0.4 if nutrients.get('salt_100g') else 0)
+        if sodium and sodium > 0.6:
             recommendations.append("High sodium content - may contribute to high blood pressure")
-        elif sodium > 0.3:
+        elif sodium and sodium > 0.3:
             recommendations.append("Moderate sodium content - monitor your daily intake")
         
         # Saturated fat warnings
-        sat_fat = nutrients.get('saturated-fat_100g', 0)
-        if sat_fat > 5:
+        sat_fat = nutrients.get('saturated_fat_100g', 0)
+        if sat_fat and sat_fat > 5:
             recommendations.append("High saturated fat content - limit intake for heart health")
-        elif sat_fat > 3:
+        elif sat_fat and sat_fat > 3:
             recommendations.append("Moderate saturated fat content - balance with healthier fats")
         
         # Calorie warnings per serving
-        energy = nutrients.get('energy-kcal_100g', 0)
-        calories_per_serving = (energy * serving_size / 100) if energy else 0
-        if calories_per_serving > 200:
-            recommendations.append(f"High calorie density - {int(calories_per_serving)} calories per serving")
+        energy = nutrients.get('energy_kcal_100g', 0)
+        if energy and serving_size:
+            calories_per_serving = (energy * serving_size / 100)
+            if calories_per_serving > 200:
+                recommendations.append(f"High calorie density - {int(calories_per_serving)} calories per serving")
         
         # Additive warnings
         ingredients_analysis = product_data.get('ingredients_analysis', {})
@@ -878,15 +839,15 @@ class FoodHealthAnalyzer:
         
         # Positive recommendations
         fiber = nutrients.get('fiber_100g', 0)
-        if fiber > 6:
+        if fiber and fiber > 6:
             recommendations.append("Excellent source of fiber - beneficial for digestive health")
-        elif fiber > 3:
+        elif fiber and fiber > 3:
             recommendations.append("Good source of fiber - supports healthy digestion")
         
         protein = nutrients.get('proteins_100g', 0)
-        if protein > 15:
+        if protein and protein > 15:
             recommendations.append("High protein content - excellent for muscle health and satiety")
-        elif protein > 8:
+        elif protein and protein > 8:
             recommendations.append("Good protein content - supports muscle maintenance")
         
         # Ultra-processed food warning
@@ -901,13 +862,13 @@ analyzer = FoodHealthAnalyzer()
 
 @food_scanner_bp.route('/product/<barcode>', methods=['GET'])
 def get_product_info(barcode):
-    """Get product information by barcode with enhanced serving size extraction"""
+    """Get product information by barcode with accurate serving size extraction"""
     try:
         # Validate barcode
         if not barcode or not barcode.isdigit():
             return jsonify({'error': 'Invalid barcode format'}), 400
         
-        # Query OpenFoodFacts API with additional fields for serving size
+        # Query OpenFoodFacts API
         url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
         headers = {
             'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
@@ -923,7 +884,7 @@ def get_product_info(barcode):
         
         product = data['product']
         
-        # Get comprehensive serving size information
+        # Get ACCURATE serving size from API - this is the ONLY method used
         serving_info = analyzer.get_serving_size_from_api(product)
         serving_size = serving_info['serving_size']
         
@@ -940,13 +901,14 @@ def get_product_info(barcode):
             ingredients_analysis
         )
         
-        # Clean and normalize nutrient data
+        # Clean and normalize nutrient data for frontend
         clean_nutrients = {}
         nutriment_mapping = {
             'energy-kcal_100g': 'energy_kcal_100g',
             'saturated-fat_100g': 'saturated_fat_100g'
         }
         
+        # Process all nutrient fields and ensure they're properly formatted
         for key, value in product.get('nutriments', {}).items():
             clean_key = nutriment_mapping.get(key, key)
             
@@ -957,7 +919,7 @@ def get_product_info(barcode):
                 except (ValueError, TypeError):
                     clean_nutrients[clean_key] = None
         
-        # Ensure sodium is available
+        # Ensure sodium is available (convert from salt if needed)
         if not clean_nutrients.get('sodium_100g') and clean_nutrients.get('salt_100g'):
             clean_nutrients['sodium_100g'] = clean_nutrients['salt_100g'] * 0.4
         
@@ -970,7 +932,7 @@ def get_product_info(barcode):
         }
         recommendations = analyzer.get_health_recommendations(enhanced_product_data, serving_size)
         
-        # Prepare response data
+        # Prepare final response
         result = {
             'barcode': barcode,
             'product_name': product.get('product_name', 'Unknown Product'),
@@ -979,7 +941,7 @@ def get_product_info(barcode):
             'ingredients_text': ingredients_text,
             'image_url': product.get('image_url', ''),
             
-            # Enhanced serving size information
+            # ACCURATE serving size information
             'serving_size': serving_size,
             'serving_info': serving_info,
             
@@ -993,16 +955,6 @@ def get_product_info(barcode):
                 'has_high_risk_additives': len([a for a in ingredients_analysis.get('additives', []) if a['risk_level'] == 'high']) > 0,
                 'additive_count': len(ingredients_analysis.get('additives', [])),
                 'overall_quality': 'excellent' if health_score >= 80 else 'good' if health_score >= 60 else 'fair' if health_score >= 40 else 'poor'
-            },
-            
-            # Debug info for serving size (remove in production)
-            'debug_serving': {
-                'raw_serving_size': product.get('serving_size'),
-                'raw_serving_quantity': product.get('serving_quantity'),
-                'raw_quantity': product.get('quantity'),
-                'raw_product_quantity': product.get('product_quantity'),
-                'has_serving_nutrients': any(k.endswith('_serving') for k in product.get('nutriments', {}).keys()),
-                'serving_calculation': serving_info
             }
         }
         
@@ -1015,6 +967,90 @@ def get_product_info(barcode):
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+# Debug endpoint to test serving size extraction
+@food_scanner_bp.route('/debug-serving/<barcode>', methods=['GET'])
+def debug_serving_size(barcode):
+    """Debug endpoint to see all serving size related data from OpenFoodFacts API"""
+    try:
+        # Query OpenFoodFacts API
+        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+        headers = {
+            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get('status') != 1:
+            return jsonify({'error': 'Product not found'}), 404
+        
+        product = data['product']
+        
+        # Extract all serving-related fields
+        serving_fields = {
+            'serving_size': product.get('serving_size'),
+            'serving_quantity': product.get('serving_quantity'),
+            'quantity': product.get('quantity'),
+            'product_quantity': product.get('product_quantity'),
+        }
+        
+        # Extract serving nutrients
+        nutriments = product.get('nutriments', {})
+        serving_nutrients = {}
+        per_100g_nutrients = {}
+        
+        for key, value in nutriments.items():
+            if key.endswith('_serving'):
+                serving_nutrients[key] = value
+            elif key.endswith('_100g'):
+                per_100g_nutrients[key] = value
+        
+        # Get our calculated serving size
+        serving_info = analyzer.get_serving_size_from_api(product)
+        
+        # Test parsing of serving_size field specifically
+        serving_size_parsed = None
+        if product.get('serving_size'):
+            serving_size_parsed = analyzer.parse_serving_string(product.get('serving_size'))
+        
+        # Return comprehensive debug info
+        debug_info = {
+            'barcode': barcode,
+            'product_name': product.get('product_name'),
+            'brands': product.get('brands'),
+            'categories': product.get('categories'),
+            
+            # Raw serving data from API
+            'raw_serving_fields': serving_fields,
+            'serving_nutrients': serving_nutrients,
+            'per_100g_nutrients': per_100g_nutrients,
+            
+            # Our calculation process
+            'serving_size_parsing': {
+                'original': product.get('serving_size'),
+                'parsed_value': serving_size_parsed,
+                'parsing_worked': serving_size_parsed is not None
+            },
+            
+            # Final result
+            'final_serving_calculation': serving_info,
+            
+            # Category analysis
+            'category_analysis': {
+                'categories_list': product.get('categories', '').lower().split(','),
+                'product_name_keywords': product.get('product_name', '').lower().split(),
+            }
+        }
+        
+        return jsonify(debug_info)
+    
+    except Exception as e:
+        logger.error(f"Debug serving size error: {e}")
+        return jsonify({'error': f'Debug failed: {str(e)}'}), 500
+
 @food_scanner_bp.route('/search/<query>', methods=['GET'])
 def search_products(query):
     """Search for products by name"""
@@ -1044,22 +1080,22 @@ def search_products(query):
             
             # Quick penalties for obvious bad indicators
             sugars = product.get('nutriments', {}).get('sugars_100g', 0)
-            if sugars > 25:
+            if sugars and sugars > 25:
                 quick_score -= 30
-            elif sugars > 15:
+            elif sugars and sugars > 15:
                 quick_score -= 20
             
             sodium = product.get('nutriments', {}).get('sodium_100g', 0)
-            if sodium > 0.6:
+            if sodium and sodium > 0.6:
                 quick_score -= 20
             
             # Quick bonus for good indicators
             fiber = product.get('nutriments', {}).get('fiber_100g', 0)
-            if fiber > 5:
+            if fiber and fiber > 5:
                 quick_score += 15
             
             protein = product.get('nutriments', {}).get('proteins_100g', 0)
-            if protein > 10:
+            if protein and protein > 10:
                 quick_score += 10
             
             quick_score = max(0, min(100, quick_score))
@@ -1087,20 +1123,22 @@ def health_check():
     """Health check endpoint for food scanner"""
     return jsonify({
         'status': 'healthy',
-        'message': 'Enhanced Food Scanner API is running',
-        'version': '2.0',
+        'message': 'Enhanced Food Scanner API with Accurate Serving Sizes',
+        'version': '3.0',
         'features': [
+            'Accurate serving size extraction from OpenFoodFacts API',
+            'Comprehensive field checking (serving_size, serving_quantity, nutrient ratios)',
+            'Smart unit conversion (g, ml, oz, tbsp, etc.)',
+            'Category-based intelligent fallbacks',
             'Strict health scoring',
-            'Serving size intelligence',
             'Enhanced additive detection',
-            'Nutrient categorization',
             'Ultra-processed food detection'
         ]
     })
 
 @food_scanner_bp.route('/analyze-text', methods=['POST'])
 def analyze_ingredients_text():
-    """Analyze ingredients text directly (useful for testing)"""
+    """Analyze ingredients text directly"""
     try:
         data = request.get_json()
         ingredients_text = data.get('ingredients_text', '')
