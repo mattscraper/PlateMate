@@ -682,7 +682,7 @@ const CARD_WIDTH = (width - 45) / 2;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
@@ -845,7 +845,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 6,
     marginTop: 5,// Pushes button to bottom
-    marginBottom: 4,
+    marginBottom: 2,
   },
   viewButtonText: {
     fontSize: 12,
