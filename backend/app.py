@@ -21,6 +21,7 @@ from backend.grocery_routes import init_grocery_routes
 init_grocery_routes(app)
 
 from backend.food_log import init_food_log_routes
+init_food_log_routes(app)
 
 jwt.init_app(app)
 
