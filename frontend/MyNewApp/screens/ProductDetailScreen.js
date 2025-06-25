@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Platform,
   Dimensions,
   StatusBar,
+  Animated,
+  LayoutAnimation,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,6 +25,12 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({
+    positives: true,
+    negatives: false,
+    additives: false,
+    ingredients: false,
+  });
 
   // Set header style when screen is focused
   useFocusEffect(
@@ -64,6 +72,16 @@ const ProductDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const toggleSection = (section) => {
+    // Configure animation
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   const getHealthScoreColor = (score) => {
     if (score >= 80) return '#10B981';
     if (score >= 60) return '#F59E0B';
@@ -86,7 +104,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
         title: 'Protein',
         icon: 'fish',
         unit: 'g',
-        thresholds: [0, 2.5, 6, 12], // 0-2.5 (red), 2.5-6 (orange), 6-12 (light green), 12+ (green)
+        thresholds: [0, 2.5, 6, 12],
         colors: ['#EF4444', '#F59E0B', '#84CC16', '#10B981'],
         isPositive: true,
         maxScale: 15
@@ -146,7 +164,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
     
     // Special handling for sodium (convert to mg)
     if (key === 'sodium_100g') {
-      servingValue = servingValue * 1000; // Convert g to mg
+      servingValue = servingValue * 1000;
     }
 
     // Determine color based on thresholds
@@ -161,14 +179,11 @@ const ProductDetailScreen = ({ route, navigation }) => {
     }
 
     const color = config.colors[colorIndex];
-
-    // Calculate position on progress bar (0-100%)
     const position = Math.min((servingValue / config.maxScale) * 100, 100);
 
     // Determine quality level
     let level, description;
     if (config.isPositive) {
-      // For positive nutrients (fiber, protein)
       if (colorIndex <= 1) {
         level = 'low';
         description = colorIndex === 0 ? 'Very low amount' : 'Low amount';
@@ -177,7 +192,6 @@ const ProductDetailScreen = ({ route, navigation }) => {
         description = colorIndex === 2 ? 'Good amount' : 'Excellent amount';
       }
     } else {
-      // For negative nutrients (sugar, sodium, etc.)
       if (colorIndex <= 1) {
         level = 'low';
         description = 'Low impact';
@@ -198,21 +212,19 @@ const ProductDetailScreen = ({ route, navigation }) => {
       description,
       isPositive: config.isPositive,
       maxScale: config.maxScale,
-      thresholds: config.thresholds
+      thresholds: config.thresholds,
+      colors: config.colors
     };
   };
 
   const ProgressBar = ({ nutrientData }) => {
-    // Add comprehensive null checks
     if (!nutrientData || !nutrientData.thresholds || !nutrientData.colors || !Array.isArray(nutrientData.thresholds) || !Array.isArray(nutrientData.colors)) {
       return null;
     }
 
-    // Ensure we have valid data
     const thresholds = nutrientData.thresholds || [];
     const colors = nutrientData.colors || [];
     const position = typeof nutrientData.position === 'number' ? nutrientData.position : 0;
-    const color = nutrientData.color || '#9CA3AF';
     const maxScale = nutrientData.maxScale || 100;
 
     if (thresholds.length === 0 || colors.length === 0) {
@@ -249,7 +261,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
             styles.progressIndicator,
             {
               left: `${Math.min(Math.max(position, 0), 95)}%`,
-              backgroundColor: color
+              backgroundColor: nutrientData.color
             }
           ]}
         />
@@ -277,7 +289,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
       nutrientData.value.toFixed(1);
 
     return (
-      <View>
+      <View style={styles.nutrientItem}>
         <View style={styles.indicatorRow}>
           <View style={styles.indicatorIcon}>
             <Ionicons name={nutrientData.icon} size={24} color="#6B7280" />
@@ -308,27 +320,97 @@ const ProductDetailScreen = ({ route, navigation }) => {
   };
 
   const SimpleIndicator = ({ icon, title, subtitle, value, quality, isPositive = true }) => (
-    <View style={styles.indicatorRow}>
-      <View style={styles.indicatorIcon}>
-        <Ionicons name={icon} size={24} color="#6B7280" />
-      </View>
-      <View style={styles.indicatorContent}>
-        <Text style={styles.indicatorTitle}>{title}</Text>
-        <Text style={styles.indicatorSubtitle}>{subtitle}</Text>
-      </View>
-      <View style={styles.indicatorValue}>
-        <View style={styles.valueContainer}>
-          {value && <Text style={styles.valueText}>{value}</Text>}
-          <View style={[styles.qualityDot, { backgroundColor: quality.color }]} />
-          <Ionicons
-            name={isPositive ? "checkmark" : "chevron-down"}
-            size={16}
-            color={isPositive ? "#10B981" : "#9CA3AF"}
-          />
+    <View style={styles.nutrientItem}>
+      <View style={styles.indicatorRow}>
+        <View style={styles.indicatorIcon}>
+          <Ionicons name={icon} size={24} color="#6B7280" />
+        </View>
+        <View style={styles.indicatorContent}>
+          <Text style={styles.indicatorTitle}>{title}</Text>
+          <Text style={styles.indicatorSubtitle}>{subtitle}</Text>
+        </View>
+        <View style={styles.indicatorValue}>
+          <View style={styles.valueContainer}>
+            {value && <Text style={styles.valueText}>{value}</Text>}
+            <View style={[styles.qualityDot, { backgroundColor: quality.color }]} />
+            <Ionicons
+              name={isPositive ? "checkmark" : "chevron-down"}
+              size={16}
+              color={isPositive ? "#10B981" : "#9CA3AF"}
+            />
+          </View>
         </View>
       </View>
     </View>
   );
+
+  const CollapsibleSection = ({ title, subtitle, icon, isExpanded, onToggle, children, count }) => (
+    <View style={styles.collapsibleSection}>
+      <TouchableOpacity
+        style={[styles.sectionHeader, isExpanded && styles.sectionHeaderExpanded]}
+        onPress={onToggle}
+        activeOpacity={0.7}
+      >
+        <View style={styles.sectionHeaderLeft}>
+          <View style={[styles.sectionIcon, { backgroundColor: getIconBackgroundColor(title) }]}>
+            <Ionicons name={icon} size={20} color={getIconColor(title)} />
+          </View>
+          <View style={styles.sectionTitleContainer}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionTitle}>{title}</Text>
+              {count !== undefined && (
+                <View style={[styles.countBadge, { backgroundColor: getCountBadgeColor(title) }]}>
+                  <Text style={styles.countText}>{count}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+          </View>
+        </View>
+        <Ionicons
+          name={isExpanded ? "chevron-up" : "chevron-down"}
+          size={24}
+          color="#6B7280"
+          style={styles.chevronIcon}
+        />
+      </TouchableOpacity>
+      
+      {isExpanded && (
+        <View style={styles.sectionContent}>
+          {children}
+        </View>
+      )}
+    </View>
+  );
+
+  const getIconBackgroundColor = (title) => {
+    switch (title) {
+      case 'Positives': return '#ECFDF5';
+      case 'Negatives': return '#FEF2F2';
+      case 'Additive Details': return '#FFF7ED';
+      case 'Ingredients': return '#F0F9FF';
+      default: return '#F9FAFB';
+    }
+  };
+
+  const getIconColor = (title) => {
+    switch (title) {
+      case 'Positives': return '#10B981';
+      case 'Negatives': return '#EF4444';
+      case 'Additive Details': return '#F59E0B';
+      case 'Ingredients': return '#3B82F6';
+      default: return '#6B7280';
+    }
+  };
+
+  const getCountBadgeColor = (title) => {
+    switch (title) {
+      case 'Positives': return '#10B981';
+      case 'Negatives': return '#EF4444';
+      case 'Additive Details': return '#F59E0B';
+      default: return '#6B7280';
+    }
+  };
 
   if (loading) {
     return (
@@ -385,6 +467,20 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const showSugarInPositives = sugarData && sugarData.level === 'low';
   const showSodiumInPositives = sodiumData && sodiumData.level === 'low';
 
+  // Count items in each section
+  const positivesCount = (!hasAdditives ? 1 : 0) +
+                        (nutrients.proteins_100g ? 1 : 0) +
+                        (nutrients.fiber_100g ? 1 : 0) +
+                        (showSugarInPositives ? 1 : 0) +
+                        (showSodiumInPositives ? 1 : 0);
+
+  const negativesCount = (nutrients.energy_kcal_100g ? 1 : 0) +
+                        (nutrients.saturated_fat_100g ? 1 : 0) +
+                        (!showSugarInPositives && nutrients.sugars_100g ? 1 : 0) +
+                        (!showSodiumInPositives && nutrients.sodium_100g ? 1 : 0) +
+                        (nutrients.fat_100g && nutrients.fat_100g > 3 ? 1 : 0) +
+                        (hasAdditives ? 1 : 0);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
@@ -413,12 +509,14 @@ const ProductDetailScreen = ({ route, navigation }) => {
         </View>
 
         {/* Positives Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Positives</Text>
-            <Text style={styles.servingInfo}>per serving ({servingSize}g) •••</Text>
-          </View>
-
+        <CollapsibleSection
+          title="Positives"
+          subtitle={`per serving (${servingSize}g)`}
+          icon="checkmark-circle"
+          isExpanded={expandedSections.positives}
+          onToggle={() => toggleSection('positives')}
+          count={positivesCount}
+        >
           {/* No Additives Indicator */}
           {!hasAdditives && (
             <SimpleIndicator
@@ -446,15 +544,17 @@ const ProductDetailScreen = ({ route, navigation }) => {
           {showSodiumInPositives && (
             <NutrientIndicatorWithProgress nutrientKey="sodium_100g" servingSize={servingSize} />
           )}
-        </View>
+        </CollapsibleSection>
 
         {/* Negatives Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Negatives</Text>
-            <Text style={styles.servingInfo}>per serving ({servingSize}g) •••</Text>
-          </View>
-
+        <CollapsibleSection
+          title="Negatives"
+          subtitle={`per serving (${servingSize}g)`}
+          icon="close-circle"
+          isExpanded={expandedSections.negatives}
+          onToggle={() => toggleSection('negatives')}
+          count={negativesCount}
+        >
           {/* Calories */}
           <NutrientIndicatorWithProgress nutrientKey="energy_kcal_100g" servingSize={servingSize} />
 
@@ -487,14 +587,18 @@ const ProductDetailScreen = ({ route, navigation }) => {
               isPositive={false}
             />
           )}
-        </View>
+        </CollapsibleSection>
 
         {/* Additives Detail (if any) */}
         {hasAdditives && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Additive Details</Text>
-            </View>
+          <CollapsibleSection
+            title="Additive Details"
+            subtitle="Potentially harmful substances"
+            icon="warning"
+            isExpanded={expandedSections.additives}
+            onToggle={() => toggleSection('additives')}
+            count={product.ingredients_analysis.additives.length}
+          >
             {product.ingredients_analysis.additives.map((additive, index) => (
               <View key={index} style={styles.additiveDetailCard}>
                 <View style={styles.additiveDetailHeader}>
@@ -512,19 +616,22 @@ const ProductDetailScreen = ({ route, navigation }) => {
                 </Text>
               </View>
             ))}
-          </View>
+          </CollapsibleSection>
         )}
 
         {/* Ingredients */}
         {product.ingredients_text && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Ingredients</Text>
-            </View>
+          <CollapsibleSection
+            title="Ingredients"
+            subtitle="Complete ingredient list"
+            icon="list"
+            isExpanded={expandedSections.ingredients}
+            onToggle={() => toggleSection('ingredients')}
+          >
             <View style={styles.ingredientsCard}>
               <Text style={styles.ingredientsText}>{product.ingredients_text}</Text>
             </View>
-          </View>
+          </CollapsibleSection>
         )}
 
         <View style={styles.bottomSpacer} />
@@ -713,37 +820,113 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Sections
-  section: {
+  // Collapsible Sections
+  collapsibleSection: {
     backgroundColor: 'white',
     marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'space-between',
+    padding: 20,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  sectionHeaderExpanded: {
+    borderBottomColor: '#E5E7EB',
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  sectionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  sectionTitleContainer: {
+    flex: 1,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
+    marginRight: 8,
   },
-  servingInfo: {
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'white',
+  },
+  sectionSubtitle: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#6B7280',
     fontWeight: '500',
+  },
+  chevronIcon: {
+    marginLeft: 12,
+  },
+  sectionContent: {
+    backgroundColor: '#FAFBFC',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+
+  // Nutrient Items
+  nutrientItem: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
 
   // Indicator Rows
   indicatorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    padding: 16,
   },
   indicatorIcon: {
     width: 40,
@@ -789,10 +972,8 @@ const styles = StyleSheet.create({
 
   // Progress Bar Styles
   progressContainer: {
-    marginLeft: 56, // Align with indicator content
-    marginRight: 24,
-    marginTop: 8,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   progressBar: {
     height: 8,
@@ -883,9 +1064,11 @@ const styles = StyleSheet.create({
 
   // Ingredients
   ingredientsCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'white',
     padding: 16,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   ingredientsText: {
     fontSize: 14,

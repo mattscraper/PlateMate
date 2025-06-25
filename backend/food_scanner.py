@@ -119,7 +119,7 @@ class FoodHealthAnalyzer:
                 'excellent': 25
             }
         }
-
+    # need to figure out how to pull from own database
     def parse_serving_string(self, serving_str):
         """Parse serving size string and extract numeric value in grams"""
         if not serving_str or not isinstance(serving_str, str):
@@ -170,6 +170,8 @@ class FoodHealthAnalyzer:
             if 1 <= value <= 1000:
                 return value
             return None
+    
+    
 
     def get_serving_size_from_api(self, product: Dict) -> Dict:
         """

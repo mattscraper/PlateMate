@@ -44,48 +44,59 @@ class GroceryListGenerator:
         self.cost_excluded_categories = ['herbs_spices', 'condiments', 'pantry']
         
         # Estimated costs per typical serving/recipe portion (USD, realistic grocery prices)
-        self.estimated_costs = {
-            # Proteins (per typical recipe serving, not per lb)
-            'chicken': 1.25, 'beef': 2.00, 'pork': 1.50, 'fish': 2.50, 'salmon': 3.00,
-            'tuna': 1.00, 'eggs': 0.50, 'tofu': 1.00, 'beans': 0.30, 'lentils': 0.25,
-            'turkey': 1.75, 'shrimp': 3.50, 'lamb': 2.50,
-            
-            # Vegetables (per typical recipe serving)
-            'onion': 0.25, 'garlic': 0.10, 'tomato': 0.75, 'carrot': 0.30, 'celery': 0.40,
-            'bell pepper': 0.75, 'broccoli': 0.60, 'spinach': 0.50, 'lettuce': 0.40,
-            'cucumber': 0.50, 'potato': 0.35, 'sweet potato': 0.45, 'mushroom': 0.85,
-            'zucchini': 0.50, 'corn': 0.40, 'peas': 0.60, 'green beans': 0.70,
-            'cauliflower': 0.80, 'cabbage': 0.30, 'kale': 0.60, 'asparagus': 1.00,
-            'brussels sprouts': 0.80,
-            
-            # Fruits (per typical serving)
-            'apple': 0.50, 'banana': 0.25, 'orange': 0.60, 'lemon': 0.35, 'lime': 0.30,
-            'berries': 1.25, 'strawberry': 1.00, 'blueberry': 1.50, 'grape': 0.75,
-            'avocado': 1.25, 'mango': 0.85, 'pineapple': 1.00, 'peach': 0.65, 'pear': 0.55,
-            
-            # Dairy (per typical recipe portion)
-            'milk': 0.50, 'cheese': 1.00, 'butter': 0.40, 'yogurt': 0.75, 'cream': 0.60,
-            'sour cream': 0.50, 'cottage cheese': 0.65, 'mozzarella': 1.25, 'cheddar': 1.50,
-            'parmesan': 1.00,
-            
-            # Grains (per typical serving)
-            'rice': 0.30, 'pasta': 0.40, 'bread': 0.50, 'flour': 0.20, 'oats': 0.35,
-            'quinoa': 0.80, 'barley': 0.25, 'couscous': 0.45, 'noodles': 0.50,
-            'cereal': 0.60, 'tortilla': 0.40, 'crackers': 0.60,
-            
-            # Frozen foods (per serving)
-            'frozen vegetables': 0.50, 'frozen fruit': 0.75, 'ice cream': 1.25,
-            'frozen pizza': 2.50, 'frozen chicken': 1.50,
-            
-            # Snacks (per serving)
-            'nuts': 0.85, 'chips': 0.75, 'granola bars': 1.00, 'pretzels': 0.50,
-            
-            # Beverages (per serving)
-            'water': 0.10, 'juice': 0.60, 'soda': 0.75, 'coffee': 0.25, 'tea': 0.15,
-            'wine': 3.00, 'beer': 1.50,
-            
-            # Default for unknown items
-            'default': 0.75
+       self.estimated_costs = {
+        # Proteins (per typical recipe serving)
+        'chicken': 1.50, 'beef': 2.50, 'pork': 1.75,
+        'fish': 3.00, 'salmon': 4.00, 'tuna': 1.25,
+        'eggs': 0.75, 'tofu': 1.25, 'beans': 0.40,
+        'lentils': 0.30, 'turkey': 2.00, 'shrimp': 4.50,
+        'lamb': 3.50,
+        
+        # Vegetables
+        'onion': 0.35, 'garlic': 0.15, 'tomato': 1.00,
+        'carrot': 0.40, 'celery': 0.60, 'bell pepper': 1.00,
+        'broccoli': 0.75, 'spinach': 0.70, 'lettuce': 0.60,
+        'cucumber': 0.75, 'potato': 0.45, 'sweet potato': 0.60,
+        'mushroom': 1.25, 'zucchini': 0.75, 'corn': 0.60,
+        'peas': 0.80, 'green beans': 1.00, 'cauliflower': 1.00,
+        'cabbage': 0.50, 'kale': 0.80, 'asparagus': 1.50,
+        'brussels sprouts': 1.25,
+        
+        # Fruits
+        'apple': 0.75, 'banana': 0.35, 'orange': 0.75,
+        'lemon': 0.50, 'lime': 0.40, 'berries': 1.50,
+        'strawberry': 1.25, 'blueberry': 1.75, 'grape': 1.00,
+        'avocado': 1.50, 'mango': 1.00, 'pineapple': 1.25,
+        'peach': 0.85, 'pear': 0.75,
+        
+        # Dairy
+        'milk': 0.75, 'cheese': 1.25, 'butter': 0.60,
+        'yogurt': 1.00, 'cream': 0.75, 'sour cream': 0.60,
+        'cottage cheese': 0.85, 'mozzarella': 1.50,
+        'cheddar': 1.75, 'parmesan': 1.25,
+        
+        # Grains
+        'rice': 0.40, 'pasta': 0.60, 'bread': 0.75,
+        'flour': 0.30, 'oats': 0.50, 'quinoa': 1.00,
+        'barley': 0.35, 'couscous': 0.60, 'noodles': 0.75,
+        'cereal': 0.80, 'tortilla': 0.60, 'crackers': 0.80,
+        
+        # Frozen foods
+        'frozen vegetables': 0.75, 'frozen fruit': 1.00,
+        'ice cream': 1.75, 'frozen pizza': 3.50,
+        'frozen chicken': 2.00,
+        
+        # Snacks
+        'nuts': 1.25, 'chips': 1.00, 'granola bars': 1.25,
+        'pretzels': 0.75,
+        
+        # Beverages
+        'water': 0.15, 'juice': 0.80, 'soda': 1.00,
+        'coffee': 0.35, 'tea': 0.25, 'wine': 4.00,
+        'beer': 2.00,
+        
+        # Default for unknown items
+        'default': 1.00
         }
 
     def parse_meal_plan(self, meal_plan_text: str) -> List[Dict]:
