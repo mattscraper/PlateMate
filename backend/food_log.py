@@ -148,38 +148,76 @@ class FoodLogService:
             logger.info(f"Transcribing audio file: {audio_file_path} ({file_size} bytes)")
             
             with open(audio_file_path, "rb") as audio_file:
-                # Use OpenAI Whisper API for speech-to-text
-                transcript = self.recipe_generator.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    response_format="text",
-                    language="en",  # Specify English for better accuracy
-                    prompt="This is a description of food items, meals, or ingredients."  # Context helps accuracy
-                )
-                
-                # Clean up the transcription
-                transcription = transcript.strip()
-                logger.info(f"Raw transcription: {transcription}")
-                
-                # Basic validation
-                if not transcription or len(transcription.strip()) < 3:
-                    logger.warning("Transcription too short or empty")
+                try:
+                    # Use OpenAI Whisper API for speech-to-text
+                    transcript = self.recipe_generator.client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        response_format="text",
+                        language="en",  # Specify English for better accuracy
+                        prompt="This is a description of food items, meals, or ingredients. The speaker is describing what they ate.",  # More specific context
+                        temperature=0.0  # Lower temperature for more consistent results
+                    )
+                    
+                    # The response should be a string in text format
+                    if hasattr(transcript, 'text'):
+                        transcription = transcript.text.strip()
+                    else:
+                        transcription = str(transcript).strip()
+                        
+                    logger.info(f"Raw transcription: '{transcription}'")
+                    
+                    # Basic validation
+                    if not transcription or len(transcription.strip()) < 2:
+                        logger.warning("Transcription too short or empty")
+                        return None
+                    
+                    # Clean common transcription issues
+                    transcription = self._clean_transcription(transcription)
+                    
+                    # Additional validation - check if transcription makes sense for food
+                    if len(transcription.strip()) < 3:
+                        logger.warning("Cleaned transcription too short")
+                        return None
+                    
+                    logger.info(f"Final transcription: '{transcription}'")
+                    return transcription
+                    
+                except Exception as openai_error:
+                    logger.error(f"OpenAI API error: {str(openai_error)}")
+                    
+                    # Check for specific OpenAI errors
+                    if "Invalid file format" in str(openai_error):
+                        logger.error("Invalid file format for Whisper API")
+                    elif "File too large" in str(openai_error):
+                        logger.error("File too large for Whisper API")
+                    elif "Invalid audio" in str(openai_error):
+                        logger.error("Invalid audio content")
+                    else:
+                        logger.error(f"Unknown OpenAI error: {openai_error}")
+                    
                     return None
-                
-                # Clean common transcription issues
-                transcription = self._clean_transcription(transcription)
-                
-                logger.info(f"Clean transcription: {transcription}")
-                return transcription
                 
         except Exception as e:
             logger.error(f"Error transcribing audio: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _clean_transcription(self, text: str) -> str:
         """Clean up common transcription issues"""
-        # Remove common artifacts
-        text = text.replace(".", "").replace(",", "").strip()
+        if not text:
+            return ""
+            
+        # Remove common artifacts and clean up
+        text = text.strip()
+        
+        # Remove multiple spaces
+        import re
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Remove leading/trailing punctuation that doesn't make sense
+        text = text.strip('.,!?;:')
         
         # Fix common food-related transcription errors
         replacements = {
@@ -188,10 +226,33 @@ class FoodLogService:
             "veggies": "vegetables",
             "chiken": "chicken",
             "avacado": "avocado",
+            "tomatoe": "tomato",
+            "potatos": "potatoes",
+            "bred": "bread",
+            "meet": "meat",
+            "stake": "steak",
+            "piza": "pizza",
+            "rais": "rice",
+            "bearys": "berries",
+            "bery": "berry",
+            "aple": "apple",
+            "banna": "banana",
+            "bannana": "banana",
+            "oatmeel": "oatmeal",
+            "yougurt": "yogurt",
+            "chees": "cheese",
+            "saled": "salad",
+            "sandwitch": "sandwich",
+            "smoothe": "smoothie",
         }
         
+        # Apply replacements (case insensitive)
         for wrong, right in replacements.items():
-            text = text.replace(wrong, right)
+            text = re.sub(r'\b' + re.escape(wrong) + r'\b', right, text, flags=re.IGNORECASE)
+        
+        # Capitalize first letter
+        if text:
+            text = text[0].upper() + text[1:] if len(text) > 1 else text.upper()
             
         return text.strip()
 
@@ -328,18 +389,44 @@ def speech_to_text():
     try:
         # Check if audio file is in the request
         if 'audio' not in request.files:
-            return jsonify({"error": "No audio file provided"}), 400
+            logger.error("No audio file provided in request")
+            return jsonify({
+                "success": False,
+                "error": "No audio file provided"
+            }), 400
 
         audio_file = request.files['audio']
         
         if audio_file.filename == '':
-            return jsonify({"error": "No audio file selected"}), 400
+            logger.error("No audio file selected")
+            return jsonify({
+                "success": False,
+                "error": "No audio file selected"
+            }), 400
+
+        # Log the received file info
+        logger.info(f"Received audio file: {audio_file.filename}")
+        logger.info(f"Content type: {audio_file.content_type}")
 
         # Validate file extension
-        allowed_extensions = {'.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm'}
+        allowed_extensions = {'.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mpeg', '.mpga'}
         file_ext = os.path.splitext(audio_file.filename)[1].lower()
+        
+        # If no extension, try to determine from content type
+        if not file_ext:
+            if 'audio/mp4' in str(audio_file.content_type):
+                file_ext = '.m4a'
+            elif 'audio/mpeg' in str(audio_file.content_type):
+                file_ext = '.mp3'
+            elif 'audio/wav' in str(audio_file.content_type):
+                file_ext = '.wav'
+            else:
+                file_ext = '.m4a'  # Default to m4a
+                
         if file_ext not in allowed_extensions:
+            logger.error(f"Unsupported audio format: {file_ext}")
             return jsonify({
+                "success": False,
                 "error": f"Unsupported audio format. Supported: {', '.join(allowed_extensions)}"
             }), 400
 
@@ -353,31 +440,61 @@ def speech_to_text():
         logger.info(f"Audio file size: {file_size} bytes")
         
         if file_size == 0:
+            logger.error("Audio file is empty")
             return jsonify({
                 "success": False,
                 "error": "Audio file is empty"
             }), 400
 
         if file_size > 25 * 1024 * 1024:  # 25MB limit
+            logger.error(f"Audio file too large: {file_size} bytes")
             return jsonify({
                 "success": False,
                 "error": "Audio file too large (max 25MB)"
             }), 400
 
+        # Additional validation: check if file is actually audio
+        try:
+            with open(temp_audio_path, 'rb') as f:
+                # Read first few bytes to check file signature
+                header = f.read(16)
+                if len(header) < 4:
+                    raise ValueError("File too small to be valid audio")
+                    
+                # Check for common audio file signatures
+                audio_signatures = [
+                    b'RIFF',  # WAV
+                    b'ID3',   # MP3
+                    b'\x00\x00\x00\x18ftypM4A',  # M4A
+                    b'ftyp',  # MP4/M4A variants
+                    b'OggS',  # OGG
+                ]
+                
+                is_audio = any(header.startswith(sig) or sig in header for sig in audio_signatures)
+                if not is_audio:
+                    logger.warning(f"File may not be valid audio format. Header: {header[:8].hex()}")
+                    
+        except Exception as e:
+            logger.warning(f"Could not validate audio file: {e}")
+
         # Transcribe the audio
+        logger.info(f"Starting transcription of file: {temp_audio_path}")
         transcription = food_log_service.transcribe_audio(temp_audio_path)
         
         if not transcription:
+            logger.error("Transcription returned empty result")
             return jsonify({
                 "success": False,
                 "error": "Could not transcribe audio. Please speak more clearly or try again.",
                 "suggestions": [
                     "Speak clearly and at normal pace",
                     "Ensure good audio quality",
-                    "Try recording in a quiet environment"
+                    "Try recording in a quiet environment",
+                    "Make sure the recording is at least 1 second long"
                 ]
             }), 400
 
+        logger.info(f"Transcription successful: {transcription}")
         return jsonify({
             "success": True,
             "transcription": transcription,
@@ -386,6 +503,9 @@ def speech_to_text():
 
     except Exception as e:
         logger.error(f"Error in speech_to_text endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
         return jsonify({
             "success": False,
             "error": "An unexpected error occurred while processing audio",
