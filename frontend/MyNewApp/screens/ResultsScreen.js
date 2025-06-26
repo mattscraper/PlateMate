@@ -14,7 +14,6 @@ import {
   FlatList,
   StatusBar,
 } from "react-native";
-import { LinearGradient } from 'expo-linear-gradient';
 import { saveRecipeToFirebase } from "../utils/recipeUtils";
 import { useNavigation } from "@react-navigation/native";
 import { fetchRecipes } from "../utils/api";
@@ -26,18 +25,6 @@ import { authService } from "../services/auth";
 const { width, height } = Dimensions.get("window");
 const CARD_WIDTH = (width - 60) / 2;
 
-// Beautiful gradient combinations
-const gradients = [
-  ['#FF6B6B', '#4ECDC4'],
-  ['#A8E6CF', '#3D5A80'],
-  ['#FFD93D', '#FF6B6B'],
-  ['#6C5CE7', '#A29BFE'],
-  ['#FD79A8', '#FDCB6E'],
-  ['#00B894', '#00CEC9'],
-  ['#E17055', '#FDCB6E'],
-  ['#0984E3', '#74B9FF'],
-];
-
 export default function ResultsScreen({ route }) {
   const navigation = useNavigation();
   const [recipes, setRecipes] = useState(route.params?.recipes || []);
@@ -46,17 +33,16 @@ export default function ResultsScreen({ route }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'swipe'
   const [currentSwipeIndex, setCurrentSwipeIndex] = useState(0);
 
   const { mealType = "", healthy = false, allergies = [] } = route.params || {};
 
   useEffect(() => {
-    // Stunning entrance animation
-    Animated.spring(fadeAnim, {
+    // Animate cards in
+    Animated.timing(fadeAnim, {
       toValue: 1,
-      tension: 50,
-      friction: 7,
+      duration: 600,
       useNativeDriver: true,
     }).start();
   }, []);
@@ -65,6 +51,7 @@ export default function ResultsScreen({ route }) {
     try {
       setSaveLoading(true);
       
+      // Check if user is logged in
       const user = authService.getCurrentUser();
       if (!user) {
         Alert.alert("Login Required", "Please log in to save recipes", [
@@ -83,8 +70,10 @@ export default function ResultsScreen({ route }) {
         return;
       }
 
+      // Save the recipe to Firebase
       await saveRecipeToFirebase(recipeText);
 
+      // Show simple success message
       Alert.alert("Recipe Saved!", "Your recipe has been saved successfully.", [
         {
           text: "OK",
@@ -123,11 +112,11 @@ export default function ResultsScreen({ route }) {
       const [newRecipes] = await Promise.all([recipesPromise, minLoadingTime]);
       setRecipes(newRecipes);
       
+      // Re-animate cards
       fadeAnim.setValue(0);
-      Animated.spring(fadeAnim, {
+      Animated.timing(fadeAnim, {
         toValue: 1,
-        tension: 50,
-        friction: 7,
+        duration: 600,
         useNativeDriver: true,
       }).start();
     } catch (error) {
@@ -142,6 +131,7 @@ export default function ResultsScreen({ route }) {
     if (!recipeText) return "Delicious Recipe";
     const lines = recipeText.split('\n').map(line => line.trim()).filter(line => line);
     
+    // Find the first non-empty line that doesn't contain common non-title patterns
     const titleLine = lines.find(line =>
       line &&
       !line.includes('=') &&
@@ -153,8 +143,8 @@ export default function ResultsScreen({ route }) {
       !line.toLowerCase().includes('calories') &&
       !line.toLowerCase().includes('protein') &&
       !line.toLowerCase().includes('nutritional') &&
-      !line.match(/^\d+\./) &&
-      !line.includes('•')
+      !line.match(/^\d+\./) && // Not a numbered instruction
+      !line.includes('•') // Not an ingredient
     );
     
     return titleLine ? titleLine.trim() : "Delicious Recipe";
@@ -163,6 +153,7 @@ export default function ResultsScreen({ route }) {
   const extractCookingTime = (recipeText) => {
     if (!recipeText) return "30 min";
     
+    // Look for cooking time, preparation time, or total time
     const cookingTimeMatch = recipeText.match(/cooking time:\s*(\d+)\s*(min|minutes|hour|hours)/i);
     const prepTimeMatch = recipeText.match(/preparation time:\s*(\d+)\s*(min|minutes|hour|hours)/i);
     const totalTimeMatch = recipeText.match(/total time:\s*(\d+)\s*(min|minutes|hour|hours)/i);
@@ -179,8 +170,10 @@ export default function ResultsScreen({ route }) {
   const extractMacros = (recipeText) => {
     if (!recipeText) return { calories: "250", protein: "15g", carbs: "30g", fat: "8g" };
     
+    // Convert to lowercase for easier matching
     const lowerText = recipeText.toLowerCase();
     
+    // Enhanced regex patterns to catch various formats
     const caloriesMatch = recipeText.match(/calories?:\s*(\d+)/i) ||
                          recipeText.match(/(\d+)\s*calories?/i) ||
                          recipeText.match(/(\d+)\s*cal\b/i);
@@ -195,6 +188,7 @@ export default function ResultsScreen({ route }) {
     const fatMatch = recipeText.match(/fat:\s*(\d+)\s*g?/i) ||
                     recipeText.match(/(\d+)\s*g?\s*fat/i);
 
+    // Also try to find nutritional information block
     const nutritionSection = recipeText.match(/nutritional information[:\s]*(.*?)(?=\n\n|\n[A-Z]|$)/is);
     
     let calories, protein, carbs, fat;
@@ -212,6 +206,7 @@ export default function ResultsScreen({ route }) {
       fat = nutritionFat ? nutritionFat[1] : null;
     }
     
+    // Fall back to general matches if not found in nutrition section
     if (!calories && caloriesMatch) calories = caloriesMatch[1];
     if (!protein && proteinMatch) protein = proteinMatch[1];
     if (!carbs && carbsMatch) carbs = carbsMatch[1];
@@ -232,6 +227,7 @@ export default function ResultsScreen({ route }) {
     if (lowerText.includes('difficult') || lowerText.includes('advanced') || lowerText.includes('hard')) return "Hard";
     if (lowerText.includes('medium') || lowerText.includes('intermediate') || lowerText.includes('moderate')) return "Medium";
     
+    // Count the number of steps to estimate difficulty
     const steps = recipeText.match(/\d+\./g);
     if (steps && steps.length > 8) return "Hard";
     if (steps && steps.length > 5) return "Medium";
@@ -242,6 +238,7 @@ export default function ResultsScreen({ route }) {
   const formatRecipeForModal = (recipeText) => {
     if (!recipeText) return { ingredients: [], instructions: [], title: "Recipe", macros: {} };
     
+    // Clean up the recipe text
     const cleanText = recipeText.replace(/={3,}/g, "").trim();
     const lines = cleanText.split('\n').map(line => line.trim()).filter(line => line);
     
@@ -256,6 +253,7 @@ export default function ResultsScreen({ route }) {
       const line = lines[i];
       const lowerLine = line.toLowerCase();
       
+      // Skip title, time, and serving lines
       if (line === title ||
           lowerLine.includes('preparation time') ||
           lowerLine.includes('cooking time') ||
@@ -268,6 +266,7 @@ export default function ResultsScreen({ route }) {
         continue;
       }
       
+      // Detect sections
       if (lowerLine.includes('ingredients')) {
         currentSection = 'ingredients';
         continue;
@@ -276,25 +275,29 @@ export default function ResultsScreen({ route }) {
         continue;
       }
       
+      // Process ingredients
       if (line.includes('•') || (currentSection === 'ingredients' && line && !line.match(/^\d+\./))) {
         const ingredient = line.replace('•', '').trim();
         if (ingredient && !ingredient.toLowerCase().includes('instructions')) {
           ingredients.push(ingredient);
         }
       }
+      // Process instructions
       else if (line.match(/^\d+\./) || (currentSection === 'instructions' && line && !line.includes('•'))) {
         const instruction = line.replace(/^\d+\./, '').trim();
-        if (instruction && instruction.length > 5) {
+        if (instruction && instruction.length > 5) { // Filter out very short non-instructions
           instructions.push(instruction);
         }
       }
     }
     
+    // If we couldn't detect sections properly, try a different approach
     if (ingredients.length === 0 || instructions.length === 0) {
       const sections = cleanText.split(/\n\s*\n/).filter(section => section.trim());
       
       sections.forEach(section => {
         if (section.includes('•')) {
+          // Extract ingredients
           const sectionIngredients = section
             .split('\n')
             .filter(line => line.includes('•'))
@@ -302,6 +305,7 @@ export default function ResultsScreen({ route }) {
             .filter(line => line);
           ingredients.push(...sectionIngredients);
         } else if (section.match(/^\d+\./m) || section.toLowerCase().includes('instructions')) {
+          // Extract instructions
           const sectionInstructions = section
             .split('\n')
             .filter(line => line.match(/^\d+\./) || (!line.toLowerCase().includes('instructions') && line.trim() && !line.includes('•')))
@@ -324,6 +328,7 @@ export default function ResultsScreen({ route }) {
   };
 
   const handleViewModeChange = (newMode) => {
+    // Reset swipe index when switching to swipe mode
     if (newMode === 'swipe' && viewMode === 'grid') {
       setCurrentSwipeIndex(0);
     }
@@ -342,22 +347,11 @@ export default function ResultsScreen({ route }) {
     }, 300);
   };
 
-  const getDifficultyColor = (difficulty) => {
-    switch (difficulty) {
-      case 'Easy': return ['#00B894', '#00CEC9'];
-      case 'Medium': return ['#FDCB6E', '#E17055'];
-      case 'Hard': return ['#E84393', '#FD79A8'];
-      default: return ['#00B894', '#00CEC9'];
-    }
-  };
-
   const renderRecipeCard = ({ item, index }) => {
     const title = extractRecipeTitle(item);
     const cookTime = extractCookingTime(item);
     const difficulty = extractDifficulty(item);
     const macros = extractMacros(item);
-    const cardGradient = gradients[index % gradients.length];
-    const difficultyColors = getDifficultyColor(difficulty);
     
     return (
       <Animated.View
@@ -369,13 +363,7 @@ export default function ResultsScreen({ route }) {
               {
                 translateY: fadeAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [80, 0],
-                }),
-              },
-              {
-                scale: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.8, 1],
+                  outputRange: [50, 0],
                 }),
               },
             ],
@@ -384,96 +372,60 @@ export default function ResultsScreen({ route }) {
       >
         <TouchableOpacity
           onPress={() => openRecipeModal(item)}
-          activeOpacity={0.9}
+          activeOpacity={0.7}
           style={styles.cardTouchable}
         >
-          {/* Beautiful gradient background */}
-          <LinearGradient
-            colors={cardGradient}
-            style={styles.cardGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            {/* Floating elements for visual interest */}
-            <View style={styles.floatingElement1} />
-            <View style={styles.floatingElement2} />
-            
-            <View style={styles.cardHeader}>
-              <LinearGradient
-                colors={difficultyColors}
-                style={styles.difficultyBadge}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.difficultyText}>{difficulty}</Text>
-              </LinearGradient>
-              
-              <TouchableOpacity
-                style={styles.quickSaveButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleRecipeSave(item);
-                }}
-              >
-                <View style={styles.saveButtonInner}>
-                  <Ionicons name="bookmark-outline" size={16} color="white" />
-                </View>
-              </TouchableOpacity>
+          <View style={styles.cardHeader}>
+            <View style={styles.difficultyBadge}>
+              <Text style={styles.difficultyText}>{difficulty}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.quickSaveButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleRecipeSave(item);
+              }}
+            >
+              <Ionicons name="bookmark-outline" size={16} color="#008b8b" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.cardContent}>
+            <View style={styles.recipeIconContainer}>
+              <Ionicons name="restaurant" size={32} color="#008b8b" />
             </View>
             
-            <View style={styles.cardContent}>
-              {/* Glowing recipe icon */}
-              <View style={styles.recipeIconContainer}>
-                <View style={styles.iconGlow} />
-                <Ionicons name="restaurant" size={28} color="white" />
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {title}
+            </Text>
+            
+            <View style={styles.cardMeta}>
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={14} color="#7f8c8d" />
+                <Text style={styles.metaText}>{cookTime}</Text>
               </View>
-              
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {title}
-              </Text>
-              
-              {/* Enhanced meta info */}
-              <View style={styles.cardMeta}>
-                <View style={styles.metaItem}>
-                  <View style={styles.metaIconContainer}>
-                    <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.9)" />
-                  </View>
-                  <Text style={styles.metaText}>{cookTime}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <View style={styles.metaIconContainer}>
-                    <Ionicons name="flame-outline" size={12} color="rgba(255,255,255,0.9)" />
-                  </View>
-                  <Text style={styles.metaText}>{macros.calories} cal</Text>
-                </View>
+              <View style={styles.metaItem}>
+                <Ionicons name="flame-outline" size={14} color="#7f8c8d" />
+                <Text style={styles.metaText}>{macros.calories} cal</Text>
               </View>
+            </View>
 
-              {/* Beautiful macros display */}
-              <View style={styles.macrosContainer}>
-                <View style={styles.macroItem}>
-                  <View style={styles.macroCircle}>
-                    <Text style={styles.macroValue}>{macros.protein}</Text>
-                  </View>
-                  <Text style={styles.macroLabel}>Protein</Text>
-                </View>
-                <View style={styles.macroItem}>
-                  <View style={styles.macroCircle}>
-                    <Text style={styles.macroValue}>{macros.carbs}</Text>
-                  </View>
-                  <Text style={styles.macroLabel}>Carbs</Text>
-                </View>
-                <View style={styles.macroItem}>
-                  <View style={styles.macroCircle}>
-                    <Text style={styles.macroValue}>{macros.fat}</Text>
-                  </View>
-                  <Text style={styles.macroLabel}>Fat</Text>
-                </View>
+            {/* Macros Row */}
+            <View style={styles.macrosContainer}>
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{macros.protein}</Text>
+                <Text style={styles.macroLabel}>Protein</Text>
+              </View>
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{macros.carbs}</Text>
+                <Text style={styles.macroLabel}>Carbs</Text>
+              </View>
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{macros.fat}</Text>
+                <Text style={styles.macroLabel}>Fat</Text>
               </View>
             </View>
-            
-            {/* Shimmer overlay effect */}
-            <View style={styles.shimmerOverlay} />
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -484,119 +436,74 @@ export default function ResultsScreen({ route }) {
     const cookTime = extractCookingTime(item);
     const difficulty = extractDifficulty(item);
     const macros = extractMacros(item);
-    const cardGradient = gradients[index % gradients.length];
-    const difficultyColors = getDifficultyColor(difficulty);
     
     return (
       <View style={styles.swipeCard}>
         <TouchableOpacity
           onPress={() => openRecipeModal(item)}
-          activeOpacity={0.9}
+          activeOpacity={0.7}
           style={styles.swipeCardContent}
         >
-          <LinearGradient
-            colors={cardGradient}
-            style={styles.swipeCardGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            {/* Decorative elements */}
-            <View style={styles.swipeFloatingElement1} />
-            <View style={styles.swipeFloatingElement2} />
-            <View style={styles.swipeFloatingElement3} />
+          <View style={styles.swipeCardHeader}>
+            <View style={styles.swipeCardTop}>
+              <View style={styles.difficultyBadge}>
+                <Text style={styles.difficultyText}>{difficulty}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.quickSaveButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleRecipeSave(item);
+                }}
+              >
+                <Ionicons name="bookmark-outline" size={20} color="#008b8b" />
+              </TouchableOpacity>
+            </View>
             
-            <View style={styles.swipeCardHeader}>
-              <View style={styles.swipeCardTop}>
-                <LinearGradient
-                  colors={difficultyColors}
-                  style={styles.difficultyBadge}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.difficultyText}>{difficulty}</Text>
-                </LinearGradient>
-                
-                <TouchableOpacity
-                  style={styles.quickSaveButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleRecipeSave(item);
-                  }}
-                >
-                  <View style={styles.saveButtonInner}>
-                    <Ionicons name="bookmark-outline" size={20} color="white" />
-                  </View>
-                </TouchableOpacity>
+            <View style={styles.swipeCardCenter}>
+              <View style={styles.swipeRecipeIconContainer}>
+                <Ionicons name="restaurant" size={48} color="#008b8b" />
               </View>
               
-              <View style={styles.swipeCardCenter}>
-                {/* Enhanced glowing icon */}
-                <View style={styles.swipeRecipeIconContainer}>
-                  <View style={styles.swipeIconGlow} />
-                  <View style={styles.swipeIconGlow2} />
-                  <Ionicons name="restaurant" size={48} color="white" />
-                </View>
-                
-                <Text style={styles.swipeCardTitle} numberOfLines={3}>
-                  {title}
-                </Text>
-              </View>
+              <Text style={styles.swipeCardTitle} numberOfLines={3}>
+                {title}
+              </Text>
             </View>
+          </View>
 
-            {/* Stunning macros section */}
-            <View style={styles.swipeMacrosSection}>
-              <Text style={styles.swipeMacrosTitle}>Nutritional Info</Text>
-              <View style={styles.swipeMacrosGrid}>
-                <View style={styles.swipeMacroCard}>
-                  <LinearGradient
-                    colors={['#FF6B6B', '#FF8E8E']}
-                    style={styles.swipeMacroGradient}
-                  >
-                    <Ionicons name="flame" size={20} color="white" />
-                    <Text style={styles.swipeMacroValue}>{macros.calories}</Text>
-                    <Text style={styles.swipeMacroLabel}>Calories</Text>
-                  </LinearGradient>
-                </View>
-                <View style={styles.swipeMacroCard}>
-                  <LinearGradient
-                    colors={['#4ECDC4', '#44A08D']}
-                    style={styles.swipeMacroGradient}
-                  >
-                    <Ionicons name="barbell" size={20} color="white" />
-                    <Text style={styles.swipeMacroValue}>{macros.protein}</Text>
-                    <Text style={styles.swipeMacroLabel}>Protein</Text>
-                  </LinearGradient>
-                </View>
-                <View style={styles.swipeMacroCard}>
-                  <LinearGradient
-                    colors={['#45B7D1', '#96C93F']}
-                    style={styles.swipeMacroGradient}
-                  >
-                    <Ionicons name="leaf" size={20} color="white" />
-                    <Text style={styles.swipeMacroValue}>{macros.carbs}</Text>
-                    <Text style={styles.swipeMacroLabel}>Carbs</Text>
-                  </LinearGradient>
-                </View>
-                <View style={styles.swipeMacroCard}>
-                  <LinearGradient
-                    colors={['#F7B731', '#F0932B']}
-                    style={styles.swipeMacroGradient}
-                  >
-                    <Ionicons name="water" size={20} color="white" />
-                    <Text style={styles.swipeMacroValue}>{macros.fat}</Text>
-                    <Text style={styles.swipeMacroLabel}>Fat</Text>
-                  </LinearGradient>
-                </View>
+          {/* Enhanced Macros Display */}
+          <View style={styles.swipeMacrosSection}>
+            <Text style={styles.swipeMacrosTitle}>Nutritional Info</Text>
+            <View style={styles.swipeMacrosGrid}>
+              <View style={styles.swipeMacroCard}>
+                <Ionicons name="flame" size={20} color="#ff6b35" />
+                <Text style={styles.swipeMacroValue}>{macros.calories}</Text>
+                <Text style={styles.swipeMacroLabel}>Calories</Text>
+              </View>
+              <View style={styles.swipeMacroCard}>
+                <Ionicons name="barbell" size={20} color="#4ecdc4" />
+                <Text style={styles.swipeMacroValue}>{macros.protein}</Text>
+                <Text style={styles.swipeMacroLabel}>Protein</Text>
+              </View>
+              <View style={styles.swipeMacroCard}>
+                <Ionicons name="leaf" size={20} color="#45b7d1" />
+                <Text style={styles.swipeMacroValue}>{macros.carbs}</Text>
+                <Text style={styles.swipeMacroLabel}>Carbs</Text>
+              </View>
+              <View style={styles.swipeMacroCard}>
+                <Ionicons name="water" size={20} color="#f7b731" />
+                <Text style={styles.swipeMacroValue}>{macros.fat}</Text>
+                <Text style={styles.swipeMacroLabel}>Fat</Text>
               </View>
             </View>
+          </View>
 
-            <View style={styles.swipeCardFooter}>
-              <View style={styles.swipeTimeContainer}>
-                <Ionicons name="time-outline" size={16} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.swipeMetaText}>{cookTime}</Text>
-              </View>
+          <View style={styles.swipeCardFooter}>
+            <View style={styles.metaItem}>
+              <Ionicons name="time-outline" size={16} color="#7f8c8d" />
+              <Text style={styles.swipeMetaText}>{cookTime}</Text>
             </View>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       </View>
     );
@@ -617,92 +524,67 @@ export default function ResultsScreen({ route }) {
       >
         <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.8)" />
         <View style={styles.modalContainer}>
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.modalHeader}
-          >
+          <View style={styles.modalHeader}>
             <TouchableOpacity style={styles.closeButton} onPress={closeRecipeModal}>
-              <View style={styles.closeButtonInner}>
-                <Ionicons name="close" size={24} color="white" />
-              </View>
+              <Ionicons name="close" size={24} color="white" />
             </TouchableOpacity>
             <View style={styles.modalHeaderContent}>
               <Text style={styles.modalTitle} numberOfLines={3}>{title}</Text>
-              
-              {/* Enhanced macros in header */}
+              {/* Macros in Header */}
               <View style={styles.modalMacrosRow}>
                 <View style={styles.modalMacroItem}>
-                  <View style={styles.modalMacroCircle}>
-                    <Text style={styles.modalMacroValue}>{macros.calories}</Text>
-                  </View>
+                  <Text style={styles.modalMacroValue}>{macros.calories}</Text>
                   <Text style={styles.modalMacroLabel}>cal</Text>
                 </View>
                 <View style={styles.modalMacroDivider} />
                 <View style={styles.modalMacroItem}>
-                  <View style={styles.modalMacroCircle}>
-                    <Text style={styles.modalMacroValue}>{macros.protein}</Text>
-                  </View>
+                  <Text style={styles.modalMacroValue}>{macros.protein}</Text>
                   <Text style={styles.modalMacroLabel}>protein</Text>
                 </View>
                 <View style={styles.modalMacroDivider} />
                 <View style={styles.modalMacroItem}>
-                  <View style={styles.modalMacroCircle}>
-                    <Text style={styles.modalMacroValue}>{macros.carbs}</Text>
-                  </View>
+                  <Text style={styles.modalMacroValue}>{macros.carbs}</Text>
                   <Text style={styles.modalMacroLabel}>carbs</Text>
                 </View>
                 <View style={styles.modalMacroDivider} />
                 <View style={styles.modalMacroItem}>
-                  <View style={styles.modalMacroCircle}>
-                    <Text style={styles.modalMacroValue}>{macros.fat}</Text>
-                  </View>
+                  <Text style={styles.modalMacroValue}>{macros.fat}</Text>
                   <Text style={styles.modalMacroLabel}>fat</Text>
                 </View>
               </View>
             </View>
-          </LinearGradient>
+          </View>
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {/* Beautiful save button */}
+            {/* Save Button */}
             <TouchableOpacity
               style={[styles.saveButton, saveLoading && styles.saveButtonDisabled]}
               onPress={() => handleRecipeSave(selectedRecipe)}
               disabled={saveLoading}
             >
-              <LinearGradient
-                colors={['#667eea', '#764ba2']}
-                style={styles.saveButtonGradient}
-              >
-                {saveLoading ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Ionicons name="bookmark-outline" size={24} color="white" />
-                )}
-                <Text style={styles.saveButtonText}>
-                  {saveLoading ? 'Saving...' : 'Save Recipe'}
-                </Text>
-              </LinearGradient>
+              {saveLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Ionicons name="bookmark-outline" size={24} color="white" />
+              )}
+              <Text style={styles.saveButtonText}>
+                {saveLoading ? 'Saving...' : 'Save Recipe'}
+              </Text>
             </TouchableOpacity>
 
-            {/* Enhanced sections */}
+            {/* Ingredients Section */}
             {ingredients.length > 0 && (
               <View style={styles.modalSection}>
                 <View style={styles.sectionHeader}>
-                  <LinearGradient
-                    colors={['#4ECDC4', '#44A08D']}
-                    style={styles.sectionIcon}
-                  >
-                    <Ionicons name="restaurant" size={20} color="white" />
-                  </LinearGradient>
+                  <View style={styles.sectionIcon}>
+                    <Ionicons name="restaurant" size={20} color="#008b8b" />
+                  </View>
                   <Text style={styles.sectionTitle}>Ingredients</Text>
                 </View>
                 <View style={styles.ingredientsContainer}>
                   {ingredients.map((ingredient, index) => (
                     <View key={index} style={styles.ingredientItem}>
-                      <LinearGradient
-                        colors={['#4ECDC4', '#44A08D']}
-                        style={styles.ingredientBullet}
-                      />
+                      <View style={styles.ingredientBullet} />
                       <Text style={styles.ingredientText}>{ingredient}</Text>
                     </View>
                   ))}
@@ -710,26 +592,21 @@ export default function ResultsScreen({ route }) {
               </View>
             )}
 
+            {/* Instructions Section */}
             {instructions.length > 0 && (
               <View style={styles.modalSection}>
                 <View style={styles.sectionHeader}>
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2']}
-                    style={styles.sectionIcon}
-                  >
-                    <Ionicons name="list" size={20} color="white" />
-                  </LinearGradient>
+                  <View style={styles.sectionIcon}>
+                    <Ionicons name="list" size={20} color="#008b8b" />
+                  </View>
                   <Text style={styles.sectionTitle}>Instructions</Text>
                 </View>
                 <View style={styles.instructionsContainer}>
                   {instructions.map((instruction, index) => (
                     <View key={index} style={styles.instructionItem}>
-                      <LinearGradient
-                        colors={['#667eea', '#764ba2']}
-                        style={styles.stepNumber}
-                      >
+                      <View style={styles.stepNumber}>
                         <Text style={styles.stepNumberText}>{index + 1}</Text>
-                      </LinearGradient>
+                      </View>
                       <Text style={styles.instructionText}>{instruction}</Text>
                     </View>
                   ))}
@@ -745,42 +622,25 @@ export default function ResultsScreen({ route }) {
   if (recipes.length === 0 && !loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          style={styles.header}
-        >
+        <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <View style={styles.backButtonInner}>
-              <Ionicons name="arrow-back" size={24} color="white" />
-            </View>
+            <Ionicons name="arrow-back" size={24} color="#008b8b" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Recipe Results</Text>
           <View style={{ width: 44 }} />
-        </LinearGradient>
+        </View>
         
         <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconContainer}>
-            <LinearGradient
-              colors={['#4ECDC4', '#44A08D']}
-              style={styles.emptyIconGradient}
-            >
-              <Ionicons name="restaurant-outline" size={64} color="white" />
-            </LinearGradient>
-          </View>
+          <Ionicons name="restaurant-outline" size={64} color="#008b8b" />
           <Text style={styles.emptyTitle}>No Recipes Found</Text>
           <Text style={styles.emptyText}>
             We couldn't find any recipes matching your criteria. Try adjusting your preferences.
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => navigation.goBack()}>
-            <LinearGradient
-              colors={['#667eea', '#764ba2']}
-              style={styles.retryButtonGradient}
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </LinearGradient>
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -789,58 +649,43 @@ export default function ResultsScreen({ route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
       
-      {/* Stunning loading overlay */}
+      {/* Loading Overlay */}
       <Modal transparent={true} visible={loading}>
-        <BlurView intensity={100} style={styles.loadingOverlay}>
+        <BlurView intensity={80} style={styles.loadingOverlay}>
           <View style={styles.loadingContainer}>
-            <LinearGradient
-              colors={['#667eea', '#764ba2']}
-              style={styles.loadingGradient}
-            >
-              <ActivityIndicator size="large" color="white" />
-              <Text style={styles.loadingText}>Finding new recipes...</Text>
-            </LinearGradient>
+            <ActivityIndicator size="large" color="#008b8b" />
+            <Text style={styles.loadingText}>Finding new recipes...</Text>
           </View>
         </BlurView>
       </Modal>
 
-      {/* Beautiful gradient header */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.header}
-      >
+      {/* Header */}
+      <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <View style={styles.backButtonInner}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </View>
+          <Ionicons name="arrow-back" size={24} color="#008b8b" />
         </TouchableOpacity>
         
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Recipe Results</Text>
-          <Text style={styles.headerSubtitle}>{recipes.length} delicious recipes</Text>
+          <Text style={styles.headerSubtitle}>{recipes.length} recipes found</Text>
         </View>
         
         <View style={styles.headerActions}>
-          {/* Enhanced view toggle */}
+          {/* View Mode Toggle */}
           <TouchableOpacity
-            style={styles.viewToggleButton}
+            style={[styles.viewToggleButton, viewMode === 'grid' && styles.viewToggleActive]}
             onPress={() => handleViewModeChange(viewMode === 'grid' ? 'swipe' : 'grid')}
           >
-            <LinearGradient
-              colors={viewMode === 'grid' ? ['#4ECDC4', '#44A08D'] : ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
-              style={styles.viewToggleGradient}
-            >
-              <Ionicons
-                name={viewMode === 'grid' ? 'layers-outline' : 'grid-outline'}
-                size={18}
-                color="white"
-              />
-            </LinearGradient>
+            <Ionicons
+              name={viewMode === 'grid' ? 'layers-outline' : 'grid-outline'}
+              size={18}
+              color={viewMode === 'grid' ? '#008b8b' : 'white'}
+            />
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -848,39 +693,31 @@ export default function ResultsScreen({ route }) {
             onPress={regenerateRecipes}
             disabled={loading}
           >
-            <LinearGradient
-              colors={['#FF6B6B', '#FF8E8E']}
-              style={styles.refreshGradient}
-            >
-              <Ionicons name="refresh" size={20} color="white" />
-            </LinearGradient>
+            <Ionicons name="refresh" size={20} color="white" />
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Content based on view mode */}
       {viewMode === 'grid' ? (
-        <View style={styles.gridWrapper}>
-          <FlatList
-            data={recipes}
-            renderItem={renderRecipeCard}
-            keyExtractor={(item, index) => index.toString()}
-            numColumns={2}
-            contentContainerStyle={styles.gridContainer}
-            showsVerticalScrollIndicator={false}
-            columnWrapperStyle={styles.row}
-          />
-        </View>
+        /* Recipe Grid */
+        <FlatList
+          data={recipes}
+          renderItem={renderRecipeCard}
+          keyExtractor={(item, index) => index.toString()}
+          numColumns={2}
+          contentContainerStyle={styles.gridContainer}
+          showsVerticalScrollIndicator={false}
+          columnWrapperStyle={styles.row}
+        />
       ) : (
+        /* Swipe View */
         <View style={styles.swipeContainer}>
-          <LinearGradient
-            colors={['rgba(102, 126, 234, 0.1)', 'rgba(118, 75, 162, 0.1)']}
-            style={styles.swipeHeader}
-          >
+          <View style={styles.swipeHeader}>
             <Text style={styles.swipeCounter}>
               {currentSwipeIndex + 1} of {recipes.length}
             </Text>
-          </LinearGradient>
+          </View>
           
           <View style={styles.swipeContent}>
             {recipes.length > 0 && (
@@ -890,47 +727,29 @@ export default function ResultsScreen({ route }) {
             )}
           </View>
           
-          {/* Enhanced navigation */}
-          <LinearGradient
-            colors={['rgba(102, 126, 234, 0.1)', 'rgba(118, 75, 162, 0.1)']}
-            style={styles.swipeNavigation}
-          >
+          {/* Navigation Controls */}
+          <View style={styles.swipeNavigation}>
             <TouchableOpacity
               style={styles.swipeNavButton}
               onPress={() => handleSwipeChange('prev')}
             >
-              <LinearGradient
-                colors={['#667eea', '#764ba2']}
-                style={styles.swipeNavGradient}
-              >
-                <Ionicons name="chevron-back" size={24} color="white" />
-              </LinearGradient>
+              <Ionicons name="chevron-back" size={24} color="white" />
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.openModalButton}
               onPress={() => openRecipeModal(recipes[currentSwipeIndex])}
             >
-              <LinearGradient
-                colors={['#4ECDC4', '#44A08D']}
-                style={styles.openModalGradient}
-              >
-                <Text style={styles.openModalButtonText}>View Full Recipe</Text>
-              </LinearGradient>
+              <Text style={styles.openModalButtonText}>View Full Recipe</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.swipeNavButton}
               onPress={() => handleSwipeChange('next')}
             >
-              <LinearGradient
-                colors={['#667eea', '#764ba2']}
-                style={styles.swipeNavGradient}
-              >
-                <Ionicons name="chevron-forward" size={24} color="white" />
-              </LinearGradient>
+              <Ionicons name="chevron-forward" size={24} color="white" />
             </TouchableOpacity>
-          </LinearGradient>
+          </View>
         </View>
       )}
 
@@ -945,91 +764,92 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f9fa",
   },
-  
-  // Enhanced Header Styles
   header: {
+    backgroundColor: 'white',
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e1e8ed',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     ...Platform.select({
       ios: {
-        shadowColor: '#667eea',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 12,
+        elevation: 2,
       },
     }),
   },
   backButton: {
     width: 44,
     height: 44,
-  },
-  backButtonInner: {
-    flex: 1,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: '#e6f3f3',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    color: '#2c3e50',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#7f8c8d',
     marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   viewToggleButton: {
-    width: 44,
-    height: 44,
-  },
-  viewToggleGradient: {
-    flex: 1,
+    backgroundColor: '#008b8b',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  viewToggleActive: {
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#008b8b',
   },
   refreshButton: {
-    width: 44,
-    height: 44,
-  },
-  refreshGradient: {
-    flex: 1,
+    backgroundColor: '#008b8b',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-
-  // Enhanced Grid Styles
-  gridWrapper: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   gridContainer: {
     padding: 20,
@@ -1040,194 +860,131 @@ const styles = StyleSheet.create({
   },
   recipeCard: {
     width: CARD_WIDTH,
-    height: 280,
     marginBottom: 20,
-    borderRadius: 24,
+    borderRadius: 20,
+    backgroundColor: 'white',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 8,
+        elevation: 4,
       },
     }),
   },
   cardTouchable: {
     flex: 1,
   },
-  cardGradient: {
-    flex: 1,
-    position: 'relative',
-  },
-
-  // Floating decorative elements
-  floatingElement1: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  floatingElement2: {
-    position: 'absolute',
-    bottom: 30,
-    left: 15,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     paddingBottom: 0,
   },
   difficultyBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   difficultyText: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: 'white',
+    fontWeight: '600',
+    color: '#008b8b',
   },
   quickSaveButton: {
-    width: 36,
-    height: 36,
-  },
-  saveButtonInner: {
-    flex: 1,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
-
   cardContent: {
-    flex: 1,
     padding: 16,
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   recipeIconContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
-  },
-  iconGlow: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginBottom: 12,
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
+    fontWeight: '600',
+    color: '#2c3e50',
     textAlign: 'center',
+    marginBottom: 8,
     lineHeight: 22,
     minHeight: 44,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   cardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  metaIconContainer: {
-    marginRight: 4,
   },
   metaText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
+    color: '#7f8c8d',
+    marginLeft: 4,
+    fontWeight: '500',
   },
-
-  // Enhanced Macros
+  // Macros for Grid Cards
   macrosContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingHorizontal: 4,
   },
   macroItem: {
     alignItems: 'center',
     flex: 1,
-  },
-  macroCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    marginBottom: 4,
+    marginHorizontal: 2,
   },
   macroValue: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#008b8b',
+    textAlign: 'center',
   },
   macroLabel: {
     fontSize: 9,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#7f8c8d',
+    marginTop: 2,
     textAlign: 'center',
   },
-
-  shimmerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-
-  // Enhanced Swipe View
+  // Swipe View Styles
   swipeContainer: {
     flex: 1,
   },
   swipeHeader: {
     alignItems: 'center',
     paddingVertical: 16,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(102, 126, 234, 0.1)',
+    borderBottomColor: '#e1e8ed',
   },
   swipeCounter: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontWeight: '600',
+    color: '#2c3e50',
   },
   swipeContent: {
     flex: 1,
@@ -1238,58 +995,24 @@ const styles = StyleSheet.create({
   },
   swipeCard: {
     flex: 1,
-    borderRadius: 32,
-    overflow: 'hidden',
+    backgroundColor: 'white',
+    borderRadius: 24,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 16 },
-        shadowOpacity: 0.25,
-        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 16,
+        elevation: 8,
       },
     }),
   },
   swipeCardContent: {
     flex: 1,
-  },
-  swipeCardGradient: {
-    flex: 1,
-    position: 'relative',
     padding: 24,
   },
-
-  // Swipe decorative elements
-  swipeFloatingElement1: {
-    position: 'absolute',
-    top: 40,
-    right: 30,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  swipeFloatingElement2: {
-    position: 'absolute',
-    bottom: 80,
-    left: 20,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  swipeFloatingElement3: {
-    position: 'absolute',
-    top: '50%',
-    left: 10,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-
   swipeCardHeader: {
     flex: 1,
   },
@@ -1305,152 +1028,128 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   swipeRecipeIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    position: 'relative',
-  },
-  swipeIconGlow: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  swipeIconGlow2: {
-    position: 'absolute',
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   swipeCardTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#2c3e50',
     textAlign: 'center',
-    lineHeight: 36,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    lineHeight: 32,
   },
   swipeMacrosSection: {
     marginTop: 24,
   },
   swipeMacrosTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#2c3e50',
     marginBottom: 16,
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   swipeMacrosGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    gap: 8,
   },
   swipeMacroCard: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  swipeMacroGradient: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 16,
+    minWidth: 70,
   },
   swipeMacroValue: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: 'white',
-    marginTop: 4,
+    color: '#2c3e50',
+    marginTop: 8,
   },
   swipeMacroLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginTop: 4,
     textAlign: 'center',
   },
   swipeCardFooter: {
     alignItems: 'center',
     marginTop: 20,
   },
-  swipeTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
   swipeMetaText: {
     fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
+    color: '#7f8c8d',
     marginLeft: 8,
-    fontWeight: '600',
+    fontWeight: '500',
   },
-
-  // Enhanced Navigation
   swipeNavigation: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 20,
+    backgroundColor: 'white',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(102, 126, 234, 0.1)',
+    borderTopColor: '#e1e8ed',
   },
   swipeNavButton: {
-    width: 56,
-    height: 56,
-  },
-  swipeNavGradient: {
-    flex: 1,
-    borderRadius: 28,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#008b8b',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   openModalButton: {
-    height: 56,
+    backgroundColor: '#008b8b',
+    paddingVertical: 14,
     paddingHorizontal: 24,
-  },
-  openModalGradient: {
-    flex: 1,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   openModalButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-
-  // Enhanced Modal Styles
+  // Modal Styles
   modalContainer: {
     flex: 1,
     backgroundColor: 'white',
   },
   modalHeader: {
+    backgroundColor: '#008b8b',
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 24,
+    paddingBottom: 20,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    minHeight: 220,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    minHeight: 200, // Ensure enough space for long titles
   },
   closeButton: {
     position: 'absolute',
@@ -1458,89 +1157,77 @@ const styles = StyleSheet.create({
     right: 20,
     width: 44,
     height: 44,
-    zIndex: 10,
-  },
-  closeButtonInner: {
-    flex: 1,
     borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    zIndex: 10, // Ensure it's above other elements
   },
   modalHeaderContent: {
     alignItems: 'center',
     marginTop: 20,
-    paddingRight: 60,
+    paddingRight: 60, // Add padding to prevent overlap with close button
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 22, // Slightly smaller to accommodate longer titles
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
-    lineHeight: 32,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    lineHeight: 28,
   },
+  // Modal Macros Styles
   modalMacrosRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: 16,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   modalMacroItem: {
     alignItems: 'center',
   },
-  modalMacroCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    marginBottom: 4,
-  },
   modalMacroValue: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: 'bold',
     color: 'white',
   },
   modalMacroLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
   modalMacroDivider: {
     width: 1,
-    height: 40,
+    height: 30,
     backgroundColor: 'rgba(255,255,255,0.3)',
     marginHorizontal: 16,
   },
-
   modalContent: {
     flex: 1,
     padding: 24,
   },
   saveButton: {
-    height: 56,
-    borderRadius: 28,
-    marginBottom: 24,
-    overflow: 'hidden',
-  },
-  saveButtonGradient: {
-    flex: 1,
+    backgroundColor: '#008b8b',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 16,
     paddingHorizontal: 24,
+    borderRadius: 16,
+    marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   saveButtonDisabled: {
     opacity: 0.6,
@@ -1548,100 +1235,77 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginLeft: 8,
   },
-
   modalSection: {
     marginBottom: 32,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     paddingBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#f0f0f0',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e1e8ed',
   },
   sectionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 139, 139, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#2c3e50',
   },
-
   ingredientsContainer: {
     gap: 12,
   },
   ingredientItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 20,
+    padding: 16,
     backgroundColor: '#f8f9fa',
     borderRadius: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#4ECDC4',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    borderLeftColor: '#008b8b',
   },
   ingredientBullet: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 8,
-    marginRight: 16,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#008b8b',
+    marginTop: 6,
+    marginRight: 12,
   },
   ingredientText: {
     flex: 1,
     fontSize: 16,
     color: '#2c3e50',
     lineHeight: 24,
-    fontWeight: '500',
   },
-
   instructionsContainer: {
     gap: 16,
   },
   instructionItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 20,
+    padding: 16,
     backgroundColor: '#f8f9fa',
     borderRadius: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#667eea',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    borderLeftColor: '#008b8b',
   },
   stepNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#008b8b',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -1657,90 +1321,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     color: '#2c3e50',
-    fontWeight: '500',
   },
-
-  // Enhanced Empty State
+  // Empty State
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: 24,
-    overflow: 'hidden',
-  },
-  emptyIconGradient: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   emptyTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 12,
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
     color: '#7f8c8d',
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 32,
+    marginBottom: 24,
   },
   retryButton: {
-    height: 56,
-    paddingHorizontal: 32,
-    borderRadius: 28,
-    overflow: 'hidden',
-  },
-  retryButtonGradient: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#008b8b',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 16,
   },
   retryButtonText: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
   },
-
-  // Enhanced Loading Overlay
+  // Loading Overlay
   loadingOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingContainer: {
-    borderRadius: 32,
-    overflow: 'hidden',
+    backgroundColor: 'white',
+    padding: 32,
+    borderRadius: 20,
+    alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 16,
+        elevation: 12,
       },
     }),
   },
-  loadingGradient: {
-    padding: 40,
-    alignItems: 'center',
-    minWidth: 200,
-  },
   loadingText: {
-    marginTop: 20,
-    fontSize: 16,
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
+    marginTop: 16,
+    fontSize: 12,
+    color: '#008b8b',
+    fontWeight: '600',
   },
 });
-

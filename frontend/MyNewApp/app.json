@@ -24,6 +24,7 @@
       "googleServicesFile": "./assets/GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "This app uses the microphone to record voice descriptions of your meals for easier food logging.",
         "NSCameraUsageDescription": "This app needs camera access to scan food barcodes.",
         "NSAllowsArbitraryLoads": true,
         "NSExceptionDomains": {
@@ -60,8 +61,16 @@
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "This app needs microphone access to record or play audio.",
+          "recordAudio": true
+        }
       ]
     ],
+
     "extra": {
       "eas": {
         "projectId": "3287301c-9f8d-4553-9f48-efc19ee880db"

@@ -56,6 +56,8 @@
 	<string>Light</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to scan barcodes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app uses the microphone to record voice descriptions of your meals for easier food logging.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>UIStatusBarStyle</key>

@@ -31,6 +31,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
     additives: false,
     ingredients: false,
   });
+  const [expandedNutrients, setExpandedNutrients] = useState({});
 
   // Set header style when screen is focused
   useFocusEffect(
@@ -73,12 +74,18 @@ const ProductDetailScreen = ({ route, navigation }) => {
   };
 
   const toggleSection = (section) => {
-    // Configure animation
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
+    }));
+  };
+
+  const toggleNutrient = (nutrientKey) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedNutrients(prev => ({
+      ...prev,
+      [nutrientKey]: !prev[nutrientKey]
     }));
   };
 
@@ -98,7 +105,6 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const getNutrientDisplayData = (key, value, servingSize) => {
     if (!value || value === 0) return null;
     
-    // Define thresholds and colors based on nutrient type
     const nutrientConfig = {
       'proteins_100g': {
         title: 'Protein',
@@ -159,15 +165,12 @@ const ProductDetailScreen = ({ route, navigation }) => {
     const config = nutrientConfig[key];
     if (!config) return null;
 
-    // Calculate per serving value
     let servingValue = (value * servingSize / 100);
     
-    // Special handling for sodium (convert to mg)
     if (key === 'sodium_100g') {
       servingValue = servingValue * 1000;
     }
 
-    // Determine color based on thresholds
     let colorIndex = 0;
     for (let i = 0; i < config.thresholds.length - 1; i++) {
       if (servingValue > config.thresholds[i + 1]) {
@@ -181,7 +184,6 @@ const ProductDetailScreen = ({ route, navigation }) => {
     const color = config.colors[colorIndex];
     const position = Math.min((servingValue / config.maxScale) * 100, 100);
 
-    // Determine quality level
     let level, description;
     if (config.isPositive) {
       if (colorIndex <= 1) {
@@ -218,32 +220,23 @@ const ProductDetailScreen = ({ route, navigation }) => {
   };
 
   const ProgressBar = ({ nutrientData }) => {
-    if (!nutrientData || !nutrientData.thresholds || !nutrientData.colors || !Array.isArray(nutrientData.thresholds) || !Array.isArray(nutrientData.colors)) {
+    if (!nutrientData || !nutrientData.thresholds || !nutrientData.colors) {
       return null;
     }
 
-    const thresholds = nutrientData.thresholds || [];
-    const colors = nutrientData.colors || [];
-    const position = typeof nutrientData.position === 'number' ? nutrientData.position : 0;
-    const maxScale = nutrientData.maxScale || 100;
+    const { thresholds, colors, position, maxScale } = nutrientData;
 
-    if (thresholds.length === 0 || colors.length === 0) {
-      return null;
-    }
-
-    // Create segments for the progress bar
     const segments = [];
     const segmentWidth = 100 / thresholds.length;
     
     for (let i = 0; i < thresholds.length && i < colors.length; i++) {
-      const segmentColor = colors[i] || '#9CA3AF';
       segments.push(
         <View
           key={i}
           style={[
             styles.progressSegment,
             {
-              backgroundColor: segmentColor,
+              backgroundColor: colors[i],
               width: `${segmentWidth}%`,
             }
           ]}
@@ -269,7 +262,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
           <Text style={styles.progressLabel}>0</Text>
           {thresholds.slice(1, -1).map((threshold, index) => (
             <Text key={index} style={styles.progressLabel}>
-              {threshold || ''}
+              {threshold}
             </Text>
           ))}
           <Text style={styles.progressLabel}>{maxScale}+</Text>
@@ -278,19 +271,24 @@ const ProductDetailScreen = ({ route, navigation }) => {
     );
   };
 
-  const NutrientIndicatorWithProgress = ({ nutrientKey, servingSize }) => {
+  const NutrientIndicator = ({ nutrientKey, servingSize, showInPositives = true }) => {
     if (!product?.nutriments?.[nutrientKey]) return null;
     
     const nutrientData = getNutrientDisplayData(nutrientKey, product.nutriments[nutrientKey], servingSize);
     if (!nutrientData) return null;
 
+    const isExpanded = expandedNutrients[nutrientKey];
     const formattedValue = nutrientData.unit === 'Cal' ?
       Math.round(nutrientData.value) :
       nutrientData.value.toFixed(1);
 
     return (
       <View style={styles.nutrientItem}>
-        <View style={styles.indicatorRow}>
+        <TouchableOpacity
+          style={styles.indicatorRow}
+          onPress={() => toggleNutrient(nutrientKey)}
+          activeOpacity={0.7}
+        >
           <View style={styles.indicatorIcon}>
             <Ionicons name={nutrientData.icon} size={24} color="#6B7280" />
           </View>
@@ -313,8 +311,11 @@ const ProductDetailScreen = ({ route, navigation }) => {
               />
             </View>
           </View>
-        </View>
-        <ProgressBar nutrientData={nutrientData} />
+        </TouchableOpacity>
+        
+        {isExpanded && (
+          <ProgressBar nutrientData={nutrientData} />
+        )}
       </View>
     );
   };
@@ -451,23 +452,16 @@ const ProductDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  // Get serving size from backend
   const servingSize = product.serving_size || 33;
-
-  // Check for additives
   const hasAdditives = product.ingredients_analysis?.additives?.length > 0;
-
-  // Determine which nutrients to show in which sections
   const nutrients = product.nutriments || {};
   
-  // Check sugar and sodium levels to determine section placement
   const sugarData = getNutrientDisplayData('sugars_100g', nutrients.sugars_100g, servingSize);
   const sodiumData = getNutrientDisplayData('sodium_100g', nutrients.sodium_100g, servingSize);
   
   const showSugarInPositives = sugarData && sugarData.level === 'low';
   const showSodiumInPositives = sodiumData && sodiumData.level === 'low';
 
-  // Count items in each section
   const positivesCount = (!hasAdditives ? 1 : 0) +
                         (nutrients.proteins_100g ? 1 : 0) +
                         (nutrients.fiber_100g ? 1 : 0) +
@@ -517,7 +511,6 @@ const ProductDetailScreen = ({ route, navigation }) => {
           onToggle={() => toggleSection('positives')}
           count={positivesCount}
         >
-          {/* No Additives Indicator */}
           {!hasAdditives && (
             <SimpleIndicator
               icon="hand-right"
@@ -529,20 +522,15 @@ const ProductDetailScreen = ({ route, navigation }) => {
             />
           )}
 
-          {/* Protein */}
-          <NutrientIndicatorWithProgress nutrientKey="proteins_100g" servingSize={servingSize} />
-
-          {/* Fiber */}
-          <NutrientIndicatorWithProgress nutrientKey="fiber_100g" servingSize={servingSize} />
-
-          {/* Sugar (if low) */}
+          <NutrientIndicator nutrientKey="proteins_100g" servingSize={servingSize} />
+          <NutrientIndicator nutrientKey="fiber_100g" servingSize={servingSize} />
+          
           {showSugarInPositives && (
-            <NutrientIndicatorWithProgress nutrientKey="sugars_100g" servingSize={servingSize} />
+            <NutrientIndicator nutrientKey="sugars_100g" servingSize={servingSize} />
           )}
 
-          {/* Sodium (if low) */}
           {showSodiumInPositives && (
-            <NutrientIndicatorWithProgress nutrientKey="sodium_100g" servingSize={servingSize} />
+            <NutrientIndicator nutrientKey="sodium_100g" servingSize={servingSize} />
           )}
         </CollapsibleSection>
 
@@ -555,28 +543,21 @@ const ProductDetailScreen = ({ route, navigation }) => {
           onToggle={() => toggleSection('negatives')}
           count={negativesCount}
         >
-          {/* Calories */}
-          <NutrientIndicatorWithProgress nutrientKey="energy_kcal_100g" servingSize={servingSize} />
+          <NutrientIndicator nutrientKey="energy_kcal_100g" servingSize={servingSize} />
+          <NutrientIndicator nutrientKey="saturated_fat_100g" servingSize={servingSize} />
 
-          {/* Saturated Fat */}
-          <NutrientIndicatorWithProgress nutrientKey="saturated_fat_100g" servingSize={servingSize} />
-
-          {/* Sugar (if not low) */}
           {!showSugarInPositives && nutrients.sugars_100g && (
-            <NutrientIndicatorWithProgress nutrientKey="sugars_100g" servingSize={servingSize} />
+            <NutrientIndicator nutrientKey="sugars_100g" servingSize={servingSize} />
           )}
 
-          {/* Sodium (if not low) */}
           {!showSodiumInPositives && nutrients.sodium_100g && (
-            <NutrientIndicatorWithProgress nutrientKey="sodium_100g" servingSize={servingSize} />
+            <NutrientIndicator nutrientKey="sodium_100g" servingSize={servingSize} />
           )}
 
-          {/* Total Fat (if significant) */}
           {nutrients.fat_100g && nutrients.fat_100g > 3 && (
-            <NutrientIndicatorWithProgress nutrientKey="fat_100g" servingSize={servingSize} />
+            <NutrientIndicator nutrientKey="fat_100g" servingSize={servingSize} />
           )}
 
-          {/* Show additives if present */}
           {hasAdditives && (
             <SimpleIndicator
               icon="warning"
@@ -589,7 +570,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
           )}
         </CollapsibleSection>
 
-        {/* Additives Detail (if any) */}
+        {/* Additives Detail */}
         {hasAdditives && (
           <CollapsibleSection
             title="Additive Details"
@@ -824,6 +805,7 @@ const styles = StyleSheet.create({
   collapsibleSection: {
     backgroundColor: 'white',
     marginTop: 16,
+    marginHorizontal: 16,
     borderRadius: 16,
     overflow: 'hidden',
     ...Platform.select({
@@ -844,10 +826,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 20,
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   sectionHeaderExpanded: {
+    borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   sectionHeaderLeft: {
@@ -909,6 +890,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
     marginBottom: 12,
+    overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -974,6 +956,7 @@ const styles = StyleSheet.create({
   progressContainer: {
     paddingHorizontal: 16,
     paddingBottom: 16,
+    paddingTop: 8,
   },
   progressBar: {
     height: 8,
@@ -982,6 +965,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     overflow: 'hidden',
     marginBottom: 8,
+    position: 'relative',
   },
   progressSegment: {
     height: '100%',

@@ -702,6 +702,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 20,
+    margintop:-55,
     borderBottomWidth: 1,
     borderBottomColor: '#e1e8ed',
     ...Platform.select({
@@ -717,6 +718,7 @@ const styles = StyleSheet.create({
     }),
   },
   headerContent: {
+    marginTop: 5,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,

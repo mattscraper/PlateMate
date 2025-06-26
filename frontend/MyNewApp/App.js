@@ -31,6 +31,8 @@ import FoodScannerHome from "./screens/FoodScannerHome";
 import BarcodeScannerScreen from "./screens/BarcodeScannerScreen";
 import ProductDetailScreen from "./screens/ProductDetailScreen";
 import ProductSearchScreen from "./screens/ProductSearchScreen";
+import FoodLogScreen from "./screens/FoodLogScreen";
+import FoodLogHistoryScreen from "./screens/FoodLogHistoryScreen"
 
 //import MealPlanLanding from "./screens/MealPlanLanding";
 
@@ -157,6 +159,12 @@ export default function App() {
               name="ResultsIngredients"
               component={ResultsIngredientsScreen}
             />
+            <Stack.Screen
+              name="FoodLog"
+              component={FoodLogScreen}
+              options={{ title: "Food Log" }}
+            />
+            <Stack.Screen name="FoodLogHistory" component={FoodLogHistoryScreen} />
             <Stack.Screen name="MyRecipes" component={MyRecipes} />
             <Stack.Screen
               name="FindByIngredients"

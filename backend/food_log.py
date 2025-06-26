@@ -4,7 +4,10 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime, date
 import json
+import os
+import tempfile
 from backend.openai_handler import RecipeGenerator
+import openai
 
 # Create a Blueprint for food logging
 food_log_routes = Blueprint('food_log', __name__)
@@ -119,6 +122,30 @@ class FoodLogService:
                 "confidence": 0.5
             }
 
+    def transcribe_audio(self, audio_file_path: str) -> str:
+        """Use OpenAI Whisper to transcribe audio to text"""
+        try:
+            with open(audio_file_path, "rb") as audio_file:
+                # Use OpenAI Whisper API for speech-to-text
+                transcript = self.recipe_generator.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    response_format="text"
+                )
+                
+                # Clean up the transcription
+                transcription = transcript.strip()
+                
+                # Basic validation - ensure it's not empty and looks like food description
+                if not transcription or len(transcription.strip()) < 3:
+                    return None
+                
+                return transcription
+                
+        except Exception as e:
+            print(f"Error transcribing audio: {str(e)}")
+            return None
+
     def generate_meal_suggestions(self, target_calories: int, target_protein: int,
                                 target_carbs: Optional[int] = None, target_fat: Optional[int] = None) -> List[Dict[str, Any]]:
         """Generate meal suggestions based on remaining macros"""
@@ -213,6 +240,63 @@ def estimate_nutrition():
         print(f"Error in estimate_nutrition endpoint: {str(e)}")
         return jsonify({
             "error": "An unexpected error occurred while estimating nutrition",
+            "details": str(e)
+        }), 500
+
+@food_log_routes.route('/api/speech-to-text', methods=["POST"])
+@cross_origin()
+def speech_to_text():
+    """Convert speech audio to text using OpenAI Whisper"""
+    try:
+        # Check if audio file is in the request
+        if 'audio' not in request.files:
+            return jsonify({"error": "No audio file provided"}), 400
+
+        audio_file = request.files['audio']
+        
+        if audio_file.filename == '':
+            return jsonify({"error": "No audio file selected"}), 400
+
+        # Check file extension (accept common audio formats)
+        allowed_extensions = {'.m4a', '.mp3', '.wav', '.flac', '.ogg', '.webm'}
+        file_ext = os.path.splitext(audio_file.filename)[1].lower()
+        
+        if file_ext not in allowed_extensions:
+            return jsonify({"error": f"Unsupported audio format. Allowed: {', '.join(allowed_extensions)}"}), 400
+
+        # Create temporary file to save the audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_audio:
+            audio_file.save(temp_audio.name)
+            temp_audio_path = temp_audio.name
+
+        try:
+            # Transcribe the audio
+            transcription = food_log_service.transcribe_audio(temp_audio_path)
+            
+            if not transcription:
+                return jsonify({
+                    "success": False,
+                    "error": "Could not transcribe audio. Please speak more clearly or try again."
+                }), 400
+
+            return jsonify({
+                "success": True,
+                "transcription": transcription,
+                "message": "Audio transcribed successfully"
+            })
+
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_audio_path)
+            except OSError:
+                pass
+
+    except Exception as e:
+        print(f"Error in speech_to_text endpoint: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "An unexpected error occurred while processing audio",
             "details": str(e)
         }), 500
 

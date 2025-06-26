@@ -63,10 +63,10 @@ export default function FoodLogScreen({ navigation }) {
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   
   const mealTypes = [
-    { id: "breakfast", label: "Breakfast", icon: "sunny-outline", color: "#008b8b" },
-    { id: "lunch", label: "Lunch", icon: "partly-sunny-outline", color: "#2c3e50" },
-    { id: "dinner", label: "Dinner", icon: "moon-outline", color: "#7f8c8d" },
-    { id: "snack", label: "Snack", icon: "nutrition-outline", color: "#008b8b" },
+    { id: "breakfast", label: "Breakfast", icon: "sunny-outline", color: "#F59E0B" },
+    { id: "lunch", label: "Lunch", icon: "partly-sunny-outline", color: "#10B981" },
+    { id: "dinner", label: "Dinner", icon: "moon-outline", color: "#8B5CF6" },
+    { id: "snack", label: "Snack", icon: "nutrition-outline", color: "#EF4444" },
     { id: "other", label: "Other", icon: "restaurant-outline", color: "#6B7280" },
   ];
 
@@ -318,44 +318,20 @@ export default function FoodLogScreen({ navigation }) {
       if (uri) {
         showCustomToast("Processing speech...", "info");
         
-  // Real speech-to-text processing function
-  const processAudioToText = async (audioUri) => {
-    try {
-      // TODO: Replace with actual speech-to-text service
-      // Example implementation for Google Speech-to-Text or similar service
-      
-      const formData = new FormData();
-      formData.append('audio', {
-        uri: audioUri,
-        type: 'audio/m4a',
-        name: 'recording.m4a',
-      });
-      
-      // Replace with your actual speech-to-text API endpoint
-      const response = await fetch('YOUR_SPEECH_TO_TEXT_API_ENDPOINT', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': 'Bearer YOUR_API_KEY',
-        },
-        body: formData,
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        return result.transcription || result.text || result.transcript;
-      } else {
-        throw new Error('Speech-to-text service error');
-      }
-      
-    } catch (error) {
-      console.error('Speech processing error:', error);
-      
-      // For now, return null to indicate no transcription available
-      // This will show an appropriate error message to the user
-      return null;
-    }
-  };
+        // Simulate speech-to-text processing
+        const mockResponses = [
+          "Grilled chicken breast with quinoa and steamed broccoli",
+          "Greek yogurt with mixed berries and granola",
+          "Salmon fillet with sweet potato and asparagus",
+          "Turkey and avocado wrap with whole wheat tortilla",
+          "Protein smoothie with banana and spinach"
+        ];
+        
+        setTimeout(() => {
+          const transcription = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+          setFoodDescription(transcription);
+          showCustomToast("Speech converted successfully! (Demo mode)", "success");
+        }, 2000);
       }
       
       setRecording(undefined);
@@ -590,13 +566,13 @@ export default function FoodLogScreen({ navigation }) {
               onPress={() => navigation.navigate("FoodLogHistory")}
               style={styles.headerActionButton}
             >
-              <Ionicons name="analytics-outline" size={22} color="#008b8b" />
+              <Ionicons name="analytics-outline" size={22} color="#6366F1" />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setIsGoalsModalVisible(true)}
               style={styles.headerActionButton}
             >
-              <Ionicons name="settings-outline" size={22} color="#008b8b" />
+              <Ionicons name="settings-outline" size={22} color="#6366F1" />
             </TouchableOpacity>
           </View>
         </View>
@@ -604,7 +580,6 @@ export default function FoodLogScreen({ navigation }) {
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.keyboardView}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <ScrollView
             style={styles.scrollView}
@@ -621,28 +596,28 @@ export default function FoodLogScreen({ navigation }) {
                     macro="calories"
                     consumed={dailyProgress.consumed.calories}
                     goal={dailyProgress.goals.daily_calories}
-                    color="#008b8b"
+                    color="#EF4444"
                     icon="flame"
                   />
                   <ProgressRing
                     macro="protein"
                     consumed={dailyProgress.consumed.protein}
                     goal={dailyProgress.goals.daily_protein}
-                    color="#2c3e50"
+                    color="#10B981"
                     icon="fitness"
                   />
                   <ProgressRing
                     macro="carbs"
                     consumed={dailyProgress.consumed.carbs}
                     goal={dailyProgress.goals.daily_carbs}
-                    color="#7f8c8d"
+                    color="#3B82F6"
                     icon="leaf"
                   />
                   <ProgressRing
                     macro="fat"
                     consumed={dailyProgress.consumed.fat}
                     goal={dailyProgress.goals.daily_fat}
-                    color="#008b8b"
+                    color="#F59E0B"
                     icon="water"
                   />
                 </View>
@@ -739,7 +714,7 @@ export default function FoodLogScreen({ navigation }) {
                     <Ionicons
                       name={isRecording ? "stop" : "mic-outline"}
                       size={22}
-                      color={isRecording ? "white" : "#008b8b"}
+                      color={isRecording ? "white" : "#6366F1"}
                     />
                   </View>
                   <View style={styles.voiceContent}>
@@ -960,7 +935,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 160 : 140,
+    paddingBottom: Platform.OS === 'ios' ? 120 : 100,
   },
 
   // Section Titles
@@ -1161,7 +1136,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#F0F4FF",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -1184,13 +1159,13 @@ const styles = StyleSheet.create({
   setupButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#008b8b",
+    backgroundColor: "#6366F1",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
     ...Platform.select({
       ios: {
-        shadowColor: "#008b8b",
+        shadowColor: "#6366F1",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -1311,14 +1286,14 @@ const styles = StyleSheet.create({
     }),
   },
   voiceButtonActive: {
-    backgroundColor: "#008b8b",
-    borderColor: "#008b8b",
+    backgroundColor: "#6366F1",
+    borderColor: "#6366F1",
   },
   voiceIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#F0F4FF",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -1348,12 +1323,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#008b8b",
+    backgroundColor: "#10B981",
     borderRadius: 16,
     paddingVertical: 16,
     ...Platform.select({
       ios: {
-        shadowColor: "#008b8b",
+        shadowColor: "#10B981",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -1499,7 +1474,7 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 16,
-    color: "#008b8b",
+    color: "#6366F1",
     fontWeight: "600",
   },
   modalTitle: {
@@ -1511,7 +1486,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "#008b8b",
+    backgroundColor: "#10B981",
   },
   modalSaveButtonDisabled: {
     backgroundColor: "#E5E7EB",
@@ -1572,7 +1547,7 @@ const styles = StyleSheet.create({
   },
   recommendedText: {
     fontSize: 12,
-    color: "#008b8b",
+    color: "#6366F1",
     marginTop: 6,
     fontWeight: "500",
     fontStyle: "italic",

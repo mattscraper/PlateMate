@@ -563,6 +563,19 @@ export default function LandingScreen({ navigation }) {
                 }
                 isPremiumFeature={true}
               />
+          
+          <MenuCard
+            icon="nutrition-outline"
+            title="Food Log & Nutrition Tracker"
+            description="Track your daily meals, calories, and macros with AI-powered nutrition analysis."
+            onPress={() =>
+              handlePremiumFeaturePress(
+                "Food Log & Nutrition Tracker", // Feature name for the alert
+                "FoodLog" // Screen name for navigation (should match your route name)
+              )
+            }
+            isPremiumFeature={true}
+          />
 
               <MenuCard
                 icon="basket-outline"
