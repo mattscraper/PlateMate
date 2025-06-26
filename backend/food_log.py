@@ -257,19 +257,22 @@ def speech_to_text():
         if audio_file.filename == '':
             return jsonify({"error": "No audio file selected"}), 400
 
-        # Check file extension (accept common audio formats)
-        allowed_extensions = {'.m4a', '.mp3', '.wav', '.flac', '.ogg', '.webm'}
-        file_ext = os.path.splitext(audio_file.filename)[1].lower()
-        
-        if file_ext not in allowed_extensions:
-            return jsonify({"error": f"Unsupported audio format. Allowed: {', '.join(allowed_extensions)}"}), 400
-
-        # Create temporary file to save the audio
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_audio:
+        # Create temporary file with .m4a extension (Whisper supported format)
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.m4a') as temp_audio:
             audio_file.save(temp_audio.name)
             temp_audio_path = temp_audio.name
 
         try:
+            # Debug: Check file size
+            file_size = os.path.getsize(temp_audio_path)
+            print(f"Audio file size: {file_size} bytes")
+            
+            if file_size == 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Audio file is empty"
+                }), 400
+
             # Transcribe the audio
             transcription = food_log_service.transcribe_audio(temp_audio_path)
             
