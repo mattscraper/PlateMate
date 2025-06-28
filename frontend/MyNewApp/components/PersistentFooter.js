@@ -132,17 +132,17 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
     },
     {
       name: "FindByIngredients",
-      icon: "search",
+      icon: "basket-outline",
       label: "Ingredients",
       requiresLogin: true,
       isPremiumFeature: true,
     },
     {
-      name: "FoodScannerHome", // NEW FOOD SCANNER ROUTE
+      name: "FoodScannerHome",
       icon: "scan",
       label: "Scanner",
       requiresLogin: true,
-      isPremiumFeature: true,
+      isPremiumFeature: false,
     },
     {
       name: "MealPlans",

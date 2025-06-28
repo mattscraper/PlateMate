@@ -8,10 +8,13 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import PurchaseService from "../services/PurchaseService";
+
+const { width } = Dimensions.get('window');
 
 export default function PremiumPlansScreen({ navigation, route }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -134,9 +137,12 @@ export default function PremiumPlansScreen({ navigation, route }) {
         price: pkg.product.priceString,
         period: '/month',
         features: [
-          "Recipe Search by Ingredients",
+          "Smart Ingredient Search",
           "Personalized Meal Plans",
-          "Unlimited Recipe Saving",
+          "Food Scanner & Health Scores",
+          "AI Macro Tracking",
+          "Grocery List Generator",
+          "Unlimited Recipe Saves",
           "Ad-Free Experience",
           "Cancel Anytime",
         ],
@@ -145,14 +151,18 @@ export default function PremiumPlansScreen({ navigation, route }) {
     } else if (productId === '1206857') {
       return {
         title: 'Annual Premium',
-        subtitle: 'Best value for food lovers',
+        subtitle: 'For those serious about nutrition',
         price: pkg.product.priceString,
         period: '/year',
         savings: 'Save 33%',
         features: [
-          "Recipe Search by Ingredients",
+          "Smart Ingredient Search",
           "Personalized Meal Plans",
-          "Unlimited Recipe Saving",
+          "Food Scanner & Health Scores",
+          "Additive Detection",
+          "AI Macro Tracking",
+          "Grocery List Generator",
+          "Unlimited Recipe Saves",
           "Ad-Free Experience",
           "Priority Support",
           "Advanced Recipe Filters",
@@ -179,11 +189,15 @@ export default function PremiumPlansScreen({ navigation, route }) {
       <View style={[styles.planCard, isRecommended && styles.recommendedPlanCard]}>
         {isRecommended && (
           <View style={styles.recommendedBadge}>
+            <Ionicons name="diamond" size={12} color="white" />
             <Text style={styles.recommendedBadgeText}>BEST VALUE</Text>
           </View>
         )}
         
         <View style={styles.planHeader}>
+          <View style={styles.planIconContainer}>
+            <Ionicons name="diamond" size={24} color={isRecommended ? "#008b8b" : "#95a5a6"} />
+          </View>
           <View style={styles.planTitleContainer}>
             <Text style={[styles.planTitle, isRecommended && styles.recommendedPlanTitle]}>
               {packageInfo.title}
@@ -207,7 +221,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
           {packageInfo.features.map((feature, index) => (
             <View key={index} style={styles.featureItem}>
               <View style={styles.checkIconContainer}>
-                <Ionicons name="checkmark-circle" size={18} color="#008b8b" />
+                <Ionicons name="checkmark-circle" size={16} color="#008b8b" />
               </View>
               <Text style={styles.featureText}>{feature}</Text>
             </View>
@@ -229,8 +243,9 @@ export default function PremiumPlansScreen({ navigation, route }) {
             </View>
           ) : (
             <View style={styles.buttonContent}>
-              <Text style={styles.upgradeButtonText}>Get Started</Text>
-              <Ionicons name="arrow-forward" size={16} color="white" style={styles.buttonIcon} />
+              <Ionicons name="diamond" size={16} color="white" />
+              <Text style={styles.upgradeButtonText}>Get Premium</Text>
+              <Ionicons name="arrow-forward" size={16} color="white" />
             </View>
           )}
         </TouchableOpacity>
@@ -280,13 +295,13 @@ export default function PremiumPlansScreen({ navigation, route }) {
         <View style={styles.premiumContainer}>
           <View style={styles.premiumIconContainer}>
             <View style={styles.premiumIconBg}>
-              <Ionicons name="star" size={48} color="#FFD700" />
+              <Ionicons name="diamond" size={48} color="#008b8b" />
             </View>
           </View>
-          <Text style={styles.premiumTitle}>🎉 You're Premium!</Text>
+          <Text style={styles.premiumTitle}>💎 Premium Active!</Text>
           <Text style={styles.premiumText}>
-            You have access to all premium features including recipe search by ingredients,
-            personalized meal plans, and unlimited recipe saving.
+            You have access to all premium features including smart ingredient search,
+            food scanner, AI macro tracking, and unlimited recipe saving.
           </Text>
           
           <TouchableOpacity
@@ -320,63 +335,83 @@ export default function PremiumPlansScreen({ navigation, route }) {
           <View style={styles.heroSection}>
             <View style={styles.heroIconContainer}>
               <View style={styles.heroIconBg}>
-                <Ionicons name="star" size={32} color="#FFD700" />
+                <Ionicons name="diamond" size={40} color="#008b8b" />
+              </View>
+              <View style={styles.sparkle1}>
+                <Ionicons name="sparkles" size={16} color="#FFD700" />
+              </View>
+              <View style={styles.sparkle2}>
+                <Ionicons name="sparkles" size={12} color="#FFD700" />
               </View>
             </View>
-            <Text style={styles.heroTitle}>Upgrade to Premium</Text>
+            <Text style={styles.heroTitle}>Unlock Premium Features</Text>
             <Text style={styles.heroSubtitle}>
-              Join thousands of home chefs who've elevated their cooking experience with premium features.
+              Transform your cooking experience with AI-powered tools and personalized insights
             </Text>
           </View>
 
-          {/* Features Section */}
+          {/* Premium Features Grid */}
           <View style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>What's Included</Text>
-
-            <View style={styles.featureRow}>
-              <View style={styles.featureIconContainer}>
-                <Ionicons name="basket-outline" size={24} color="#008b8b" />
-              </View>
-              <View style={styles.featureDetails}>
+            <Text style={styles.sectionTitle}>Premium Features</Text>
+            
+            <View style={styles.featuresGrid}>
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="search" size={24} color="#008b8b" />
+                </View>
                 <Text style={styles.featureTitle}>Smart Ingredient Search</Text>
                 <Text style={styles.featureDescription}>
-                  Find perfect recipes using ingredients you already have in your kitchen
+                  Find recipes using ingredients you already have
                 </Text>
               </View>
-            </View>
 
-            <View style={styles.featureRow}>
-              <View style={styles.featureIconContainer}>
-                <Ionicons name="book-outline" size={24} color="#008b8b" />
-              </View>
-              <View style={styles.featureDetails}>
-                <Text style={styles.featureTitle}>Personalized Meal Plans</Text>
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="barcode" size={24} color="#008b8b" />
+                </View>
+                <Text style={styles.featureTitle}>Food Scanner</Text>
                 <Text style={styles.featureDescription}>
-                  Get custom meal plans tailored to your dietary preferences and goals
+                  Scan barcodes, get health scores & detect additives
                 </Text>
               </View>
-            </View>
 
-            <View style={styles.featureRow}>
-              <View style={styles.featureIconContainer}>
-                <Ionicons name="bookmark" size={24} color="#008b8b" />
-              </View>
-              <View style={styles.featureDetails}>
-                <Text style={styles.featureTitle}>Unlimited Recipe Saves</Text>
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="book" size={24} color="#008b8b" />
+                </View>
+                <Text style={styles.featureTitle}>Meal Planning</Text>
                 <Text style={styles.featureDescription}>
-                  Save and organize your favorite recipes in personalized collections
+                  Personalized meal plans for your goals
                 </Text>
               </View>
-            </View>
 
-            <View style={styles.featureRow}>
-              <View style={styles.featureIconContainer}>
-                <Ionicons name="flash-outline" size={24} color="#008b8b" />
-              </View>
-              <View style={styles.featureDetails}>
-                <Text style={styles.featureTitle}>Ad-Free Experience</Text>
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="analytics" size={24} color="#008b8b" />
+                </View>
+                <Text style={styles.featureTitle}>AI Macro Tracking</Text>
                 <Text style={styles.featureDescription}>
-                  Enjoy a clean, uninterrupted cooking and planning experience
+                  Daily nutrition tracking with AI assistance
+                </Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="list" size={24} color="#008b8b" />
+                </View>
+                <Text style={styles.featureTitle}>Smart Grocery Lists</Text>
+                <Text style={styles.featureDescription}>
+                  Auto-generated lists from your meal plans
+                </Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="bookmark" size={24} color="#008b8b" />
+                </View>
+                <Text style={styles.featureTitle}>Unlimited Saves</Text>
+                <Text style={styles.featureDescription}>
+                  Save & organize unlimited recipes
                 </Text>
               </View>
             </View>
@@ -576,41 +611,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingTop: 30,
     paddingBottom: 40,
+    position: 'relative',
   },
   heroIconContainer: {
     marginBottom: 20,
+    position: 'relative',
   },
   heroIconBg: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#008b8b',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
       },
       android: {
-        elevation: 6,
+        elevation: 8,
       },
     }),
   },
+  sparkle1: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+  },
+  sparkle2: {
+    position: 'absolute',
+    bottom: 5,
+    left: -5,
+  },
   heroTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#2c3e50',
     textAlign: 'center',
     marginBottom: 12,
   },
   heroSubtitle: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#7f8c8d',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
+    fontWeight: '500',
   },
   
   // Features Section
@@ -619,27 +669,33 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 20,
+    marginBottom: 24,
     textAlign: 'center',
   },
-  featureRow: {
-    flexDirection: "row",
-    marginBottom: 20,
+  featuresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  featureCard: {
+    width: (width - 60) / 2,
     backgroundColor: "white",
-    padding: 20,
     borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
-        shadowRadius: 8,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
     }),
   },
@@ -650,21 +706,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#e6f3f3",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
-  },
-  featureDetails: {
-    flex: 1,
+    marginBottom: 12,
   },
   featureTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
     color: "#2c3e50",
-    marginBottom: 6,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   featureDescription: {
-    fontSize: 15,
+    fontSize: 13,
     color: "#7f8c8d",
-    lineHeight: 22,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   
   // Plans Section
@@ -681,12 +736,12 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
+        shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.12,
-        shadowRadius: 16,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 6,
+        elevation: 8,
       },
     }),
     overflow: 'hidden',
@@ -699,23 +754,29 @@ const styles = StyleSheet.create({
   recommendedBadge: {
     position: "absolute",
     top: 20,
-    right: -30,
+    right: -35,
     backgroundColor: "#008b8b",
-    paddingVertical: 6,
-    paddingHorizontal: 35,
+    paddingVertical: 8,
+    paddingHorizontal: 40,
     transform: [{ rotate: "45deg" }],
     zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   recommendedBadgeText: {
     color: "white",
     fontSize: 11,
     fontWeight: "bold",
+    marginLeft: 4,
   },
   planHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 16,
+  },
+  planIconContainer: {
+    marginRight: 12,
+    marginTop: 2,
   },
   planTitleContainer: {
     flex: 1,
@@ -741,6 +802,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#27ae60',
+    marginLeft: 8,
   },
   savingsText: {
     fontSize: 12,
@@ -753,7 +815,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   planPrice: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: "800",
     color: "#2c3e50",
   },
@@ -761,7 +823,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#95a5a6",
     marginLeft: 4,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   featuresList: {
     marginBottom: 24,
@@ -769,10 +831,10 @@ const styles = StyleSheet.create({
   featureItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   checkIconContainer: {
-    marginRight: 12,
+    marginRight: 10,
   },
   featureText: {
     fontSize: 15,
@@ -789,6 +851,17 @@ const styles = StyleSheet.create({
   },
   recommendedUpgradeButton: {
     backgroundColor: "#008b8b",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   purchasingContainer: {
     flexDirection: 'row',
@@ -797,14 +870,13 @@ const styles = StyleSheet.create({
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   upgradeButtonText: {
     color: "white",
     fontSize: 17,
     fontWeight: "700",
-  },
-  buttonIcon: {
-    marginLeft: 6,
+    marginHorizontal: 8,
   },
   
   // Footer

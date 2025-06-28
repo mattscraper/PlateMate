@@ -164,7 +164,10 @@ const SaveMealPlanButton = ({
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={[styles.saveButton, isSaved && styles.savedButton]}
+        style={[
+          styles.toggleButton,
+          (isSaved || isSaving) && styles.toggleButtonActive
+        ]}
         onPress={handleSaveBtnPress}
         disabled={isSaving || isSaved}
       >
@@ -174,11 +177,14 @@ const SaveMealPlanButton = ({
           <>
             <Ionicons
               name={isSaved ? "bookmark" : "bookmark-outline"}
-              size={20}
-              color="white"
+              size={16}
+              color={isSaved ? "white" : "#6b7280"}
             />
-            <Text style={styles.buttonText}>
-              {isSaved ? "Saved" : "Save Meal Plan"}
+            <Text style={[
+              styles.toggleButtonText,
+              (isSaved || isSaving) && styles.toggleButtonTextActive
+            ]}>
+              {isSaved ? "Saved" : "Save Plan"}
             </Text>
           </>
         )}
@@ -217,11 +223,13 @@ const SaveMealPlanButton = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.saveModalButton}
+                  style={[styles.toggleButton, styles.toggleButtonActive]}
                   onPress={handleSaveMealPlan}
                   disabled={!mealPlanName.trim()}
                 >
-                  <Text style={styles.saveModalButtonText}>Save</Text>
+                  <Text style={[styles.toggleButtonText, styles.toggleButtonTextActive]}>
+                    Save
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -239,7 +247,7 @@ const SaveMealPlanButton = ({
             },
           ]}
         >
-          <Ionicons name="checkmark-circle" size={20} color="white" />
+          <Ionicons name="checkmark-circle" size={16} color="white" />
           <Text style={styles.toastText}>Meal plan saved!</Text>
         </Animated.View>
       )}
@@ -251,41 +259,31 @@ const styles = StyleSheet.create({
   container: {
     position: "relative",
   },
-    saveButton: {
-      backgroundColor: "#000",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 12,
-      paddingHorizontal: 24,
-      borderRadius: 14,
-      gap: 8,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4,
-      elevation: 4,
-        
-    },
-    savedButton: {
-      backgroundColor: "#333", // dark gray to indicate it's saved
-    },
-    saveModalButton: {
-      backgroundColor: "#000",
-      paddingVertical: 10,
-      paddingHorizontal: 20,
-      borderRadius: 8,
-    },
-
-  buttonText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 16,
+  // Updated to match toggle button style
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
   },
+  toggleButtonActive: {
+    backgroundColor: '#1e293b',
+  },
+  toggleButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  toggleButtonTextActive: {
+    color: '#ffffff',
+  },
+  // Toast positioned to the left of the button
   toast: {
     position: "absolute",
-    top: -50,
-    right: 0,
+    top: 0, // Align with the button vertically
+    left: -140, // Position to the left of the button
     backgroundColor: "#27ae60",
     borderRadius: 20,
     paddingVertical: 6,
@@ -293,10 +291,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   toastText: {
     color: "white",
     fontWeight: "500",
+    fontSize: 12,
   },
   // Modal styles
   modalOverlay: {
@@ -335,22 +339,17 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: "row",
     justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 12,
   },
   cancelButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginRight: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   cancelButtonText: {
     color: "#7f8c8d",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  saveModalButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });
 

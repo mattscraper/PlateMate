@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  SectionList,
+  Animated,
+  LayoutAnimation,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,18 +24,37 @@ export default function FoodLogHistoryScreen({ navigation }) {
   const [foodLogs, setFoodLogs] = useState([]);
   const [groupedLogs, setGroupedLogs] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [expandedDays, setExpandedDays] = useState(new Set(['today'])); // Today expanded by default
 
   // Toast state
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState("success");
 
+  // Enhanced color scheme
+  const colors = {
+    primary: "#2563EB",
+    secondary: "#10B981",
+    accent: "#F59E0B",
+    success: "#059669",
+    error: "#DC2626",
+    purple: "#8B5CF6",
+    pink: "#EC4899",
+    background: "#F8FAFC",
+    surface: "#FFFFFF",
+    text: "#0F172A",
+    textSecondary: "#475569",
+    textMuted: "#64748B",
+    border: "#E2E8F0",
+    muted: "#F1F5F9",
+  };
+
   const mealTypes = [
-    { id: "breakfast", label: "Breakfast", icon: "sunny", color: "#FFB74D" },
-    { id: "lunch", label: "Lunch", icon: "partly-sunny", color: "#4FC3F7" },
-    { id: "dinner", label: "Dinner", icon: "moon", color: "#9575CD" },
-    { id: "snack", label: "Snack", icon: "nutrition", color: "#81C784" },
-    { id: "other", label: "Other", icon: "restaurant", color: "#A1887F" },
+    { id: "breakfast", label: "Breakfast", icon: "sunny", color: colors.accent, bgColor: "#FEF3C7" },
+    { id: "lunch", label: "Lunch", icon: "partly-sunny", color: colors.secondary, bgColor: "#D1FAE5" },
+    { id: "dinner", label: "Dinner", icon: "moon", color: colors.purple, bgColor: "#EDE9FE" },
+    { id: "snack", label: "Snack", icon: "nutrition", color: colors.pink, bgColor: "#FCE7F3" },
+    { id: "other", label: "Other", icon: "restaurant", color: colors.primary, bgColor: "#DBEAFE" },
   ];
 
   useEffect(() => {
@@ -55,14 +75,11 @@ export default function FoodLogHistoryScreen({ navigation }) {
     try {
       setIsLoading(true);
       
-      // Get food logs for the last 30 days
       const response = await foodLogService.getFoodLogs(userId, { limitCount: 200 });
       
       if (response.success) {
         setFoodLogs(response.food_logs);
         groupLogsByDate(response.food_logs);
-        
-        // Calculate summary for the last 7 days
         await calculateSummary(userId);
       } else {
         showCustomToast("Failed to load food history", "error");
@@ -85,18 +102,39 @@ export default function FoodLogHistoryScreen({ navigation }) {
       grouped[log.date].push(log);
     });
 
-    // Convert to array format for SectionList
     const sections = Object.keys(grouped)
-      .sort((a, b) => new Date(b) - new Date(a)) // Most recent first
-      .map(date => ({
-        title: formatDateHeader(date),
-        date: date,
-        data: grouped[date].sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at)),
-        totalCalories: grouped[date].reduce((sum, log) => sum + (log.calories || 0), 0),
-        totalProtein: grouped[date].reduce((sum, log) => sum + (log.protein || 0), 0),
-      }));
+      .sort((a, b) => new Date(b) - new Date(a))
+      .map(date => {
+        const dayId = getDayId(date);
+        return {
+          id: dayId,
+          title: formatDateHeader(date),
+          date: date,
+          data: grouped[date].sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at)),
+          totalCalories: grouped[date].reduce((sum, log) => sum + (log.calories || 0), 0),
+          totalProtein: grouped[date].reduce((sum, log) => sum + (log.protein || 0), 0),
+          totalCarbs: grouped[date].reduce((sum, log) => sum + (log.carbs || 0), 0),
+          totalFat: grouped[date].reduce((sum, log) => sum + (log.fat || 0), 0),
+          entriesCount: grouped[date].length,
+        };
+      });
 
     setGroupedLogs(sections);
+  };
+
+  const getDayId = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (dateString === today.toISOString().split('T')[0]) {
+      return "today";
+    } else if (dateString === yesterday.toISOString().split('T')[0]) {
+      return "yesterday";
+    } else {
+      return dateString;
+    }
   };
 
   const calculateSummary = async (userId) => {
@@ -139,7 +177,7 @@ export default function FoodLogHistoryScreen({ navigation }) {
   };
 
   const getMealTypeInfo = (mealType) => {
-    return mealTypes.find(type => type.id === mealType) || mealTypes[4]; // Default to "other"
+    return mealTypes.find(type => type.id === mealType) || mealTypes[4];
   };
 
   const showCustomToast = (message, type = "success") => {
@@ -166,7 +204,6 @@ export default function FoodLogHistoryScreen({ navigation }) {
               await foodLogService.deleteFoodLogEntry(entryId);
               showCustomToast("Entry deleted successfully", "success");
               
-              // Reload data
               if (user) {
                 await loadFoodLogs(user.uid);
               }
@@ -180,6 +217,19 @@ export default function FoodLogHistoryScreen({ navigation }) {
     );
   };
 
+  const toggleDayExpansion = (dayId) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedDays(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dayId)) {
+        newSet.delete(dayId);
+      } else {
+        newSet.add(dayId);
+      }
+      return newSet;
+    });
+  };
+
   const onRefresh = async () => {
     if (user) {
       setIsRefreshing(true);
@@ -188,35 +238,86 @@ export default function FoodLogHistoryScreen({ navigation }) {
     }
   };
 
-  const renderSectionHeader = ({ section }) => (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionHeaderLeft}>
-        <Text style={styles.sectionHeaderTitle}>{section.title}</Text>
-        <Text style={styles.sectionHeaderDate}>{section.date}</Text>
-      </View>
-      <View style={styles.sectionHeaderRight}>
-        <Text style={styles.sectionHeaderCalories}>{section.totalCalories} cal</Text>
-        <Text style={styles.sectionHeaderProtein}>{section.totalProtein}g protein</Text>
-      </View>
-    </View>
-  );
+  const DayCard = ({ section }) => {
+    const isExpanded = expandedDays.has(section.id);
+    
+    return (
+      <View style={[styles.dayCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <TouchableOpacity
+          style={styles.dayCardHeader}
+          onPress={() => toggleDayExpansion(section.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.dayCardHeaderLeft}>
+            <Text style={[styles.dayTitle, { color: colors.text }]}>{section.title}</Text>
+            <Text style={[styles.dayDate, { color: colors.textMuted }]}>{section.date}</Text>
+          </View>
+          
+          <View style={styles.dayCardHeaderCenter}>
+            <View style={styles.dayStatsRow}>
+              <View style={styles.dayStatItem}>
+                <Text style={[styles.dayStatValue, { color: colors.secondary }]}>{section.totalCalories}</Text>
+                <Text style={[styles.dayStatLabel, { color: colors.textMuted }]}>cal</Text>
+              </View>
+              <View style={styles.dayStatItem}>
+                <Text style={[styles.dayStatValue, { color: colors.primary }]}>{section.totalProtein}g</Text>
+                <Text style={[styles.dayStatLabel, { color: colors.textMuted }]}>protein</Text>
+              </View>
+              <View style={styles.dayStatItem}>
+                <Text style={[styles.dayStatValue, { color: colors.textSecondary }]}>{section.entriesCount}</Text>
+                <Text style={[styles.dayStatLabel, { color: colors.textMuted }]}>entries</Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.dayCardHeaderRight}>
+            <Animated.View
+              style={{
+                transform: [{
+                  rotate: isExpanded ? '180deg' : '0deg'
+                }]
+              }}
+            >
+              <Ionicons
+                name="chevron-down"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </Animated.View>
+          </View>
+        </TouchableOpacity>
 
-  const renderFoodLogItem = ({ item }) => {
+        {isExpanded && (
+          <View style={styles.dayCardContent}>
+            {section.data.map((item, index) => (
+              <FoodLogItem key={item.id} item={item} isLast={index === section.data.length - 1} />
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const FoodLogItem = ({ item, isLast }) => {
     const mealInfo = getMealTypeInfo(item.meal_type);
     
     return (
-      <View style={styles.logItem}>
+      <View style={[
+        styles.logItem,
+        { backgroundColor: colors.muted, borderColor: colors.border },
+        !isLast && styles.logItemBorder
+      ]}>
         <View style={styles.logItemHeader}>
           <View style={styles.mealTypeContainer}>
-            <View style={[styles.mealTypeIcon, { backgroundColor: mealInfo.color + '20' }]}>
-              <Ionicons name={mealInfo.icon} size={16} color={mealInfo.color} />
+            <View style={[styles.mealTypeIcon, { backgroundColor: mealInfo.bgColor }]}>
+              <Ionicons name={mealInfo.icon} size={14} color={mealInfo.color} />
             </View>
             <Text style={[styles.mealTypeText, { color: mealInfo.color }]}>
               {mealInfo.label}
             </Text>
           </View>
           <View style={styles.logItemActions}>
-            <Text style={styles.logTime}>
+            <Text style={[styles.logTime, { color: colors.textMuted }]}>
               {new Date(item.logged_at).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit'
@@ -226,40 +327,43 @@ export default function FoodLogHistoryScreen({ navigation }) {
               onPress={() => handleDeleteEntry(item.id, item.food_name)}
               style={styles.deleteButton}
             >
-              <Ionicons name="trash-outline" size={16} color="#EF4444" />
+              <Ionicons name="trash-outline" size={14} color={colors.error} />
             </TouchableOpacity>
           </View>
         </View>
         
-        <Text style={styles.foodName}>{item.food_name}</Text>
-        <Text style={styles.foodDescription}>{item.food_description}</Text>
+        <Text style={[styles.foodName, { color: colors.text }]}>{item.food_name}</Text>
         
         <View style={styles.nutritionInfo}>
           <View style={styles.nutritionItem}>
-            <Text style={styles.nutritionValue}>{item.calories}</Text>
-            <Text style={styles.nutritionLabel}>cal</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.secondary + '20' }]}>
+              <Ionicons name="flame" size={10} color={colors.secondary} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{item.calories}</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>cal</Text>
           </View>
           <View style={styles.nutritionItem}>
-            <Text style={styles.nutritionValue}>{item.protein}g</Text>
-            <Text style={styles.nutritionLabel}>protein</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.primary + '20' }]}>
+              <Ionicons name="fitness" size={10} color={colors.primary} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{item.protein}g</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>protein</Text>
           </View>
           <View style={styles.nutritionItem}>
-            <Text style={styles.nutritionValue}>{item.carbs}g</Text>
-            <Text style={styles.nutritionLabel}>carbs</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.purple + '20' }]}>
+              <Ionicons name="leaf" size={10} color={colors.purple} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{item.carbs}g</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>carbs</Text>
           </View>
           <View style={styles.nutritionItem}>
-            <Text style={styles.nutritionValue}>{item.fat}g</Text>
-            <Text style={styles.nutritionLabel}>fat</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.accent + '20' }]}>
+              <Ionicons name="water" size={10} color={colors.accent} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{item.fat}g</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>fat</Text>
           </View>
         </View>
-        
-        {item.confidence && (
-          <View style={styles.confidenceContainer}>
-            <Text style={styles.confidenceText}>
-              Confidence: {Math.round(item.confidence * 100)}%
-            </Text>
-          </View>
-        )}
       </View>
     );
   };
@@ -268,24 +372,29 @@ export default function FoodLogHistoryScreen({ navigation }) {
     if (!summary) return null;
     
     return (
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Last 7 Days Summary</Text>
+      <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.summaryHeader}>
+          <View style={[styles.summaryIcon, { backgroundColor: colors.primary + '15' }]}>
+            <Ionicons name="analytics" size={20} color={colors.primary} />
+          </View>
+          <Text style={[styles.summaryTitle, { color: colors.text }]}>Last 7 Days Summary</Text>
+        </View>
         <View style={styles.summaryGrid}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{summary.weeklyEntries}</Text>
-            <Text style={styles.summaryLabel}>Total Entries</Text>
+            <Text style={[styles.summaryValue, { color: colors.secondary }]}>{summary.weeklyEntries}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Total Entries</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{summary.daysLogged}</Text>
-            <Text style={styles.summaryLabel}>Days Logged</Text>
+            <Text style={[styles.summaryValue, { color: colors.primary }]}>{summary.daysLogged}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Days Logged</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{summary.averageDailyCalories}</Text>
-            <Text style={styles.summaryLabel}>Avg Daily Cal</Text>
+            <Text style={[styles.summaryValue, { color: colors.purple }]}>{summary.averageDailyCalories}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Avg Daily Cal</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{summary.weeklyCalories}</Text>
-            <Text style={styles.summaryLabel}>Total Calories</Text>
+            <Text style={[styles.summaryValue, { color: colors.accent }]}>{summary.weeklyCalories}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Total Calories</Text>
           </View>
         </View>
       </View>
@@ -295,60 +404,61 @@ export default function FoodLogHistoryScreen({ navigation }) {
   const Toast = ({ visible, message, type }) => {
     if (!visible) return null;
 
-    let backgroundColor, iconName;
-    switch (type) {
-      case "success":
-        backgroundColor = "#10B981";
-        iconName = "checkmark-circle";
-        break;
-      case "error":
-        backgroundColor = "#EF4444";
-        iconName = "alert-circle";
-        break;
-      case "info":
-        backgroundColor = "#3B82F6";
-        iconName = "information-circle";
-        break;
-      default:
-        backgroundColor = "#374151";
-        iconName = "chatbubble-ellipses";
-    }
+    const getToastConfig = () => {
+      switch (type) {
+        case "success":
+          return { backgroundColor: colors.success, iconName: "checkmark-circle" };
+        case "error":
+          return { backgroundColor: colors.error, iconName: "alert-circle" };
+        case "info":
+          return { backgroundColor: colors.primary, iconName: "information-circle" };
+        default:
+          return { backgroundColor: colors.textSecondary, iconName: "chatbubble-ellipses" };
+      }
+    };
+
+    const { backgroundColor, iconName } = getToastConfig();
 
     return (
       <View style={[styles.toast, { backgroundColor }]}>
-        <Ionicons name={iconName} size={24} color="white" />
-        <Text style={styles.toastText}>{message}</Text>
+        <Ionicons name={iconName} size={20} color={colors.surface} />
+        <Text style={[styles.toastText, { color: colors.surface }]}>{message}</Text>
       </View>
     );
   };
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+            <Ionicons name="chevron-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Food History</Text>
-          <View style={{ width: 24 }} />
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Food History</Text>
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#008b8b" />
-          <Text style={styles.loadingText}>Loading your food history...</Text>
+          <View style={[styles.loadingSpinner, { backgroundColor: colors.surface }]}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading your food history...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Food History</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("FoodLog")}>
-          <Ionicons name="add" size={24} color="#008b8b" />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Food History</Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("FoodLog")}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+        >
+          <Ionicons name="add" size={20} color={colors.surface} />
         </TouchableOpacity>
       </View>
 
@@ -359,32 +469,34 @@ export default function FoodLogHistoryScreen({ navigation }) {
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
           }
         >
-          <Ionicons name="restaurant-outline" size={64} color="#bdc3c7" />
-          <Text style={styles.emptyTitle}>No Food Logs Yet</Text>
-          <Text style={styles.emptyText}>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
+            <Ionicons name="restaurant-outline" size={48} color={colors.textMuted} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Food Logs Yet</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
             Start tracking your meals to see your food history here
           </Text>
           <TouchableOpacity
-            style={styles.startLoggingButton}
+            style={[styles.startLoggingButton, { backgroundColor: colors.primary }]}
             onPress={() => navigation.navigate("FoodLog")}
           >
-            <Text style={styles.startLoggingButtonText}>Start Logging Food</Text>
+            <Ionicons name="add-circle-outline" size={18} color={colors.surface} />
+            <Text style={[styles.startLoggingButtonText, { color: colors.surface }]}>Start Logging Food</Text>
           </TouchableOpacity>
         </ScrollView>
       ) : (
-        <SectionList
-          sections={groupedLogs}
-          keyExtractor={(item) => item.id}
-          renderItem={renderFoodLogItem}
-          renderSectionHeader={renderSectionHeader}
+        <ScrollView
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
           }
-          ListHeaderComponent={<SummaryCard />}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={false}
-        />
+        >
+          <SummaryCard />
+          {groupedLogs.map((section) => (
+            <DayCard key={section.id} section={section} />
+          ))}
+        </ScrollView>
       )}
 
       <Toast visible={showToast} message={toastMessage} type={toastType} />
@@ -395,61 +507,131 @@ export default function FoodLogHistoryScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
   },
+  
+  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: "white",
+    paddingTop: Platform.OS === 'ios' ? 8 : 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#e9ecef",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#2c3e50",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#7f8c8d",
-  },
-  listContainer: {
-    paddingVertical: 20,
-  },
-  
-  // Summary Card
-  summaryCard: {
-    backgroundColor: "white",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.05,
         shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
       },
       android: {
         elevation: 3,
       },
     }),
   },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  loadingSpinner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+
+  // List
+  listContainer: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
+  
+  // Summary Card
+  summaryCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  summaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  summaryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
   summaryTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#2c3e50",
-    marginBottom: 16,
+    fontWeight: "700",
   },
   summaryGrid: {
     flexDirection: "row",
@@ -460,118 +642,133 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#008b8b",
+    fontSize: 18,
+    fontWeight: "800",
     marginBottom: 4,
   },
   summaryLabel: {
-    fontSize: 12,
-    color: "#7f8c8d",
+    fontSize: 11,
+    fontWeight: "600",
     textAlign: "center",
   },
 
-  // Section Headers
-  sectionHeader: {
-    backgroundColor: "#f8f9fa",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#e9ecef",
+  // Day Cards
+  dayCard: {
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
-  sectionHeaderLeft: {
+  dayCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+  },
+  dayCardHeaderLeft: {
     flex: 1,
   },
-  sectionHeaderTitle: {
+  dayTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
+    fontWeight: "700",
+    marginBottom: 2,
   },
-  sectionHeaderDate: {
+  dayDate: {
     fontSize: 12,
-    color: "#7f8c8d",
-    marginTop: 2,
+    fontWeight: "500",
   },
-  sectionHeaderRight: {
+  dayCardHeaderCenter: {
+    flex: 2,
+    alignItems: "center",
+  },
+  dayStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+  },
+  dayStatItem: {
+    alignItems: "center",
+  },
+  dayStatValue: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  dayStatLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  dayCardHeaderRight: {
+    width: 40,
     alignItems: "flex-end",
   },
-  sectionHeaderCalories: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#008b8b",
-  },
-  sectionHeaderProtein: {
-    fontSize: 12,
-    color: "#7f8c8d",
-    marginTop: 2,
+
+  // Day Card Content
+  dayCardContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
 
   // Log Items
   logItem: {
-    backgroundColor: "white",
-    marginHorizontal: 20,
-    marginBottom: 12,
     borderRadius: 12,
-    padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  logItemBorder: {
+    marginBottom: 8,
   },
   logItemHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   mealTypeContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   mealTypeIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 8,
+    marginRight: 6,
   },
   mealTypeText: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   logItemActions: {
     flexDirection: "row",
     alignItems: "center",
   },
   logTime: {
-    fontSize: 12,
-    color: "#7f8c8d",
-    marginRight: 12,
+    fontSize: 11,
+    fontWeight: "500",
+    marginRight: 8,
   },
   deleteButton: {
     padding: 4,
   },
   foodName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
-    marginBottom: 4,
-  },
-  foodDescription: {
     fontSize: 14,
-    color: "#7f8c8d",
-    marginBottom: 12,
+    fontWeight: "600",
+    marginBottom: 8,
     lineHeight: 18,
   },
   nutritionInfo: {
@@ -582,24 +779,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
+  nutritionIconBg: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 3,
+  },
   nutritionValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#2c3e50",
+    fontSize: 12,
+    fontWeight: "700",
   },
   nutritionLabel: {
-    fontSize: 11,
-    color: "#7f8c8d",
-    marginTop: 2,
-  },
-  confidenceContainer: {
-    marginTop: 8,
-    alignItems: "flex-end",
-  },
-  confidenceText: {
-    fontSize: 11,
-    color: "#95a5a6",
-    fontStyle: "italic",
+    fontSize: 9,
+    fontWeight: "600",
+    marginTop: 1,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 
   // Empty State
@@ -607,56 +804,79 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
   emptyTitle: {
     fontSize: 24,
-    fontWeight: "600",
-    color: "#2c3e50",
-    marginTop: 16,
+    fontWeight: "700",
     marginBottom: 8,
+    textAlign: "center",
   },
   emptyText: {
     fontSize: 16,
-    color: "#7f8c8d",
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 24,
   },
   startLoggingButton: {
-    backgroundColor: "#008b8b",
-    paddingHorizontal: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   startLoggingButtonText: {
-    color: "white",
     fontSize: 16,
     fontWeight: "600",
+    marginLeft: 6,
   },
 
   // Toast
   toast: {
     position: "absolute",
-    bottom: 100,
+    bottom: Platform.OS === 'ios' ? 100 : 80,
     left: 20,
     right: 20,
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    borderRadius: 12,
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
     zIndex: 9999,
   },
   toastText: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "600",
     marginLeft: 12,
-    color: "white",
     flex: 1,
   },
 });

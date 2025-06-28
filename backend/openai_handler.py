@@ -59,10 +59,42 @@ class RecipeGenerator:
                 
         except Exception as e:
             print(f"Database error: {str(e)}")
+    
+    def _get_realistic_calorie_distribution(self, total_calories, meals_per_day):
+        """Calculate realistic calorie distribution for different meals"""
+        if meals_per_day == 1:
+            return [total_calories]
+        elif meals_per_day == 2:
+            # Lunch/Dinner split
+            lunch = int(total_calories * 0.45)
+            dinner = total_calories - lunch
+            return [lunch, dinner]
+        elif meals_per_day == 3:
+            # Breakfast, Lunch, Dinner
+            breakfast = int(total_calories * 0.25)  # 25%
+            lunch = int(total_calories * 0.35)      # 35%
+            dinner = total_calories - breakfast - lunch  # 40%
+            return [breakfast, lunch, dinner]
+        elif meals_per_day == 4:
+            # Breakfast, Lunch, Dinner, Snack
+            breakfast = int(total_calories * 0.25)  # 25%
+            lunch = int(total_calories * 0.30)      # 30%
+            dinner = int(total_calories * 0.35)     # 35%
+            snack = total_calories - breakfast - lunch - dinner  # 10%
+            return [breakfast, lunch, dinner, snack]
+        else:
+            # Default to equal distribution for more than 4 meals
+            base_calories = total_calories // meals_per_day
+            remainder = total_calories % meals_per_day
+            calories = [base_calories] * meals_per_day
+            # Distribute remainder
+            for i in range(remainder):
+                calories[i] += 1
+            return calories
             
     def get_recipe_ideas(self, meal_type, healthy, allergies, count=5):
         # If there are allergies, use the original method to generate recipes
-        meal_type_valid = ["breakfast","lunch","dinenr","snack","dessert"]
+        meal_type_valid = ["breakfast","lunch","dinner","snack","dessert"]
         if allergies:
             print(f"Using original method due to allergies: {allergies}")
             return self._generate_recipes_with_openai(meal_type, healthy, allergies, count)
@@ -138,16 +170,15 @@ class RecipeGenerator:
         # Final cleanup to ensure one blank line between sections
         return re.sub(r'\n{3,}', '\n\n', result)
         
-    def _generate_multiple_recipes_from_titles(self, titles, healthy, count=5):
-        """Generate multiple recipes in a single API call to save tokens and ensure consistent formatting"""
-        # Get only the number of titles we need
-        selected_titles = titles[:count]
-        titles_str = ", ".join([f'"{title}"' for title in selected_titles])
+    def _generate_multiple_recipes_from_titles(self, titles, healthy, calorie_targets):
+        """Generate multiple recipes with specific calorie targets"""
+        if len(titles) != len(calorie_targets):
+            raise ValueError("Number of titles must match number of calorie targets")
+            
+        selected_titles = titles[:len(calorie_targets)]
+        titles_and_calories = [(title, cal) for title, cal in zip(selected_titles, calorie_targets)]
         
-        # Calculate target calories per recipe
-        calories_per_recipe = getattr(self, 'target_calories_per_recipe', 500)
-        
-        system_prompt = f"""You are a culinary expert creating multiple recipes. Follow these formatting instructions precisely:
+        system_prompt = f"""You are a culinary expert creating multiple recipes with PRECISE calorie targets. Follow these formatting instructions:
 
         CRITICAL FORMAT RULES:
         1. Each recipe must have these sections IN THIS ORDER:
@@ -155,14 +186,15 @@ class RecipeGenerator:
            - Time/Servings information (in one paragraph)
            - Ingredients (with bullet points •)
            - Instructions (with numbers 1., 2., etc. ALL UNDER ONE "Instructions" HEADER)
-           - Nutritional information (MUST be accurate to target calories)
+           - Nutritional information (MUST be accurate to the EXACT target calories specified)
 
-        2. CALORIE REQUIREMENTS:
-           - Each recipe should target approximately {calories_per_recipe} calories
-           - Nutritional information must be realistic and add up correctly
+        2. CALORIE REQUIREMENTS - VERY IMPORTANT:
+           - Each recipe MUST hit the EXACT calorie target specified for that recipe
+           - Nutritional information must be realistic and mathematically accurate
            - Protein: aim for 20-30% of calories (divide calories by 4 for grams)
            - Carbs: aim for 40-50% of calories (divide calories by 4 for grams) 
            - Fat: aim for 25-35% of calories (divide calories by 9 for grams)
+           - Adjust portion sizes and ingredients to hit the exact calorie target
 
         3. Section spacing:
            - EXACTLY ONE blank line between sections
@@ -174,35 +206,37 @@ class RecipeGenerator:
            - Always put a blank line before and after the separator
 
         FORMAT EXAMPLE:
-        Delicious Recipe Title
+        Recipe Title Here
 
         Preparation Time: 15 minutes
         Cooking Time: 30 minutes
-        Servings: 4
+        Servings: 1
 
-        • 1 cup ingredient one
-        • 2 tablespoons ingredient two
-        • 3 teaspoons ingredient three
+        • Ingredient amounts calculated for exact calorie target
+        • Second ingredient with precise measurements
+        • Third ingredient as needed
 
         Instructions:
-        1. First step instruction details.
-        2. Second step with more details.
-        3. Third step with final instructions.
+        1. First step with specific cooking details.
+        2. Second step with timing and techniques.
+        3. Final step to complete the dish.
 
-        Calories: {calories_per_recipe}
-        Protein: {int(calories_per_recipe * 0.25 / 4)}g
-        Carbs: {int(calories_per_recipe * 0.45 / 4)}g
-        Fat: {int(calories_per_recipe * 0.30 / 9)}g
+        Calories: [EXACT TARGET CALORIES]
+        Protein: [CALCULATED]g
+        Carbs: [CALCULATED]g
+        Fat: [CALCULATED]g
 
         =====
-
-        Next Recipe Title
-        ...and so on.
         """
 
-        prompt = f"Create {len(selected_titles)} detailed recipes for these titles: {titles_str}. Each recipe must target {calories_per_recipe} calories and strictly follow my format requirements."
+        prompt = f"Create {len(selected_titles)} recipes with these EXACT calorie targets:\n"
+        for i, (title, calories) in enumerate(titles_and_calories):
+            prompt += f"{i+1}. \"{title}\" - MUST be exactly {calories} calories\n"
+        
+        prompt += f"\nEach recipe must hit its exact calorie target by adjusting portion sizes and ingredients accordingly."
+        
         if healthy:
-            prompt += " Make all recipes healthy and nutritious while maintaining the target calorie count and essence of each dish."
+            prompt += " Make all recipes healthy and nutritious while maintaining the exact calorie targets."
         
         try:
             response = self.client.chat.completions.create(
@@ -229,28 +263,15 @@ class RecipeGenerator:
                     processed = self._ensure_recipe_formatting(cleaned)
                     processed_recipes.append(processed)
             
-            # If we didn't get enough recipes, make an additional call for the remaining
-            if len(processed_recipes) < len(selected_titles):
-                missing_count = len(selected_titles) - len(processed_recipes)
-                missing_titles = selected_titles[len(processed_recipes):]
-                
-                # Recursive call to get the remaining recipes
-                remaining_recipes = self._generate_multiple_recipes_from_titles(
-                    missing_titles,
-                    healthy,
-                    missing_count
-                )
-                processed_recipes.extend(remaining_recipes)
-            
-            return processed_recipes[:count]  # Ensure we only return the requested number
+            return processed_recipes[:len(calorie_targets)]
                 
         except Exception as e:
             print(f"Error generating multiple recipes: {str(e)}")
             # Fall back to individual recipe generation for resilience
             processed_recipes = []
-            for title in selected_titles:
+            for title, target_calories in titles_and_calories:
                 try:
-                    recipe = self._generate_single_recipe_from_title(title, healthy)
+                    recipe = self._generate_single_recipe_from_title(title, healthy, target_calories)
                     if recipe:
                         processed_recipes.append(recipe)
                 except Exception as inner_e:
@@ -296,20 +317,30 @@ class RecipeGenerator:
             # We get more titles than needed to account for potential failures
             random.shuffle(titles)
             
-            # Generate recipes in batches to save tokens
-            batch_size = min(5, count)  # Process 5 recipes at a time, or fewer if requested
+            # Use realistic calorie distribution for the requested count
+            if hasattr(self, 'calories_per_day') and hasattr(self, 'target_meals_per_day'):
+                calorie_distribution = self._get_realistic_calorie_distribution(self.calories_per_day, count)
+            else:
+                # Default distribution if not set
+                default_calories = 500
+                calorie_distribution = [default_calories] * count
+            
+            # Generate recipes in batches with specific calorie targets
+            batch_size = min(5, count)
             all_recipes = []
             
             for i in range(0, len(titles), batch_size):
                 batch_titles = titles[i:i+batch_size]
+                batch_calories = calorie_distribution[i:i+batch_size]
+                
                 if not batch_titles:
                     break
                     
                 # Add rate limiting to avoid API limits
                 if i > 0:
-                    sleep(1)  # Sleep between batches
+                    sleep(1)
                     
-                batch_recipes = self._generate_multiple_recipes_from_titles(batch_titles, healthy, len(batch_titles))
+                batch_recipes = self._generate_multiple_recipes_from_titles(batch_titles, healthy, batch_calories)
                 all_recipes.extend(batch_recipes)
                 
                 # If we have enough recipes, stop
@@ -329,16 +360,18 @@ class RecipeGenerator:
             # Fall back to OpenAI if database access fails
             return self._generate_recipes_with_openai(meal_type, healthy, None, count)
     
-    def _generate_single_recipe_from_title(self, title, healthy):
-        """Generate a single recipe based on a title with proper formatting to match frontend expectations"""
+    def _generate_single_recipe_from_title(self, title, healthy, target_calories=None):
+        """Generate a single recipe based on a title with specific calorie target"""
         
-        # Calculate target calories
-        target_calories = getattr(self, 'target_calories_per_recipe', 500)
+        # Use provided target or default
+        if target_calories is None:
+            target_calories = getattr(self, 'target_calories_per_recipe', 500)
         
         system_prompt = f"""You are a culinary expert that creates detailed recipes based on titles. Format requirements:
         1. Generate a detailed recipe for the given title.
-        2. Target calories: {target_calories} per serving
-        3. Format the recipe EXACTLY as follows:
+        2. Target calories: {target_calories} per serving - THIS MUST BE EXACT
+        3. Adjust ingredient portions and serving size to hit the exact calorie target
+        4. Format the recipe EXACTLY as follows:
         - Title on the very first line (clear, descriptive, no word "recipe")
         - Leave a BLANK LINE after the title
         - Time section: Put "Preparation Time: X minutes", "Cooking Time: X minutes", and "Servings: X" together in a SINGLE PARAGRAPH
@@ -348,19 +381,19 @@ class RecipeGenerator:
         - Instructions section: Each instruction on its own line, numbered (1., 2., etc.)
         - Leave a BLANK LINE after the instructions section
         - Nutritional information section: Must be accurate to target calories
-        4. CRITICAL: Make sure calories = {target_calories}, and other macros are realistic
-        5. CRITICAL: Make sure to have exactly ONE BLANK LINE between major sections
-        6. Do not use bold formatting, asterisks, or any special characters except bullet points (•) for ingredients
-        7. Never include any separator line (====) in your response
+        5. CRITICAL: Make sure calories = {target_calories} EXACTLY, and other macros are realistic
+        6. CRITICAL: Make sure to have exactly ONE BLANK LINE between major sections
+        7. Do not use bold formatting, asterisks, or any special characters except bullet points (•) for ingredients
+        8. Never include any separator line (====) in your response
         
         Macro targets for {target_calories} calories:
         - Protein: {int(target_calories * 0.25 / 4)}g (25% of calories)
         - Carbs: {int(target_calories * 0.45 / 4)}g (45% of calories) 
         - Fat: {int(target_calories * 0.30 / 9)}g (30% of calories)"""
         
-        prompt = f"Create a detailed recipe for: {title}. Must be exactly {target_calories} calories per serving."
+        prompt = f"Create a detailed recipe for: {title}. Must be exactly {target_calories} calories per serving. Adjust ingredient amounts and serving size to achieve this exact calorie count."
         if healthy:
-            prompt += " Make it healthy and nutritious while maintaining the target calorie count."
+            prompt += " Make it healthy and nutritious while maintaining the exact target calorie count."
         
         try:
             response = self.client.chat.completions.create(
@@ -408,26 +441,38 @@ class RecipeGenerator:
     
     def _generate_recipes_with_openai(self, meal_type, healthy, allergies, count=5):
         """Original method to generate recipes using OpenAI without predefined titles"""
-        system_prompt = """You are a culinary expert that creates diverse recipes quickly. These recipes should be very unique and outside the box for the most part. Format requirements:
-        1. Generate exactly {count} different recipes.. some should be harder than others to make.
+        # Get realistic calorie distribution if available
+        if hasattr(self, 'calories_per_day') and hasattr(self, 'target_meals_per_day'):
+            calorie_distribution = self._get_realistic_calorie_distribution(self.calories_per_day, count)
+            calorie_targets_text = "\n".join([f"Recipe {i+1}: {cal} calories" for i, cal in enumerate(calorie_distribution)])
+        else:
+            calorie_distribution = [500] * count  # Default
+            calorie_targets_text = f"Each recipe: 500 calories"
+        
+        system_prompt = f"""You are a culinary expert that creates diverse recipes quickly. These recipes should be very unique and outside the box for the most part. Format requirements:
+        1. Generate exactly {count} different recipes with SPECIFIC calorie targets as provided
         2. Never repeat recipe ideas or cuisines in the batch
         3. Vary cooking methods, ingredients, and cuisine styles
-        4. Format each recipe exactly as follows:
+        4. Each recipe must hit its EXACT calorie target by adjusting portions and ingredients
+        5. Format each recipe exactly as follows:
         - title far above everything without bolding, or any symbols of any kind (no word "recipe" in title) make it above everything so frontend can put it alone up top
         - Title on first line (no bold, no word "recipe") DO not include the word title... the title should not contain "=" and should be far above everything
         - Preparation Time, Cooking Time, Servings in its OWN LITTLE SECTION....put far below title
         - Ingredients with bullet points (•) on lines far BELOW TITLE(make sure the ingredients are passed below the title)
         - Numbered instructions(specific) specify each step in detail and make sure to include all steps
         - Nutritional information per serving (united states standards... example(calories,protein,fat,carbs)) in OWN BLOCK and make it look modern and seperate by line
-        5. Separate each recipe with ===== on its own line and leave space below for each recipe title!
-        6. No bold letters or asterisks
-        7. Make recipes amazing and think outside the box."""
+        6. Separate each recipe with ===== on its own line and leave space below for each recipe title!
+        7. No bold letters or asterisks
+        8. Make recipes amazing and think outside the box.
+        
+        CALORIE TARGETS (MUST BE EXACT):
+        {calorie_targets_text}"""
 
         # Create a single prompt for multiple recipes
-        prompt = f"Create {count} unique {meal_type} recipes, each from different cuisines and cooking styles. If the meal type is not something valid or usual in the united states (ex: dog, human meat, etc) ignore it and default to any meal type."
+        prompt = f"Create {count} unique {meal_type} recipes, each from different cuisines and cooking styles, with the exact calorie targets specified. If the meal type is not something valid or usual in the united states (ex: dog, human meat, etc) ignore it and default to any meal type."
         
         if healthy:
-            prompt += " Make them healthy and nutritious."
+            prompt += " Make them healthy and nutritious while hitting exact calorie targets."
             
         if allergies:
             if "vegan" in allergies:
@@ -438,7 +483,7 @@ class RecipeGenerator:
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": system_prompt.format(count=count)},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.95,
@@ -460,7 +505,7 @@ class RecipeGenerator:
                 second_response = self.client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[
-                        {"role": "system", "content": system_prompt.format(count=remaining)},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": second_prompt}
                     ],
                     temperature=0.95,
@@ -550,17 +595,18 @@ class RecipeGenerator:
             print(f"Error generating recipes: {str(e)}")
             return []
     
-    #we are still having problems with the meal plan generator not generating all of the recipes.... we need to find a catcher for this
-    
-    #this needs to be changed to handle similiar recipes appearing after many queries
     def generate_meal_plan(self, days, meals_per_day, healthy=False, allergies=None, preferences=None, calories_per_day=2000):
-        """Simple, reliable meal plan generation with GPT-3.5 and accurate calorie targeting"""
+        """Simple, reliable meal plan generation with realistic calorie distribution"""
         
         # Store calories for use in recipe generation
         self.calories_per_day = calories_per_day
-        self.target_calories_per_recipe = calories_per_day // meals_per_day
+        self.target_meals_per_day = meals_per_day
         
-        print(f"Target calories per recipe: {self.target_calories_per_recipe}")
+        # Calculate realistic calorie distribution
+        daily_calorie_distribution = self._get_realistic_calorie_distribution(calories_per_day, meals_per_day)
+        
+        print(f"Daily calorie distribution: {daily_calorie_distribution}")
+        print(f"Total daily calories: {sum(daily_calorie_distribution)}")
         
         random_themes = [
             "quick and easy", "chef-inspired", "american and italian", "greek and american",
@@ -581,14 +627,14 @@ class RecipeGenerator:
         
         # For larger plans, generate day by day for reliability
         if days > 3 or (days * meals_per_day) > 9:
-            return self._generate_day_by_day_simple(days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration)
+            return self._generate_day_by_day_realistic(days, meals_per_day, healthy, allergies, preferences, calories_per_day, daily_calorie_distribution, inspiration)
         
         # For small plans, try full generation with retries
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 print(f"Attempt {attempt + 1}/{max_retries} for full plan generation")
-                result = self._generate_full_plan_simple(days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration)
+                result = self._generate_full_plan_realistic(days, meals_per_day, healthy, allergies, preferences, calories_per_day, daily_calorie_distribution, inspiration)
                 
                 if self._validate_plan_simple(result, days, meals_per_day):
                     print("✅ Full plan generation successful")
@@ -605,30 +651,30 @@ class RecipeGenerator:
         
         # If full plan fails, fallback to day-by-day
         print("🔄 Full plan failed, switching to day-by-day generation")
-        return self._generate_day_by_day_simple(days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration)
+        return self._generate_day_by_day_realistic(days, meals_per_day, healthy, allergies, preferences, calories_per_day, daily_calorie_distribution, inspiration)
 
-    def _generate_full_plan_simple(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration):
-        """Generate complete meal plan in one call - optimized for GPT-3.5"""
+    def _generate_full_plan_realistic(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, daily_calorie_distribution, inspiration):
+        """Generate complete meal plan with realistic calorie distribution"""
         
         meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
-        calories_per_recipe = calories_per_day // meals_per_day
+        
+        # Create calorie targets for each meal across all days
+        all_meal_calories = []
+        for day in range(days):
+            all_meal_calories.extend(daily_calorie_distribution)
         
         system_prompt = f"""You are a meal planning expert. Generate EXACTLY {days} days with EXACTLY {meals_per_day} meals each day.
 
         CRITICAL REQUIREMENTS:
         - Generate ALL {days * meals_per_day} completely UNIQUE recipes
         - Use these meal types in order: {', '.join(meal_types)}
-        - Make the meals simple to make with 3-6 ingredients
+        - Each recipe MUST hit its EXACT calorie target as specified below
         - NEVER repeat any recipe titles, ingredients combinations, or cooking methods
         - Each recipe MUST be from a different cuisine or cooking style
-        - Each recipe MUST target {calories_per_recipe} calories per serving
-        - Each recipe MUST have: meal type, title, times, ingredients, instructions, nutrition
+        - Adjust portion sizes and ingredients to hit exact calorie targets
 
-        CALORIE REQUIREMENTS:
-        - Each recipe = {calories_per_recipe} calories
-        - Protein: {int(calories_per_recipe * 0.25 / 4)}g (25% of calories)
-        - Carbs: {int(calories_per_recipe * 0.45 / 4)}g (45% of calories)
-        - Fat: {int(calories_per_recipe * 0.30 / 9)}g (30% of calories)
+        EXACT CALORIE TARGETS PER MEAL:
+        {self._format_calorie_targets_for_prompt(days, meals_per_day, daily_calorie_distribution)}
 
         VARIETY REQUIREMENTS:
         - Use different protein sources: chicken, fish, beef, pork, tofu, eggs, beans, etc.
@@ -645,22 +691,22 @@ class RecipeGenerator:
 
         Preparation Time: 15 minutes
         Cooking Time: 20 minutes
-        Servings: 2
+        Servings: 1
 
-        • Ingredient 1
-        • Ingredient 2
-        • Ingredient 3
+        • Ingredient 1 (amounts calculated for exact calories)
+        • Ingredient 2 (precise measurements)
+        • Ingredient 3 (as needed for target)
 
         Instructions:
-        1. Step one
-        2. Step two
-        3. Step three
+        1. Step one with specific details
+        2. Step two with timing
+        3. Step three to completion
 
         Nutritional Information:
-        Calories: {calories_per_recipe}
-        Protein: {int(calories_per_recipe * 0.25 / 4)}g
-        Carbs: {int(calories_per_recipe * 0.45 / 4)}g
-        Fat: {int(calories_per_recipe * 0.30 / 9)}g
+        Calories: [EXACT TARGET CALORIES]
+        Protein: [CALCULATED]g
+        Carbs: [CALCULATED]g
+        Fat: [CALCULATED]g
 
         =====
 
@@ -678,15 +724,15 @@ class RecipeGenerator:
         - Separate each meal with =====
         - Start each day with "Day X"
         - Recipe titles must be descriptive and UNIQUE
-        - Target {calories_per_day} calories per day total
+        - Hit EXACT calorie targets by adjusting portions
         - Use • for ingredients only
         - Number instructions 1., 2., 3.
         - Make every single recipe completely different from all others"""
 
-        prompt = f"Create a {days}-day meal plan with {meals_per_day} completely unique meals per day, {calories_per_day} calories per day, theme: {inspiration}. Every recipe must be different - no repeats allowed."
+        prompt = f"Create a {days}-day meal plan with {meals_per_day} completely unique meals per day, theme: {inspiration}. Each meal must hit its exact calorie target as specified. Total daily calories: {calories_per_day}."
         
         if healthy:
-            prompt += " Make all meals healthy and nutritious."
+            prompt += " Make all meals healthy and nutritious while hitting exact calorie targets."
         if allergies:
             allergies_list = ', '.join(allergies) if isinstance(allergies, list) else allergies
             prompt += f" Avoid these allergens: {allergies_list}."
@@ -710,13 +756,25 @@ class RecipeGenerator:
             print(f"Full plan generation error: {e}")
             return None
 
-    def _generate_day_by_day_simple(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, inspiration):
-        """Generate meal plan one day at a time for reliability"""
+    def _format_calorie_targets_for_prompt(self, days, meals_per_day, daily_calorie_distribution):
+        """Format calorie targets in a clear way for the AI prompt"""
+        meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
+        
+        result = []
+        for day in range(1, days + 1):
+            result.append(f"Day {day}:")
+            for i, meal_type in enumerate(meal_types):
+                calories = daily_calorie_distribution[i]
+                result.append(f"  {meal_type}: {calories} calories")
+        
+        return "\n".join(result)
+
+    def _generate_day_by_day_realistic(self, days, meals_per_day, healthy, allergies, preferences, calories_per_day, daily_calorie_distribution, inspiration):
+        """Generate meal plan one day at a time with realistic calorie distribution"""
         
         all_days = []
         used_titles = set()
         meal_types = ['Breakfast', 'Lunch', 'Dinner', 'Snack'][:meals_per_day]
-        calories_per_recipe = calories_per_day // meals_per_day
         
         for day_num in range(1, days + 1):
             print(f"Generating Day {day_num}...")
@@ -736,27 +794,33 @@ class RecipeGenerator:
                     if used_titles:
                         exclusion_text = f"NEVER use these recipe titles or similar variations: {', '.join(list(used_titles)[:10])}. "
                     
+                    # Format calorie targets for this day
+                    calorie_targets_text = "\n".join([
+                        f"{meal_types[i]}: EXACTLY {daily_calorie_distribution[i]} calories"
+                        for i in range(meals_per_day)
+                    ])
+                    
                     system_prompt = f"""Generate EXACTLY {meals_per_day} completely unique meals for one day.
 
-        REQUIRED MEALS: {', '.join(meal_types)}
-        Target: {calories_per_day} calories total ({calories_per_recipe} calories per meal)
+        REQUIRED MEALS AND EXACT CALORIE TARGETS:
+        {calorie_targets_text}
+        
+        Total day target: {calories_per_day} calories
         Theme: {theme}
 
         {exclusion_text}
 
-        CRITICAL: Each recipe MUST be completely different from any previous recipes.
-        - Make the meals simple to make with 3-6 ingredients
-        Use different:
-        - Cooking methods (grilled, baked, sautéed, steamed, roasted, etc.)
-        - Protein sources (chicken, fish, beef, tofu, eggs, beans, etc.)
-        - Cuisines (Italian, Mexican, Asian, Mediterranean, etc.)
-        - Ingredients and flavor profiles
+        CRITICAL: Each recipe MUST hit its EXACT calorie target by adjusting portion sizes and ingredients.
+        - Use different cooking methods (grilled, baked, sautéed, steamed, roasted, etc.)
+        - Use different protein sources (chicken, fish, beef, tofu, eggs, beans, etc.)
+        - Use different cuisines (Italian, Mexican, Asian, Mediterranean, etc.)
+        - Use different ingredients and flavor profiles
 
         CALORIE ACCURACY:
-        - Each recipe = {calories_per_recipe} calories
-        - Protein: {int(calories_per_recipe * 0.25 / 4)}g
-        - Carbs: {int(calories_per_recipe * 0.45 / 4)}g
-        - Fat: {int(calories_per_recipe * 0.30 / 9)}g
+        - Each recipe MUST = its exact target calories
+        - Protein: 20-30% of calories (divide by 4 for grams)
+        - Carbs: 40-50% of calories (divide by 4 for grams)
+        - Fat: 25-35% of calories (divide by 9 for grams)
 
         FORMAT:
         Breakfast
@@ -765,30 +829,30 @@ class RecipeGenerator:
 
         Preparation Time: 15 minutes
         Cooking Time: 20 minutes
-        Servings: 2
+        Servings: 1
 
-        • Ingredient 1
-        • Ingredient 2
-        • Ingredient 3
+        • Ingredient 1 (calculated for exact calorie target)
+        • Ingredient 2 (precise amounts)
+        • Ingredient 3 (as needed)
 
         Instructions:
-        1. Step one
-        2. Step two
-        3. Step three
+        1. Step one with details
+        2. Step two with timing
+        3. Step three to finish
 
         Nutritional Information:
-        Calories: {calories_per_recipe}
-        Protein: {int(calories_per_recipe * 0.25 / 4)}g
-        Carbs: {int(calories_per_recipe * 0.45 / 4)}g
-        Fat: {int(calories_per_recipe * 0.30 / 9)}g
+        Calories: [EXACT TARGET]
+        Protein: [CALCULATED]g
+        Carbs: [CALCULATED]g
+        Fat: [CALCULATED]g
 
         =====
 
         (Continue for all {meals_per_day} meals)
 
-        CRITICAL: Generate ALL {meals_per_day} meals completely. Make each recipe title creative and unique."""
+        CRITICAL: Generate ALL {meals_per_day} meals completely. Make each recipe title creative and unique. Hit EXACT calorie targets."""
 
-                    prompt = f"Generate {meals_per_day} UNIQUE meals for Day {day_num} with {theme} theme. Each recipe must be exactly {calories_per_recipe} calories and completely different from previous days."
+                    prompt = f"Generate {meals_per_day} UNIQUE meals for Day {day_num} with {theme} theme. Each recipe must hit its EXACT calorie target as specified above."
                     
                     if healthy:
                         prompt += " Make all meals healthy and nutritious while maintaining exact calorie targets."
@@ -825,7 +889,7 @@ class RecipeGenerator:
                         # Add titles to used set
                         used_titles.update(new_titles)
                         
-                        print(f"✅ Day {day_num} generated successfully with unique recipes")
+                        print(f"✅ Day {day_num} generated successfully with realistic calorie distribution")
                         break
                     else:
                         if duplicate_found:
@@ -841,8 +905,8 @@ class RecipeGenerator:
                         sleep(1)
             else:
                 # Create basic fallback day if all attempts fail
-                print(f"⚠️ Creating basic day {day_num}")
-                fallback_day = self._create_basic_day(day_num, meal_types, calories_per_day, used_titles)
+                print(f"⚠️ Creating basic day {day_num} with realistic calories")
+                fallback_day = self._create_realistic_basic_day(day_num, meal_types, daily_calorie_distribution, used_titles)
                 all_days.append(fallback_day)
                 
                 # Add fallback titles to used set
@@ -906,11 +970,10 @@ class RecipeGenerator:
         
         return titles
 
-    def _create_basic_day(self, day_num, meal_types, calories_per_day, used_titles=None):
-        """Create a basic fallback day with unique titles"""
-        calories_per_meal = calories_per_day // len(meal_types)
+    def _create_realistic_basic_day(self, day_num, meal_types, calorie_distribution, used_titles=None):
+        """Create a basic fallback day with realistic calorie distribution"""
         
-        # Create unique fallback recipes
+        # Create unique fallback recipes with specific calorie targets
         basic_recipes = {
             'Breakfast': [
                 f'Power Protein Scramble #{day_num}',
@@ -940,10 +1003,17 @@ class RecipeGenerator:
         
         day_content = f"Day {day_num}\n\n"
         
-        for meal_type in meal_types:
+        for i, meal_type in enumerate(meal_types):
+            target_calories = calorie_distribution[i] if i < len(calorie_distribution) else 400
+            
             # Pick a unique title for this meal type
             available_titles = basic_recipes.get(meal_type, [f'Healthy {meal_type} #{day_num}'])
-            recipe_name = available_titles[0]  # Use the first unique option
+            recipe_name = available_titles[0]
+            
+            # Calculate realistic macros for the target calories
+            protein = int(target_calories * 0.25 / 4)
+            carbs = int(target_calories * 0.45 / 4)
+            fat = int(target_calories * 0.30 / 9)
             
             meal_content = f"""{meal_type}
 
@@ -953,7 +1023,7 @@ class RecipeGenerator:
         Cooking Time: 20 minutes
         Servings: 1
 
-        • High-quality protein source
+        • High-quality protein source (portioned for {target_calories} calories)
         • Fresh seasonal vegetables
         • Healthy whole grains
         • Nutritious fats and oils
@@ -965,12 +1035,17 @@ class RecipeGenerator:
         4. Serve fresh and enjoy
 
         Nutritional Information:
-        Calories: {calories_per_meal}
-        Protein: {calories_per_meal // 20}g
-        Carbs: {calories_per_meal // 15}g
-        Fat: {calories_per_meal // 25}g
+        Calories: {target_calories}
+        Protein: {protein}g
+        Carbs: {carbs}g
+        Fat: {fat}g
 
         ====="""
             day_content += meal_content + "\n\n"
         
         return day_content.strip()
+
+    def _create_basic_day(self, day_num, meal_types, calories_per_day, used_titles=None):
+        """Legacy method - now redirects to realistic version"""
+        calorie_distribution = self._get_realistic_calorie_distribution(calories_per_day, len(meal_types))
+        return self._create_realistic_basic_day(day_num, meal_types, calorie_distribution, used_titles)

@@ -14,6 +14,7 @@ import {
   Platform,
   Alert,
   TextInput,
+  Linking,
 } from 'react-native';
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,14 +32,13 @@ const RecipeScreen = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('ingredients');
   const navigate = useNavigation();
   
-  // Add state for authentication and premium status
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [isLoginVisible, setIsLoginVisible] = useState(false);
 
-  // Loading texts for consistency
   const [loadingText, setLoadingText] = useState("");
   const loadingTexts = [
     "Loading delicious recipes...",
@@ -55,12 +55,10 @@ const RecipeScreen = ({ navigation }) => {
         setLoadingText(loadingTexts[currentIndex]);
         currentIndex = (currentIndex + 1) % loadingTexts.length;
       }, 1200);
-
       return () => clearInterval(textInterval);
     }
   }, [loading, refreshing]);
 
-  // Check login status whenever screen is focused
   useFocusEffect(
     useCallback(() => {
       checkLoginStatus();
@@ -70,7 +68,6 @@ const RecipeScreen = ({ navigation }) => {
   useEffect(() => {
     loadRecipes();
     
-    // Set up auth state listener
     const unsubscribe = authService.onAuthStateChange((user) => {
       setIsLoggedIn(!!user);
       if (user) {
@@ -80,9 +77,6 @@ const RecipeScreen = ({ navigation }) => {
       }
     });
 
-
-
-    // Initialize auth service
     authService.initialize().then((isAuthenticated) => {
       setIsLoggedIn(isAuthenticated);
       if (isAuthenticated) {
@@ -110,16 +104,13 @@ const RecipeScreen = ({ navigation }) => {
     }
   };
 
-  // Handler for when login is required by footer navigation
   const handleLoginRequired = () => {
     setIsLoginVisible(true);
   };
 
-  // Convert TheMealDB recipe to text format for saving
   const convertRecipeToText = (recipe) => {
     let recipeText = `${recipe.strMeal}\n\n`;
     
-    // Add meta information
     if (recipe.strCategory) {
       recipeText += `Category: ${recipe.strCategory}\n`;
     }
@@ -128,7 +119,6 @@ const RecipeScreen = ({ navigation }) => {
     }
     recipeText += '\n';
 
-    // Add ingredients
     recipeText += 'Ingredients:\n';
     for (let i = 1; i <= 20; i++) {
       const ingredient = recipe[`strIngredient${i}`];
@@ -141,10 +131,8 @@ const RecipeScreen = ({ navigation }) => {
     }
     recipeText += '\n';
 
-    // Add instructions
     recipeText += 'Instructions:\n';
     if (recipe.strInstructions) {
-      // Split instructions into steps
       const steps = recipe.strInstructions
         .split(/\r?\n/)
         .filter(step => step.trim().length > 0)
@@ -155,7 +143,6 @@ const RecipeScreen = ({ navigation }) => {
       });
     }
 
-    // Add YouTube link if available
     if (recipe.strYoutube) {
       recipeText += `\nVideo Tutorial: ${recipe.strYoutube}\n`;
     }
@@ -163,10 +150,8 @@ const RecipeScreen = ({ navigation }) => {
     return recipeText;
   };
 
-  // Handle recipe save
   const handleRecipeSave = async (recipe) => {
     try {
-      // Check if user is logged in
       const user = authService.getCurrentUser();
       if (!user) {
         Alert.alert("Login Required", "Please log in to save recipes", [
@@ -186,8 +171,6 @@ const RecipeScreen = ({ navigation }) => {
       }
 
       setSaveLoading(true);
-
-      // Convert recipe to text format and save
       const recipeText = convertRecipeToText(recipe);
       await saveRecipeToFirebase(recipeText);
 
@@ -221,7 +204,6 @@ const RecipeScreen = ({ navigation }) => {
     }
   };
 
-  // Load diverse recipes using multiple approaches
   const loadRecipes = async (isRefresh = false, query = '') => {
     try {
       if (!isRefresh) setLoading(true);
@@ -230,7 +212,6 @@ const RecipeScreen = ({ navigation }) => {
       let allRecipes = [];
 
       if (query.trim()) {
-        // Search by name
         try {
           const response = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(query.trim())}`);
           const data = await response.json();
@@ -241,11 +222,8 @@ const RecipeScreen = ({ navigation }) => {
           console.log('Search error:', error);
         }
       } else {
-        // Load diverse recipes using multiple strategies for better variety
         const strategies = [
-          // Get recipes by first letters
           'a', 'b', 'c', 'd', 'e',
-          // Get random recipes
           'random', 'random', 'random', 'random', 'random'
         ];
 
@@ -269,12 +247,10 @@ const RecipeScreen = ({ navigation }) => {
           }
         }
 
-        // Remove duplicates
         const uniqueRecipes = allRecipes.filter((recipe, index, self) =>
           index === self.findIndex(r => r.idMeal === recipe.idMeal)
         );
 
-        // Shuffle for variety
         allRecipes = uniqueRecipes.sort(() => 0.5 - Math.random()).slice(0, 30);
       }
       
@@ -288,31 +264,26 @@ const RecipeScreen = ({ navigation }) => {
     }
   };
 
-  // Debounced search function
   const [searchTimeout, setSearchTimeout] = useState(null);
 
-  // Handle search with debouncing
   const handleSearch = (query) => {
     setSearchQuery(query);
     
-    // Clear existing timeout
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
     
-    // Set new timeout
     const timeout = setTimeout(() => {
       if (query.length > 2) {
         loadRecipes(false, query);
       } else if (query.length === 0) {
         loadRecipes(false, '');
       }
-    }, 500); // Wait 500ms after user stops typing
+    }, 500);
     
     setSearchTimeout(timeout);
   };
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (searchTimeout) {
@@ -321,12 +292,10 @@ const RecipeScreen = ({ navigation }) => {
     };
   }, [searchTimeout]);
 
-  // Handle refresh
   const handleRefresh = () => {
     loadRecipes(true, searchQuery);
   };
 
-  // Load recipe details
   const loadRecipeDetails = async (recipeId) => {
     try {
       const response = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${recipeId}`);
@@ -335,6 +304,7 @@ const RecipeScreen = ({ navigation }) => {
       if (data.meals && data.meals.length > 0) {
         const recipe = data.meals[0];
         setSelectedRecipe(recipe);
+        setActiveTab('ingredients');
         setModalVisible(true);
       }
     } catch (error) {
@@ -343,7 +313,6 @@ const RecipeScreen = ({ navigation }) => {
     }
   };
 
-  // Close recipe modal
   const closeRecipeModal = () => {
     setModalVisible(false);
     setTimeout(() => {
@@ -351,19 +320,25 @@ const RecipeScreen = ({ navigation }) => {
     }, 300);
   };
 
-  // Fixed equal height cards for perfect alignment
   const FIXED_CARD_HEIGHT = 326;
   const FIXED_IMAGE_HEIGHT = 200;
 
-  // Open YouTube video
-  const openVideoLink = () => {
+  const openVideoLink = async () => {
     if (selectedRecipe?.strYoutube) {
-      // You would use Linking.openURL here
-      Alert.alert('Video', 'Would open YouTube video tutorial');
+      try {
+        const supported = await Linking.canOpenURL(selectedRecipe.strYoutube);
+        if (supported) {
+          await Linking.openURL(selectedRecipe.strYoutube);
+        } else {
+          Alert.alert('Error', 'Cannot open YouTube video. Please check if you have YouTube installed.');
+        }
+      } catch (error) {
+        console.error('Error opening YouTube link:', error);
+        Alert.alert('Error', 'Failed to open video tutorial.');
+      }
     }
   };
 
-  // Render recipe card with fixed dimensions for perfect alignment
   const renderRecipeCard = ({ item, index }) => {
     return (
       <TouchableOpacity
@@ -410,25 +385,20 @@ const RecipeScreen = ({ navigation }) => {
     );
   };
 
-  // Parse instructions into individual steps
   const parseInstructions = (instructionsText) => {
     if (!instructionsText) return [];
     
-    // Clean up the text
     let cleanText = instructionsText.trim();
     
-    // Split by common delimiters and clean up
     let steps = cleanText
       .split(/(?:\r?\n)+|(?:\d+\.)|(?:STEP \d+)|(?:Step \d+)/i)
       .map(step => step.trim())
-      .filter(step => step.length > 10) // Filter out very short fragments
+      .filter(step => step.length > 10)
       .map(step => {
-        // Remove leading numbers, periods, or step indicators
         return step.replace(/^[\d\.\s]*/, '').trim();
       })
       .filter(step => step.length > 0);
     
-    // If we don't have clear steps, try splitting by sentences
     if (steps.length <= 1) {
       steps = cleanText
         .split(/\.(?=\s[A-Z])|(?<=\.)\s+(?=[A-Z])/g)
@@ -440,26 +410,59 @@ const RecipeScreen = ({ navigation }) => {
     return steps.length > 0 ? steps : [cleanText];
   };
 
-  // Render sleek recipe details modal with swipe gesture
-  const renderRecipeDetails = () => {
+  const renderTabContent = () => {
     if (!selectedRecipe) return null;
 
-    // Extract ingredients
-    const ingredients = [];
-    for (let i = 1; i <= 20; i++) {
-      const ingredient = selectedRecipe[`strIngredient${i}`];
-      const measure = selectedRecipe[`strMeasure${i}`];
-      
-      if (ingredient && ingredient.trim()) {
-        ingredients.push({
-          ingredient: ingredient.trim(),
-          measure: measure && measure.trim() ? measure.trim() : ''
-        });
+    if (activeTab === 'ingredients') {
+      const ingredients = [];
+      for (let i = 1; i <= 20; i++) {
+        const ingredient = selectedRecipe[`strIngredient${i}`];
+        const measure = selectedRecipe[`strMeasure${i}`];
+        
+        if (ingredient && ingredient.trim()) {
+          ingredients.push({
+            ingredient: ingredient.trim(),
+            measure: measure && measure.trim() ? measure.trim() : ''
+          });
+        }
       }
-    }
 
-    // Parse instructions into steps
-    const instructionSteps = parseInstructions(selectedRecipe.strInstructions);
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.ingredientsGrid}>
+            {ingredients.map((item, index) => (
+              <View key={index} style={styles.ingredientCard}>
+                <Text style={styles.ingredientName}>{item.ingredient}</Text>
+                {item.measure && (
+                  <Text style={styles.ingredientMeasure}>{item.measure}</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        </View>
+      );
+    } else if (activeTab === 'instructions') {
+      const instructionSteps = parseInstructions(selectedRecipe.strInstructions);
+
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.instructionsGrid}>
+            {instructionSteps.map((instruction, index) => (
+              <View key={index} style={styles.instructionCard}>
+                <View style={styles.stepIndicator}>
+                  <Text style={styles.stepNumber}>{index + 1}</Text>
+                </View>
+                <Text style={styles.instructionText}>{instruction}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      );
+    }
+  };
+
+  const renderRecipeDetails = () => {
+    if (!selectedRecipe) return null;
 
     return (
       <Modal
@@ -468,122 +471,107 @@ const RecipeScreen = ({ navigation }) => {
         visible={modalVisible}
         onRequestClose={closeRecipeModal}
         statusBarTranslucent
-        presentationStyle="pageSheet" // iOS swipe gesture
+        presentationStyle="pageSheet"
       >
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         <View style={styles.modalContainer}>
-          {/* Swipe indicator */}
           <View style={styles.swipeIndicator}>
             <View style={styles.swipeHandle} />
           </View>
 
+          <View style={styles.heroContainer}>
+            <Image
+              source={{ uri: selectedRecipe.strMealThumb }}
+              style={styles.heroImage}
+            />
+            <View style={styles.heroOverlay} />
+            
+            <TouchableOpacity style={styles.closeButton} onPress={closeRecipeModal}>
+              <View style={styles.closeButtonInner}>
+                <Ionicons name="close" size={20} color="#2c3e50" />
+              </View>
+            </TouchableOpacity>
+            
+            <View style={styles.heroTextOverlay}>
+              <Text style={styles.heroTitle}>{selectedRecipe.strMeal}</Text>
+              <View style={styles.heroTagsContainer}>
+                {selectedRecipe.strCategory && (
+                  <View style={styles.heroTag}>
+                    <Text style={styles.heroTagText}>{selectedRecipe.strCategory}</Text>
+                  </View>
+                )}
+                {selectedRecipe.strArea && (
+                  <View style={styles.heroTag}>
+                    <Text style={styles.heroTagText}>{selectedRecipe.strArea}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.saveButton, saveLoading && styles.saveButtonDisabled]}
+              onPress={() => handleRecipeSave(selectedRecipe)}
+              disabled={saveLoading}
+            >
+              {saveLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Ionicons name="bookmark-outline" size={18} color="white" />
+              )}
+              <Text style={styles.saveButtonText}>
+                {saveLoading ? 'Saving...' : 'Save Recipe'}
+              </Text>
+            </TouchableOpacity>
+
+            {selectedRecipe.strYoutube && (
+              <TouchableOpacity style={styles.videoButton} onPress={openVideoLink}>
+                <View style={styles.videoIconContainer}>
+                  <Ionicons name="play" size={14} color="white" />
+                </View>
+                <Text style={styles.videoButtonText}>Watch Video</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'ingredients' && styles.activeTab]}
+              onPress={() => setActiveTab('ingredients')}
+            >
+              <Ionicons
+                name="list-outline"
+                size={18}
+                color={activeTab === 'ingredients' ? '#008b8b' : '#666'}
+              />
+              <Text style={[styles.tabText, activeTab === 'ingredients' && styles.activeTabText]}>
+                Ingredients
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'instructions' && styles.activeTab]}
+              onPress={() => setActiveTab('instructions')}
+            >
+              <Ionicons
+                name="clipboard-outline"
+                size={18}
+                color={activeTab === 'instructions' ? '#008b8b' : '#666'}
+              />
+              <Text style={[styles.tabText, activeTab === 'instructions' && styles.activeTabText]}>
+                Instructions
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <ScrollView
+            style={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
             bounces={true}
-            contentContainerStyle={styles.modalScrollContent}
           >
-            {/* Hero Image with gradient overlay */}
-            <View style={styles.heroContainer}>
-              <Image
-                source={{ uri: selectedRecipe.strMealThumb }}
-                style={styles.heroImage}
-              />
-              <View style={styles.heroGradientOverlay} />
-              
-              <TouchableOpacity style={styles.closeButtonNew} onPress={closeRecipeModal}>
-                <View style={styles.closeButtonInner}>
-                  <Ionicons name="close" size={20} color="#2c3e50" />
-                </View>
-              </TouchableOpacity>
-              
-              <View style={styles.heroTextOverlay}>
-                <Text style={styles.heroTitleNew}>{selectedRecipe.strMeal}</Text>
-                <View style={styles.heroTagsContainer}>
-                  {selectedRecipe.strCategory && (
-                    <View style={styles.heroTag}>
-                      <Text style={styles.heroTagText}>{selectedRecipe.strCategory}</Text>
-                    </View>
-                  )}
-                  {selectedRecipe.strArea && (
-                    <View style={styles.heroTag}>
-                      <Text style={styles.heroTagText}>{selectedRecipe.strArea}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {/* Content Container */}
-            <View style={styles.modalContentContainer}>
-              {/* Save Button */}
-              <TouchableOpacity
-                style={[styles.saveButtonNew, saveLoading && styles.saveButtonDisabled]}
-                onPress={() => handleRecipeSave(selectedRecipe)}
-                disabled={saveLoading}
-              >
-                {saveLoading ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Ionicons name="bookmark-outline" size={20} color="white" />
-                )}
-                <Text style={styles.saveButtonTextNew}>
-                  {saveLoading ? 'Saving...' : 'Save Recipe'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Ingredients Section */}
-              <View style={styles.sectionNew}>
-                <View style={styles.sectionHeaderNew}>
-                  <Ionicons name="list-outline" size={20} color="#008b8b" />
-                  <Text style={styles.sectionTitleNew}>Ingredients</Text>
-                  <Text style={styles.ingredientCount}>({ingredients.length})</Text>
-                </View>
-                <View style={styles.ingredientsGrid}>
-                  {ingredients.map((item, index) => (
-                    <View key={index} style={styles.ingredientCard}>
-                      <Text style={styles.ingredientNameNew}>{item.ingredient}</Text>
-                      {item.measure && (
-                        <Text style={styles.ingredientMeasureNew}>{item.measure}</Text>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              {/* Instructions Section */}
-              {instructionSteps.length > 0 && (
-                <View style={styles.sectionNew}>
-                  <View style={styles.sectionHeaderNew}>
-                    <Ionicons name="clipboard-outline" size={20} color="#008b8b" />
-                    <Text style={styles.sectionTitleNew}>Instructions</Text>
-                    <Text style={styles.stepCount}>({instructionSteps.length} steps)</Text>
-                  </View>
-                  <View style={styles.instructionsGrid}>
-                    {instructionSteps.map((instruction, index) => (
-                      <View key={index} style={styles.instructionCard}>
-                        <View style={styles.stepIndicator}>
-                          <Text style={styles.stepNumber}>{index + 1}</Text>
-                        </View>
-                        <Text style={styles.instructionTextNew}>{instruction}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* YouTube Button */}
-              {selectedRecipe.strYoutube && (
-                <TouchableOpacity style={styles.videoButtonNew} onPress={openVideoLink}>
-                  <View style={styles.videoIconContainer}>
-                    <Ionicons name="play" size={16} color="white" />
-                  </View>
-                  <Text style={styles.videoButtonTextNew}>Watch Tutorial</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Bottom spacing */}
-              <View style={styles.modalBottomSpacing} />
-            </View>
+            {renderTabContent()}
+            <View style={styles.modalBottomSpacing} />
           </ScrollView>
         </View>
       </Modal>
@@ -603,7 +591,6 @@ const RecipeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
       
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity
@@ -618,7 +605,6 @@ const RecipeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
             <Ionicons name="search" size={20} color="#666" />
@@ -634,7 +620,6 @@ const RecipeScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Recipes Grid - Better Aligned */}
       <FlatList
         data={recipes}
         renderItem={renderRecipeCard}
@@ -650,7 +635,6 @@ const RecipeScreen = ({ navigation }) => {
         windowSize={10}
       />
 
-      {/* Empty State */}
       {!loading && recipes.length === 0 && (
         <View style={styles.emptyState}>
           <Ionicons name="restaurant-outline" size={80} color="#ccc" />
@@ -661,7 +645,6 @@ const RecipeScreen = ({ navigation }) => {
         </View>
       )}
 
-      {/* Persistent Footer Navigation */}
       <PersistentFooter
         navigation={navigation}
         isLoggedIn={isLoggedIn}
@@ -669,13 +652,11 @@ const RecipeScreen = ({ navigation }) => {
         onLoginRequired={handleLoginRequired}
       />
 
-      {/* Recipe Details Modal */}
       {renderRecipeDetails()}
     </SafeAreaView>
   );
 };
 
-// Get screen dimensions
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = (width - 45) / 2;
 
@@ -702,7 +683,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 20,
-    margintop:-55,
     borderBottomWidth: 1,
     borderBottomColor: '#e1e8ed',
     ...Platform.select({
@@ -769,7 +749,7 @@ const styles = StyleSheet.create({
   },
   row: {
     justifyContent: 'space-between',
-    alignItems: 'flex-start', // Align cards to top for better grid appearance
+    alignItems: 'flex-start',
   },
   recipeCard: {
     width: CARD_WIDTH,
@@ -816,7 +796,7 @@ const styles = StyleSheet.create({
   cardContent: {
     padding: 16,
     flex: 1,
-    justifyContent: 'space-between', // Ensures button stays at bottom
+    justifyContent: 'space-between',
   },
   recipeTitle: {
     fontSize: 15,
@@ -824,7 +804,7 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginBottom: 8,
     lineHeight: 20,
-    height: 40, // Fixed height for title area
+    height: 40,
   },
   metaInfo: {
     flexDirection: 'row',
@@ -842,19 +822,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#e6f3f3',
-    paddingVertical: 3,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
     gap: 6,
-    marginTop: 5,// Pushes button to bottom
-    marginBottom: 2,
+    marginTop: 5,
   },
   viewButtonText: {
     fontSize: 12,
     color: '#008b8b',
     fontWeight: '600',
-    marginBottom: 2,
-    padding: 3,
   },
   emptyState: {
     flex: 1,
@@ -889,12 +866,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ddd',
     borderRadius: 2,
   },
-  modalScrollContent: {
-    paddingBottom: 30,
-  },
   heroContainer: {
     position: 'relative',
-    height: height * 0.35,
+    height: height * 0.3,
     marginHorizontal: 20,
     marginTop: 10,
     borderRadius: 20,
@@ -916,15 +890,15 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
-  heroGradientOverlay: {
+  heroOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    height: '40%',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  closeButtonNew: {
+  closeButton: {
     position: 'absolute',
     top: 16,
     right: 16,
@@ -944,12 +918,15 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
   },
-  heroTitleNew: {
-    fontSize: 24,
+  heroTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 8,
-    lineHeight: 28,
+    lineHeight: 26,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   heroTagsContainer: {
     flexDirection: 'row',
@@ -966,19 +943,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  modalContentContainer: {
-    padding: 20,
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
   },
-  saveButtonNew: {
+  saveButton: {
+    flex: 1,
     backgroundColor: '#008b8b',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    marginBottom: 24,
-    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 6,
     ...Platform.select({
       ios: {
         shadowColor: '#008b8b',
@@ -991,34 +971,95 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  saveButtonTextNew: {
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
     color: 'white',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
   },
-  sectionNew: {
-    marginBottom: 28,
-  },
-  sectionHeaderNew: {
+  videoButton: {
+    backgroundColor: '#008b8b',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#008b8b',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  videoIconContainer: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 4,
     marginBottom: 16,
-    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  sectionTitleNew: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 6,
   },
-  ingredientCount: {
+  activeTab: {
+    backgroundColor: '#e6f3f3',
+  },
+  tabText: {
     fontSize: 14,
-    color: '#666',
     fontWeight: '500',
+    color: '#666',
   },
-  stepCount: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+  activeTabText: {
+    color: '#008b8b',
+    fontWeight: '600',
+  },
+  scrollContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  tabContent: {
+    flex: 1,
   },
   ingredientsGrid: {
     gap: 12,
@@ -1041,13 +1082,13 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  ingredientNameNew: {
+  ingredientName: {
     fontSize: 15,
     fontWeight: '600',
     color: '#2c3e50',
     marginBottom: 2,
   },
-  ingredientMeasureNew: {
+  ingredientMeasure: {
     fontSize: 13,
     color: '#008b8b',
     fontWeight: '500',
@@ -1088,190 +1129,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
   },
-  instructionTextNew: {
+  instructionText: {
     flex: 1,
     fontSize: 15,
     lineHeight: 22,
     color: '#2c3e50',
     fontWeight: '400',
   },
-  videoButtonNew: {
-    backgroundColor: '#008b8b',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    gap: 8,
-    marginTop: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#008b8b',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  videoIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoButtonTextNew: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '600',
-  },
   modalBottomSpacing: {
-    height: 20,
-  },
-  heroOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 24,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 8,
-  },
-  heroMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  heroMetaText: {
-    fontSize: 14,
-    color: 'white',
-    fontWeight: '500',
-    opacity: 0.9,
-  },
-  contentContainer: {
-    padding: 24,
-  },
-  saveButton: {
-    backgroundColor: '#008b8b',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    marginBottom: 24,
-    gap: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#008b8b',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 16,
-  },
-  ingredientsContainer: {
-    gap: 12,
-  },
-  ingredientItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 16,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#008b8b',
-  },
-  ingredientBullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#008b8b',
-    marginTop: 6,
-    marginRight: 12,
-  },
-  ingredientTextContainer: {
-    flex: 1,
-  },
-  ingredientName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2c3e50',
-    marginBottom: 2,
-  },
-  ingredientMeasure: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    fontWeight: '500',
-  },
-  instructionsContainer: {
-    padding: 16,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#008b8b',
-  },
-  instructionText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#2c3e50',
-    fontWeight: '400',
-  },
-  videoButton: {
-    backgroundColor: '#008b8b',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#008b8b',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  videoButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    height: 30,
   },
 });
 

@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authService } from "../services/auth";
 import { useFocusEffect } from "@react-navigation/native";
-import PersistentFooter from "../components/PersistentFooter"; // Import the new footer component
+import PersistentFooter from "../components/PersistentFooter";
 
 export default function LandingScreen({ navigation }) {
   // Core state
@@ -97,11 +97,10 @@ export default function LandingScreen({ navigation }) {
   // State for custom toast messages
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState("success"); // success, error, info
+  const [toastType, setToastType] = useState("success");
   const toastTimeoutRef = useRef(null);
 
   const showCustomToast = (message, type = "success") => {
-    // Clear any existing timeout
     if (toastTimeoutRef.current) {
       clearTimeout(toastTimeoutRef.current);
     }
@@ -110,7 +109,6 @@ export default function LandingScreen({ navigation }) {
     setToastType(type);
     setShowToast(true);
 
-    // Auto hide after 4 seconds
     toastTimeoutRef.current = setTimeout(() => {
       setShowToast(false);
     }, 4000);
@@ -158,7 +156,7 @@ export default function LandingScreen({ navigation }) {
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
-          showCustomToast("Welcome to Kitch! Account created successfully.", "success");
+          showCustomToast("Welcome to Kitchly! Account created successfully.", "success");
         } else {
           throw new Error("Registration failed - no user returned");
         }
@@ -192,7 +190,6 @@ export default function LandingScreen({ navigation }) {
         switch (error.code) {
           case "auth/email-already-in-use":
             errorMessage = "This email is already registered. Please sign in instead or use a different email.";
-            // Automatically switch to login mode
             setIsNewUser(false);
             break;
           case "auth/invalid-email":
@@ -226,7 +223,6 @@ export default function LandingScreen({ navigation }) {
             errorMessage = `Authentication failed: ${error.message}`;
         }
       } else if (error.message) {
-        // Handle custom errors from authService
         errorMessage = error.message;
       }
 
@@ -269,7 +265,6 @@ export default function LandingScreen({ navigation }) {
       if (error.code) {
         switch (error.code) {
           case "auth/user-not-found":
-            // For security reasons, we show success message even if user doesn't exist
             showCustomToast("Password reset instructions sent to your email", "success");
             setIsForgotVisible(false);
             setEmail("");
@@ -322,37 +317,54 @@ export default function LandingScreen({ navigation }) {
     navigation.navigate(screenName);
   };
 
-  const MenuCard = ({
-    icon,
-    title,
-    description,
-    onPress,
-    isPremiumFeature = false,
-  }) => (
+  // Hero Feature Card Component
+  const HeroFeatureCard = ({ icon, title, description, onPress }) => (
     <TouchableOpacity
-      style={styles.menuItem}
+      style={styles.heroCard}
+      onPress={onPress}
+      activeOpacity={0.95}
+    >
+      <View style={styles.heroCardContent}>
+        <View style={styles.heroIconContainer}>
+          <Ionicons name={icon} size={40} color="#008b8b" />
+        </View>
+        <View style={styles.heroTextContainer}>
+          <Text style={styles.heroTitle}>{title}</Text>
+          <Text style={styles.heroDescription}>{description}</Text>
+        </View>
+        <View style={styles.heroArrow}>
+          <Ionicons name="chevron-forward" size={24} color="#008b8b" />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  // Standard Feature Card Component
+  const FeatureCard = ({ icon, title, description, onPress, isPremiumFeature = false }) => (
+    <TouchableOpacity
+      style={styles.featureCard}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.menuContent}>
-        <View style={styles.iconContainer}>
-          <Ionicons name={icon} size={32} color="#008b8b" />
+      <View style={styles.featureCardContent}>
+        <View style={styles.featureIconContainer}>
+          <Ionicons name={icon} size={28} color="#008b8b" />
           {isPremiumFeature && (
             <View style={styles.premiumBadge}>
               <View style={styles.premiumIcon} />
             </View>
           )}
         </View>
-        <View style={styles.menuTextContainer}>
-          <Text style={styles.menuTitle}>{title}</Text>
-          <Text style={styles.menuDescription}>{description}</Text>
+        <View style={styles.featureTextContainer}>
+          <Text style={styles.featureTitle}>{title}</Text>
+          <Text style={styles.featureDescription}>{description}</Text>
         </View>
+        <Ionicons name="chevron-forward" size={20} color="#008b8b" />
       </View>
-      <Ionicons name="chevron-forward" size={24} color="#008b8b" />
     </TouchableOpacity>
   );
 
-  // Enhanced Toast component with better styling and animation
+  // Enhanced Toast component
   const Toast = ({ visible, message, type }) => {
     const [fadeAnim] = useState(new Animated.Value(0));
 
@@ -421,7 +433,7 @@ export default function LandingScreen({ navigation }) {
     );
   };
 
-  // Dashboard Header Component (from our dashboard version)
+  // Dashboard Header Component
   const DashboardHeader = () => (
     <View style={styles.dashboardHeader}>
       <View style={styles.headerLeft}>
@@ -429,10 +441,19 @@ export default function LandingScreen({ navigation }) {
           source={require("../assets/logo.png")}
           style={styles.dashboardLogo}
           resizeMode="contain"
+          fadeDuration={0}
         />
         <View style={styles.headerTextContainer}>
-          <Text style={styles.dashboardTitle}>Kitchly</Text>
-          <Text style={styles.dashboardSubtitle}>Nutrition Assistant</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.dashboardTitle}>Kitchly</Text>
+            {isPremium && isLoggedIn && (
+              <View style={styles.premiumBadgeSmall}>
+                <Ionicons name="diamond" size={12} color="#FFD700" />
+                <Text style={styles.premiumBadgeText}>PRO</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.dashboardSubtitle}>AI Nutrition Assistant</Text>
         </View>
       </View>
       <View style={styles.headerRight}>
@@ -479,41 +500,40 @@ export default function LandingScreen({ navigation }) {
     </View>
   );
 
-  // Account Status Card (consolidated into one clean card)
-  const AccountStatusCard = () => {
-    if (!isLoggedIn) return null;
+  // Premium CTA Section
+  const PremiumCTASection = () => {
+    if (isPremium || !isLoggedIn) return null;
 
     return (
-      <View style={styles.accountStatusCard}>
-        <View style={styles.statusContent}>
-          <View style={styles.statusIconContainer}>
-            <Ionicons
-              name={isPremium ? "checkmark-circle" : "person-circle"}
-              size={24}
-              color={isPremium ? "#34D399" : "#008b8b"}
-            />
+      <TouchableOpacity
+        style={styles.premiumCTA}
+        onPress={() => navigation.navigate("PremiumPlans")}
+        activeOpacity={0.9}
+      >
+        <View style={styles.premiumCTAContent}>
+          <View style={styles.premiumCTALeft}>
+            <View style={styles.premiumCTAIcon}>
+              <Ionicons name="diamond" size={20} color="#FFD700" />
+            </View>
+            <View style={styles.premiumCTAText}>
+              <Text style={styles.premiumCTATitle}>Unlock Premium Features</Text>
+              <Text style={styles.premiumCTASubtitle}>
+                Advanced nutrition tracking & meal plans
+              </Text>
+            </View>
           </View>
-          <View style={styles.statusTextContainer}>
-            <Text style={styles.statusTitle}>
-              {isPremium ? "Premium Account" : "Free Account"}
-            </Text>
-            <Text style={styles.statusSubtitle}>
-              {isPremium
-                ? "All features unlocked"
-                : "Upgrade to unlock premium features"}
-            </Text>
+          <View style={styles.premiumCTAButton}>
+            <Text style={styles.premiumCTAButtonText}>Upgrade</Text>
+            <Ionicons name="chevron-forward" size={14} color="white" />
           </View>
-          {!isPremium && (
-            <TouchableOpacity
-              style={styles.upgradeButton}
-              onPress={() => navigation.navigate("PremiumPlans")}
-            >
-              <Text style={styles.upgradeButtonText}>Upgrade</Text>
-            </TouchableOpacity>
-          )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
+  };
+
+  // Account Status Card
+  const AccountStatusCard = () => {
+    return null; // Removed this component entirely
   };
 
   return (
@@ -524,7 +544,7 @@ export default function LandingScreen({ navigation }) {
       <ScrollView
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 70 }} // Add padding to account for footer
+        contentContainerStyle={{ paddingBottom: 70 }}
       >
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.container}>
@@ -534,82 +554,102 @@ export default function LandingScreen({ navigation }) {
             {/* Account Status */}
             <AccountStatusCard />
 
-            <View style={styles.menuContainer}>
-          
-              <MenuCard
-                icon="image"
-                title="Recipe Explorer"
-                description="Browse a vibrant grid of recipes with mouthwatering photos and details."
-                onPress={() => navigation.navigate("RecipeScreen")}
-              />
+            {/* Premium CTA (for non-premium users) */}
+            <PremiumCTASection />
 
-              <MenuCard
-                icon="search"
-                title="Smart Recipe Builder"
-                description="Enter your preferences and get personalized recipes instantly."
-                onPress={() => navigation.navigate("FindRecipes")}
-              />
-
-              {/* NEW FOOD SCANNER MENU CARD */}
-              <MenuCard
+            {/* Hero Features Section */}
+            <View style={styles.heroSection}>
+              <Text style={styles.sectionTitle}>Featured Tools</Text>
+              
+              {/* Food Scanner - Requires Login */}
+              <HeroFeatureCard
                 icon="scan"
                 title="Food Scanner"
-                description="Scan product barcodes to get health scores and nutritional analysis."
-                onPress={() =>
-                  handlePremiumFeaturePress(
-                    "Food Scanner",
-                    "FoodScannerHome"
-                  )
-                }
-                isPremiumFeature={true}
-              />
-          
-          <MenuCard
-            icon="nutrition-outline"
-            title="Food Log & Nutrition Tracker"
-            description="Track your daily meals, calories, and macros with AI-powered nutrition analysis."
-            onPress={() =>
-              handlePremiumFeaturePress(
-                "Food Log & Nutrition Tracker", // Feature name for the alert
-                "FoodLog" // Screen name for navigation (should match your route name)
-              )
-            }
-            isPremiumFeature={true}
-          />
-
-              <MenuCard
-                icon="basket-outline"
-                title="What's in Your Kitchen?"
-                description="Find tasty recipes using the ingredients you already have"
-                onPress={() =>
-                  handlePremiumFeaturePress(
-                    "Recipe search by ingredients",
-                    "FindByIngredients"
-                  )
-                }
-                isPremiumFeature={true}
-              />
-              <MenuCard
-                icon="book-outline"
-                title="Meal Plan"
-                description="Get personalized meal plans and grocery lists tailored for you!"
-                onPress={() =>
-                  handlePremiumFeaturePress("Meal Planning", "MealPlans")
-                }
-                isPremiumFeature={true}
-              />
-              <MenuCard
-                icon="bookmark"
-                title="My Recipes"
-                description="Access your saved recipes and meal plans"
+                description="Scan any product barcode for instant health scores and nutritional insights"
                 onPress={() => {
-                  if (isLoggedIn) {
-                    navigation.navigate("MyRecipes");
-                  } else {
+                  if (!isLoggedIn) {
                     setIsLoginVisible(true);
+                    return;
                   }
+                  navigation.navigate("FoodScannerHome");
                 }}
               />
+
+              {/* Food Log & Nutrition Tracker - Premium */}
+              <HeroFeatureCard
+                icon="nutrition-outline"
+                title="Smart Nutrition Tracker"
+                description="AI-powered food logging with detailed macro tracking and personalized insights"
+                onPress={() =>
+                  handlePremiumFeaturePress(
+                    "Smart Nutrition Tracker",
+                    "FoodLog"
+                  )
+                }
+              />
+            </View>
+
+            {/* All Features Section */}
+            <View style={styles.featuresSection}>
+              <Text style={styles.sectionTitle}>Explore More</Text>
+              
+              <View style={styles.featureGrid}>
+                <FeatureCard
+                  icon="image"
+                  title="Recipe Explorer"
+                  description="Browse beautiful recipes with photos and details"
+                  onPress={() => navigation.navigate("RecipeScreen")}
+                />
+
+                <FeatureCard
+                  icon="search"
+                  title="Recipe Builder"
+                  description="Get personalized recipes based on your preferences"
+                  onPress={() => {
+                    if (!isLoggedIn) {
+                      setIsLoginVisible(true);
+                      return;
+                    }
+                    navigation.navigate("FindRecipes");
+                  }}
+                />
+
+                <FeatureCard
+                  icon="basket-outline"
+                  title="Ingredient Recipes"
+                  description="Find recipes using ingredients you have"
+                  onPress={() =>
+                    handlePremiumFeaturePress(
+                      "Recipe search by ingredients",
+                      "FindByIngredients"
+                    )
+                  }
+                  isPremiumFeature={true}
+                />
+
+                <FeatureCard
+                  icon="book-outline"
+                  title="Meal Planner"
+                  description="Personalized meal plans and smart grocery lists"
+                  onPress={() =>
+                    handlePremiumFeaturePress("Meal Planning", "MealPlans")
+                  }
+                  isPremiumFeature={true}
+                />
+
+                <FeatureCard
+                  icon="bookmark"
+                  title="My Recipes"
+                  description="Your saved recipes and meal plans"
+                  onPress={() => {
+                    if (isLoggedIn) {
+                      navigation.navigate("MyRecipes");
+                    } else {
+                      setIsLoginVisible(true);
+                    }
+                  }}
+                />
+              </View>
             </View>
           </View>
         </SafeAreaView>
@@ -626,6 +666,7 @@ export default function LandingScreen({ navigation }) {
       {/* Login Overlay */}
       {isLoginVisible && (
         <View style={styles.overlay}>
+          <View style={styles.blurBackground} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderIcon}>
@@ -634,8 +675,8 @@ export default function LandingScreen({ navigation }) {
               <Text style={styles.modalTitle}>Welcome to Kitchly</Text>
               <Text style={styles.modalSubtitle}>
                 {isNewUser
-                  ? "Create an account to start your culinary journey"
-                  : "Sign in to continue your culinary journey"}
+                  ? "Create an account to start your nutrition journey"
+                  : "Sign in to continue your nutrition journey"}
               </Text>
             </View>
 
@@ -753,6 +794,7 @@ export default function LandingScreen({ navigation }) {
       {/* Forgot Password Overlay */}
       {isForgotVisible && (
         <View style={styles.overlay}>
+          <View style={styles.blurBackground} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderIcon}>
@@ -826,7 +868,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   
-  // Dashboard Header Styles (from our dashboard version)
+  // Dashboard Header Styles
   dashboardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -849,11 +891,44 @@ const styles = StyleSheet.create({
   headerTextContainer: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   dashboardTitle: {
     fontSize: 35,
     fontWeight: "700",
     color: "#2c3e50",
     letterSpacing: -0.6,
+  },
+  premiumBadgeSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF8DC",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FFD700",
+    gap: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#FFD700",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  premiumBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#B8860B",
+    letterSpacing: 0.5,
   },
   dashboardSubtitle: {
     fontSize: 14,
@@ -867,22 +942,22 @@ const styles = StyleSheet.create({
     padding: 5,
   },
 
-  // Enterprise Account Status Card
+  // Account Status Card
   accountStatusCard: {
     backgroundColor: "white",
-    borderRadius: 12,
-    marginBottom: 25,
+    borderRadius: 16,
+    marginBottom: 20,
     borderLeftWidth: 4,
     borderLeftColor: "#008b8b",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
@@ -895,7 +970,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
@@ -926,6 +1001,223 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
+  // Premium CTA Section
+  premiumCTA: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: "#FFD700",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  premiumCTAContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+  },
+  premiumCTALeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  premiumCTAIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF8DC",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  premiumCTAText: {
+    flex: 1,
+  },
+  premiumCTATitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2c3e50",
+    marginBottom: 2,
+  },
+  premiumCTASubtitle: {
+    fontSize: 12,
+    color: "#7f8c8d",
+    lineHeight: 16,
+  },
+  premiumCTAButton: {
+    backgroundColor: "#008b8b",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  premiumCTAButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+
+  // Section Titles
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#2c3e50",
+    marginBottom: 16,
+    letterSpacing: -0.3,
+  },
+
+  // Hero Section
+  heroSection: {
+    marginBottom: 32,
+  },
+
+  // Hero Feature Cards
+  heroCard: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    marginBottom: 16,
+    borderLeftWidth: 6,
+    borderLeftColor: "#008b8b",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  heroCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 24,
+  },
+  heroIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 20,
+  },
+  heroTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#2c3e50",
+    marginBottom: 6,
+  },
+  heroDescription: {
+    fontSize: 15,
+    color: "#7f8c8d",
+    lineHeight: 22,
+  },
+  heroArrow: {
+    padding: 4,
+  },
+
+  // Features Section
+  featuresSection: {
+    marginBottom: 20,
+  },
+  featureGrid: {
+    gap: 12,
+  },
+
+  // Feature Cards
+  featureCard: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  featureCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+  },
+  featureIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+    position: "relative",
+  },
+  premiumBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  premiumIcon: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#34D399",
+  },
+  featureTextContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2c3e50",
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 13,
+    color: "#7f8c8d",
+    lineHeight: 18,
+  },
+
+  // Toast Styles
   toast: {
     position: "absolute",
     bottom: 100,
@@ -955,99 +1247,26 @@ const styles = StyleSheet.create({
     padding: 4,
     marginTop: -2,
   },
-  menuContainer: {
-    flex: 1,
-    justifyContent: "center",
-    gap: 20,
-  },
-  menuItem: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  menuContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: "#f1f5f9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-    position: "relative",
-  },
-  // Professional Premium Badge
-  premiumBadge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "white",
-    justifyContent: "center",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  premiumIcon: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#34D399",
-  },
-  menuTextContainer: {
-    flex: 1,
-    marginRight: 16,
-  },
-  menuTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#2c3e50",
-    marginBottom: 4,
-  },
-  menuDescription: {
-    fontSize: 14,
-    color: "#7f8c8d",
-    lineHeight: 20,
-  },
+
+  // Modal Styles
   overlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
     zIndex: 1000,
+  },
+  blurBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   modalContent: {
     backgroundColor: "white",

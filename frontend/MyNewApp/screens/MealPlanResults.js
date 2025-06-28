@@ -1080,6 +1080,7 @@ const styles = StyleSheet.create({
   },
 
   saveButtonContainer: {
+      borderColor:"black",
     // Moved save button to controls area for better layout
   },
 

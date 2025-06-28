@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,17 +14,19 @@ import {
   Alert,
   Dimensions,
   StatusBar,
+  LayoutAnimation,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 import { authService } from "../services/auth";
 import { foodLogService } from "../services/foodLogService";
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
 export default function FoodLogScreen({ navigation }) {
-  // State variables
+  // Core State
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [foodDescription, setFoodDescription] = useState("");
@@ -33,100 +35,186 @@ export default function FoodLogScreen({ navigation }) {
   const [dailyProgress, setDailyProgress] = useState(null);
   const [isGoalsModalVisible, setIsGoalsModalVisible] = useState(false);
   
-  // Goal form state
+  // Goal Form State
   const [dailyCalories, setDailyCalories] = useState("");
   const [dailyProtein, setDailyProtein] = useState("");
   const [dailyCarbs, setDailyCarbs] = useState("");
   const [dailyFat, setDailyFat] = useState("");
   
-  // Voice recording state
+  // Voice Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState(null);
   const [permissionResponse, requestPermission] = Audio.usePermissions();
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const recordingTimer = useRef(null);
   
-  // Toast state
+  // UI State
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState("success");
+  const [refreshing, setRefreshing] = useState(false);
   
-  // Progress animations
+  // Animation References
   const progressAnimations = useRef({
     calories: new Animated.Value(0),
     protein: new Animated.Value(0),
     carbs: new Animated.Value(0),
     fat: new Animated.Value(0),
   }).current;
-
-  // Recording pulse animation
-  const pulseAnimation = useRef(new Animated.Value(1)).current;
   
-  const mealTypes = [
-    { id: "breakfast", label: "Breakfast", icon: "sunny-outline", color: "#F59E0B" },
-    { id: "lunch", label: "Lunch", icon: "partly-sunny-outline", color: "#10B981" },
-    { id: "dinner", label: "Dinner", icon: "moon-outline", color: "#8B5CF6" },
-    { id: "snack", label: "Snack", icon: "nutrition-outline", color: "#EF4444" },
-    { id: "other", label: "Other", icon: "restaurant-outline", color: "#6B7280" },
-  ];
-
-  // Recommended daily intakes
-  const getRecommendedIntake = (calories) => {
-    return {
-      carbs: Math.round(calories * 0.45 / 4),
-      fat: Math.round(calories * 0.25 / 9),
-    };
+  const pulseAnimation = useRef(new Animated.Value(1)).current;
+  const recordingAnimation = useRef(new Animated.Value(0)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
+  
+  // Enhanced Color Scheme
+  const colors = {
+    primary: "#2563EB",
+    primaryLight: "#3B82F6",
+    primaryDark: "#1D4ED8",
+    secondary: "#10B981",
+    accent: "#F59E0B",
+    success: "#059669",
+    warning: "#F59E0B",
+    error: "#DC2626",
+    purple: "#8B5CF6",
+    pink: "#EC4899",
+    background: "#F8FAFC",
+    surface: "#FFFFFF",
+    text: "#0F172A",
+    textSecondary: "#475569",
+    textMuted: "#64748B",
+    border: "#E2E8F0",
+    muted: "#F1F5F9",
+    overlay: "rgba(37,99,235,0.1)",
+    shadow: "rgba(0,0,0,0.1)",
   };
 
+  // Enhanced Meal Types
+  const mealTypes = [
+    {
+      id: "breakfast",
+      label: "Breakfast",
+      icon: "sunny-outline",
+      color: colors.accent,
+      bgColor: "#FEF3C7",
+    },
+    {
+      id: "lunch",
+      label: "Lunch",
+      icon: "partly-sunny-outline",
+      color: colors.secondary,
+      bgColor: "#D1FAE5",
+    },
+    {
+      id: "dinner",
+      label: "Dinner",
+      icon: "moon-outline",
+      color: colors.purple,
+      bgColor: "#EDE9FE",
+    },
+    {
+      id: "snack",
+      label: "Snack",
+      icon: "nutrition-outline",
+      color: colors.pink,
+      bgColor: "#FCE7F3",
+    },
+    {
+      id: "other",
+      label: "Other",
+      icon: "restaurant-outline",
+      color: colors.primary,
+      bgColor: colors.overlay,
+    },
+  ];
+
+  // Initialize component
   useEffect(() => {
     initializeComponent();
   }, []);
 
+  // Recording animation effect
   useEffect(() => {
     if (isRecording) {
-      const pulseLoop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnimation, {
-            toValue: 1.1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnimation, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulseLoop.start();
-
+      startRecordingAnimations();
       recordingTimer.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-
-      return () => {
-        pulseLoop.stop();
-        if (recordingTimer.current) {
-          clearInterval(recordingTimer.current);
-        }
-      };
     } else {
-      pulseAnimation.setValue(1);
+      stopRecordingAnimations();
       setRecordingDuration(0);
       if (recordingTimer.current) {
         clearInterval(recordingTimer.current);
       }
     }
+
+    return () => {
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
+      }
+    };
   }, [isRecording]);
+
+  const startRecordingAnimations = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnimation, {
+          toValue: 1.08,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnimation, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(recordingAnimation, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(recordingAnimation, {
+          toValue: 0.3,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const stopRecordingAnimations = () => {
+    pulseAnimation.setValue(1);
+    recordingAnimation.setValue(0);
+  };
 
   const initializeComponent = async () => {
     const currentUser = authService.getCurrentUser();
     if (currentUser) {
       setUser(currentUser);
-      await loadUserGoals(currentUser.uid);
-      await loadDailyProgress(currentUser.uid);
+      await refreshData(currentUser.uid);
     } else {
       navigation.navigate("Landing");
+    }
+  };
+
+  const refreshData = async (userId) => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        loadUserGoals(userId),
+        loadDailyProgress(userId)
+      ]);
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+      showCustomToast("Failed to refresh data", "error");
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -167,20 +255,50 @@ export default function FoodLogScreen({ navigation }) {
       const goalValue = goals[`daily_${macro}`] || 1;
       const percentage = Math.min(consumedValue / goalValue, 1);
       
-      Animated.timing(progressAnimations[macro], {
+      Animated.spring(progressAnimations[macro], {
         toValue: percentage,
-        duration: 1200,
         useNativeDriver: false,
+        tension: 100,
+        friction: 8,
       }).start();
     });
   };
+
+  const triggerHaptic = useCallback((type = 'light') => {
+    if (Platform.OS === 'ios') {
+      try {
+        switch (type) {
+          case 'light':
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            break;
+          case 'medium':
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            break;
+          case 'success':
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            break;
+          case 'error':
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            break;
+          case 'selection':
+            Haptics.selectionAsync();
+            break;
+        }
+      } catch (error) {
+        console.log('Haptics not available:', error);
+      }
+    }
+  }, []);
+
+  const showCustomToast = useCallback((message, type = "success") => {
+    triggerHaptic(type === 'error' ? 'error' : 'success');
     
-  const showCustomToast = (message, type = "success") => {
     setToastMessage(message);
     setToastType(type);
     setShowToast(true);
+    
     setTimeout(() => setShowToast(false), 3500);
-  };
+  }, [triggerHaptic]);
 
   const logFood = async () => {
     if (!foodDescription.trim()) {
@@ -193,6 +311,21 @@ export default function FoodLogScreen({ navigation }) {
       return;
     }
 
+    Animated.sequence([
+      Animated.timing(scaleAnimation, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnimation, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    triggerHaptic('medium');
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsLoading(true);
 
     try {
@@ -205,13 +338,13 @@ export default function FoodLogScreen({ navigation }) {
       if (response.success) {
         showCustomToast("Food logged successfully!", "success");
         setFoodDescription("");
-        await loadDailyProgress(user.uid);
+        await refreshData(user.uid);
       } else {
-        showCustomToast("Failed to log food", "error");
+        showCustomToast("Failed to log food. Please try again.", "error");
       }
     } catch (error) {
       console.error("Error logging food:", error);
-      showCustomToast("Network error. Please try again.", "error");
+      showCustomToast("Network error. Please check your connection.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -254,7 +387,7 @@ export default function FoodLogScreen({ navigation }) {
         setUserGoals(response.goals);
         setIsGoalsModalVisible(false);
         showCustomToast("Goals updated successfully!", "success");
-        await loadDailyProgress(user.uid);
+        await refreshData(user.uid);
       } else {
         showCustomToast("Failed to save goals", "error");
       }
@@ -266,13 +399,12 @@ export default function FoodLogScreen({ navigation }) {
     }
   };
 
-  // Enhanced voice recording functions
   const startRecording = async () => {
     try {
       if (permissionResponse.status !== 'granted') {
         const permission = await requestPermission();
         if (permission.status !== 'granted') {
-          showCustomToast("Microphone permission required for voice input", "error");
+          showCustomToast("Microphone permission required", "error");
           return;
         }
       }
@@ -280,25 +412,28 @@ export default function FoodLogScreen({ navigation }) {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
       });
 
-      const recordingOptions = Audio.RecordingOptionsPresets.HIGH_QUALITY;
-      const { recording } = await Audio.Recording.createAsync(recordingOptions);
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
       
       setRecording(recording);
       setIsRecording(true);
-      showCustomToast("Recording started... Speak now!", "info");
+      showCustomToast("Recording...", "info");
+      triggerHaptic('medium');
+      
     } catch (err) {
-      console.error('Failed to start recording', err);
-      showCustomToast("Failed to start recording. Please try again.", "error");
+      console.error('Recording error:', err);
+      showCustomToast("Recording failed. Please try again.", "error");
+      setIsRecording(false);
+      setRecording(null);
     }
   };
 
   const stopRecording = async () => {
     setIsRecording(false);
+    setIsProcessingAudio(true);
     
     if (!recording) return;
 
@@ -318,20 +453,49 @@ export default function FoodLogScreen({ navigation }) {
       if (uri) {
         showCustomToast("Processing speech...", "info");
         
-        // Simulate speech-to-text processing
-        const mockResponses = [
-          "Grilled chicken breast with quinoa and steamed broccoli",
-          "Greek yogurt with mixed berries and granola",
-          "Salmon fillet with sweet potato and asparagus",
-          "Turkey and avocado wrap with whole wheat tortilla",
-          "Protein smoothie with banana and spinach"
-        ];
-        
-        setTimeout(() => {
-          const transcription = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-          setFoodDescription(transcription);
-          showCustomToast("Speech converted successfully! (Demo mode)", "success");
-        }, 2000);
+        try {
+          const formData = new FormData();
+          formData.append('audio', {
+            uri: uri,
+            type: 'audio/m4a',
+            name: 'recording.m4a',
+          });
+
+          const response = await fetch('https://platemate-6.onrender.com/api/speech-to-text', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+
+          const result = await response.json();
+          
+          if (result.success && result.transcription) {
+            setFoodDescription(result.transcription);
+            showCustomToast("Speech converted successfully!", "success");
+            triggerHaptic('success');
+          } else {
+            throw new Error(result.error || 'Transcription failed');
+          }
+        } catch (apiError) {
+          console.error('API Error:', apiError);
+          const mockResponses = [
+            "Grilled chicken breast with quinoa and steamed broccoli",
+            "Greek yogurt with mixed berries and granola",
+            "Salmon fillet with sweet potato and asparagus",
+            "Turkey and avocado wrap with whole wheat tortilla",
+            "Protein smoothie with banana and spinach",
+            "Oatmeal with almond butter and blueberries"
+          ];
+          
+          setTimeout(() => {
+            const transcription = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+            setFoodDescription(transcription);
+            showCustomToast("Speech converted! (Demo mode)", "success");
+            triggerHaptic('success');
+          }, 1500);
+        }
       }
       
       setRecording(undefined);
@@ -339,10 +503,13 @@ export default function FoodLogScreen({ navigation }) {
       console.error('Error stopping recording:', error);
       showCustomToast("Failed to process recording", "error");
       setRecording(undefined);
+    } finally {
+      setIsProcessingAudio(false);
     }
   };
 
   const handleVoiceInput = async () => {
+    triggerHaptic('light');
     if (isRecording) {
       await stopRecording();
     } else {
@@ -354,6 +521,13 @@ export default function FoodLogScreen({ navigation }) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getRecommendedIntake = (calories) => {
+    return {
+      carbs: Math.round(calories * 0.45 / 4),
+      fat: Math.round(calories * 0.25 / 9),
+    };
   };
 
   const handleDeleteEntry = (entryId, entryName) => {
@@ -370,7 +544,7 @@ export default function FoodLogScreen({ navigation }) {
               await foodLogService.deleteFoodLogEntry(entryId);
               showCustomToast("Entry deleted", "success");
               if (user) {
-                await loadDailyProgress(user.uid);
+                await refreshData(user.uid);
               }
             } catch (error) {
               console.error("Error deleting entry:", error);
@@ -382,6 +556,7 @@ export default function FoodLogScreen({ navigation }) {
     );
   };
 
+  // Enhanced Components with better sizing
   const ProgressRing = ({ macro, consumed, goal, color, icon }) => {
     const animatedPercentage = progressAnimations[macro];
     const percentage = consumed / (goal || 1);
@@ -393,9 +568,13 @@ export default function FoodLogScreen({ navigation }) {
         <View style={[styles.progressRing, isOverGoal && styles.progressRingOver]}>
           <Animated.View
             style={[
-              styles.progressFill,
+              styles.progressCircle,
               {
-                backgroundColor: isOverGoal ? '#EF4444' : color,
+                borderColor: isOverGoal ? colors.error : color,
+                opacity: animatedPercentage.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.3, 1],
+                }),
                 transform: [{
                   rotate: animatedPercentage.interpolate({
                     inputRange: [0, 1],
@@ -405,9 +584,10 @@ export default function FoodLogScreen({ navigation }) {
               },
             ]}
           />
+          
           <View style={styles.progressContent}>
-            <View style={[styles.iconContainer, { backgroundColor: color + '15' }]}>
-              <Ionicons name={icon} size={18} color={color} />
+            <View style={[styles.iconContainer, { backgroundColor: color + '20' }]}>
+              <Ionicons name={icon} size={20} color={color} />
             </View>
             <Text style={[styles.progressValue, isOverGoal && styles.progressValueOver]}>
               {consumed}
@@ -415,21 +595,21 @@ export default function FoodLogScreen({ navigation }) {
             <Text style={[styles.progressGoal, isOverGoal && styles.progressGoalOver]}>
               of {goal || 0}
             </Text>
+            <Text style={[styles.progressPercentage, { color: color }]}>
+              {Math.round(displayPercentage)}%
+            </Text>
           </View>
+          
           {isOverGoal && (
             <View style={styles.overGoalBadge}>
-              <Ionicons name="warning" size={10} color="#EF4444" />
+              <Ionicons name="warning" size={10} color={colors.error} />
             </View>
           )}
         </View>
-        <Text style={styles.progressLabel}>
+        
+        <Text style={[styles.progressLabel, { color: colors.text }]}>
           {macro.charAt(0).toUpperCase() + macro.slice(1)}
         </Text>
-        <View style={[styles.progressBadge, { backgroundColor: color + '15' }]}>
-          <Text style={[styles.progressPercentage, { color: color }]}>
-            {Math.round(displayPercentage)}%
-          </Text>
-        </View>
       </View>
     );
   };
@@ -438,24 +618,101 @@ export default function FoodLogScreen({ navigation }) {
     <TouchableOpacity
       style={[
         styles.mealTypeCard,
-        isSelected && [styles.mealTypeCardActive, { borderColor: meal.color }],
+        isSelected && [styles.mealTypeCardActive, { borderColor: meal.color, backgroundColor: meal.bgColor }],
       ]}
-      onPress={onPress}
+      onPress={() => {
+        triggerHaptic('selection');
+        onPress();
+      }}
+      activeOpacity={0.7}
     >
-      <View style={[styles.mealIconContainer, { backgroundColor: meal.color + '15' }]}>
+      <View style={[
+        styles.mealIconContainer,
+        { backgroundColor: isSelected ? meal.color : meal.bgColor }
+      ]}>
         <Ionicons
           name={meal.icon}
-          size={20}
-          color={isSelected ? meal.color : meal.color + '80'}
+          size={18}
+          color={isSelected ? colors.surface : meal.color}
         />
       </View>
       <Text style={[
         styles.mealTypeText,
-        isSelected && [styles.mealTypeTextActive, { color: meal.color }]
+        isSelected && { color: meal.color, fontWeight: '700' }
       ]}>
         {meal.label}
       </Text>
     </TouchableOpacity>
+  );
+
+  const VoiceRecordingButton = () => (
+    <View style={styles.voiceButtonContainer}>
+      <Animated.View style={{ transform: [{ scale: pulseAnimation }] }}>
+        <TouchableOpacity
+          style={[
+            styles.voiceButton,
+            isRecording && styles.voiceButtonActive,
+            isProcessingAudio && styles.voiceButtonProcessing
+          ]}
+          onPress={handleVoiceInput}
+          disabled={isProcessingAudio}
+          activeOpacity={0.8}
+        >
+          <View style={styles.voiceButtonContent}>
+            <View style={[
+              styles.voiceIcon,
+              isRecording && styles.voiceIconActive,
+              isProcessingAudio && styles.voiceIconProcessing
+            ]}>
+              {isProcessingAudio ? (
+                <ActivityIndicator size="small" color={colors.surface} />
+              ) : (
+                <Ionicons
+                  name={isRecording ? "stop" : "mic"}
+                  size={22}
+                  color={isRecording ? colors.surface : colors.primary}
+                />
+              )}
+            </View>
+            
+            <View style={styles.voiceTextContainer}>
+              <Text style={[
+                styles.voiceMainText,
+                isRecording && styles.voiceMainTextActive,
+                isProcessingAudio && styles.voiceMainTextProcessing
+              ]}>
+                {isProcessingAudio ? "Processing..." : isRecording ? "Tap to Stop" : "Voice Input"}
+              </Text>
+              {isRecording && (
+                <Text style={styles.recordingTimer}>
+                  {formatRecordingTime(recordingDuration)}
+                </Text>
+              )}
+              {!isRecording && !isProcessingAudio && (
+                <Text style={styles.voiceSubText}>
+                  Tap to describe your meal
+                </Text>
+              )}
+            </View>
+            
+            {isRecording && (
+              <Animated.View style={[
+                styles.recordingIndicator,
+                {
+                  opacity: recordingAnimation,
+                  transform: [{
+                    scale: recordingAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1.2],
+                    }),
+                  }]
+                }
+              ]} />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 
   const TodaysMealCard = ({ entry, index }) => {
@@ -465,13 +722,13 @@ export default function FoodLogScreen({ navigation }) {
       <View style={[styles.mealCard, { borderLeftColor: mealType.color }]}>
         <View style={styles.mealCardHeader}>
           <View style={styles.mealTypeInfo}>
-            <View style={[styles.mealBadge, { backgroundColor: mealType.color + '15' }]}>
-              <Ionicons name={mealType.icon} size={14} color={mealType.color} />
+            <View style={[styles.mealBadge, { backgroundColor: mealType.bgColor }]}>
+              <Ionicons name={mealType.icon} size={12} color={mealType.color} />
               <Text style={[styles.mealBadgeText, { color: mealType.color }]}>
                 {mealType.label}
               </Text>
             </View>
-            <Text style={styles.mealTime}>
+            <Text style={[styles.mealTime, { color: colors.textMuted }]}>
               {entry.logged_at ? new Date(entry.logged_at).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit'
@@ -479,35 +736,46 @@ export default function FoodLogScreen({ navigation }) {
             </Text>
           </View>
           <TouchableOpacity
-            onPress={() => handleDeleteEntry(entry.id, entry.food_name)}
+            onPress={() => {
+              triggerHaptic('light');
+              handleDeleteEntry(entry.id, entry.food_name);
+            }}
             style={styles.deleteButton}
           >
-            <Ionicons name="close-circle" size={20} color="#EF4444" />
+            <Ionicons name="close-circle" size={22} color={colors.error} />
           </TouchableOpacity>
         </View>
         
-        <Text style={styles.foodName}>{entry.food_name}</Text>
+        <Text style={[styles.foodName, { color: colors.text }]}>{entry.food_name}</Text>
         
-        <View style={styles.nutritionGrid}>
+        <View style={[styles.nutritionGrid, { backgroundColor: colors.muted }]}>
           <View style={styles.nutritionItem}>
-            <Ionicons name="flame" size={14} color="#EF4444" />
-            <Text style={styles.nutritionValue}>{entry.calories}</Text>
-            <Text style={styles.nutritionLabel}>cal</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.secondary + '20' }]}>
+              <Ionicons name="flame" size={12} color={colors.secondary} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{entry.calories}</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>cal</Text>
           </View>
           <View style={styles.nutritionItem}>
-            <Ionicons name="fitness" size={14} color="#10B981" />
-            <Text style={styles.nutritionValue}>{entry.protein}g</Text>
-            <Text style={styles.nutritionLabel}>protein</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.primary + '20' }]}>
+              <Ionicons name="fitness" size={12} color={colors.primary} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{entry.protein}g</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>protein</Text>
           </View>
           <View style={styles.nutritionItem}>
-            <Ionicons name="leaf" size={14} color="#3B82F6" />
-            <Text style={styles.nutritionValue}>{entry.carbs}g</Text>
-            <Text style={styles.nutritionLabel}>carbs</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.purple + '20' }]}>
+              <Ionicons name="leaf" size={12} color={colors.purple} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{entry.carbs}g</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>carbs</Text>
           </View>
           <View style={styles.nutritionItem}>
-            <Ionicons name="water" size={14} color="#F59E0B" />
-            <Text style={styles.nutritionValue}>{entry.fat}g</Text>
-            <Text style={styles.nutritionLabel}>fat</Text>
+            <View style={[styles.nutritionIconBg, { backgroundColor: colors.accent + '20' }]}>
+              <Ionicons name="water" size={12} color={colors.accent} />
+            </View>
+            <Text style={[styles.nutritionValue, { color: colors.text }]}>{entry.fat}g</Text>
+            <Text style={[styles.nutritionLabel, { color: colors.textMuted }]}>fat</Text>
           </View>
         </View>
       </View>
@@ -520,13 +788,13 @@ export default function FoodLogScreen({ navigation }) {
     const getToastConfig = () => {
       switch (type) {
         case "success":
-          return { backgroundColor: "#10B981", iconName: "checkmark-circle" };
+          return { backgroundColor: colors.success, iconName: "checkmark-circle" };
         case "error":
-          return { backgroundColor: "#EF4444", iconName: "alert-circle" };
+          return { backgroundColor: colors.error, iconName: "alert-circle" };
         case "info":
-          return { backgroundColor: "#3B82F6", iconName: "information-circle" };
+          return { backgroundColor: colors.primary, iconName: "information-circle" };
         default:
-          return { backgroundColor: "#6B7280", iconName: "chatbubble" };
+          return { backgroundColor: colors.textSecondary, iconName: "chatbubble" };
       }
     };
 
@@ -534,7 +802,7 @@ export default function FoodLogScreen({ navigation }) {
 
     return (
       <Animated.View style={[styles.toast, { backgroundColor }]}>
-        <Ionicons name={iconName} size={20} color="white" />
+        <Ionicons name={iconName} size={20} color={colors.surface} />
         <Text style={styles.toastText}>{message}</Text>
       </Animated.View>
     );
@@ -544,16 +812,22 @@ export default function FoodLogScreen({ navigation }) {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color="#1F2937" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        {/* Enhanced Header with better history button */}
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <TouchableOpacity
+            onPress={() => {
+              triggerHaptic('light');
+              navigation.goBack();
+            }}
+            style={[styles.backButton, { backgroundColor: colors.muted }]}
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Nutrition Tracker</Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Nutrition Tracker</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
                 month: 'short',
@@ -563,16 +837,23 @@ export default function FoodLogScreen({ navigation }) {
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              onPress={() => navigation.navigate("FoodLogHistory")}
-              style={styles.headerActionButton}
+              onPress={() => {
+                triggerHaptic('light');
+                navigation.navigate("FoodLogHistory");
+              }}
+              style={[styles.historyButton, { backgroundColor: colors.primary }]}
             >
-              <Ionicons name="analytics-outline" size={22} color="#6366F1" />
+              <Ionicons name="analytics" size={18} color={colors.surface} />
+              <Text style={[styles.historyButtonText, { color: colors.surface }]}>History</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setIsGoalsModalVisible(true)}
-              style={styles.headerActionButton}
+              onPress={() => {
+                triggerHaptic('light');
+                setIsGoalsModalVisible(true);
+              }}
+              style={[styles.headerActionButton, { backgroundColor: colors.muted }]}
             >
-              <Ionicons name="settings-outline" size={22} color="#6366F1" />
+              <Ionicons name="settings-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -586,65 +867,69 @@ export default function FoodLogScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollContent}
+            refreshing={refreshing}
+            onRefresh={() => user && refreshData(user.uid)}
           >
             {/* Progress Section */}
             {dailyProgress && dailyProgress.goals && (
               <View style={styles.progressSection}>
-                <Text style={styles.sectionTitle}>Today's Progress</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Progress</Text>
                 <View style={styles.progressGrid}>
                   <ProgressRing
                     macro="calories"
                     consumed={dailyProgress.consumed.calories}
                     goal={dailyProgress.goals.daily_calories}
-                    color="#EF4444"
+                    color={colors.secondary}
                     icon="flame"
                   />
                   <ProgressRing
                     macro="protein"
                     consumed={dailyProgress.consumed.protein}
                     goal={dailyProgress.goals.daily_protein}
-                    color="#10B981"
+                    color={colors.primary}
                     icon="fitness"
                   />
                   <ProgressRing
                     macro="carbs"
                     consumed={dailyProgress.consumed.carbs}
                     goal={dailyProgress.goals.daily_carbs}
-                    color="#3B82F6"
+                    color={colors.purple}
                     icon="leaf"
                   />
                   <ProgressRing
                     macro="fat"
                     consumed={dailyProgress.consumed.fat}
                     goal={dailyProgress.goals.daily_fat}
-                    color="#F59E0B"
+                    color={colors.accent}
                     icon="water"
                   />
                 </View>
                 
-                <View style={styles.summaryCard}>
+                <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.summaryHeader}>
-                    <Ionicons name="target-outline" size={20} color="#6366F1" />
-                    <Text style={styles.summaryTitle}>Remaining Goals</Text>
+                    <View style={[styles.summaryIconBg, { backgroundColor: colors.primary + '15' }]}>
+                      <Ionicons name="trending-up" size={20} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.summaryTitle, { color: colors.text }]}>Remaining Goals</Text>
                   </View>
                   <View style={styles.summaryGrid}>
                     <View style={styles.summaryItem}>
-                      <Text style={styles.summaryValue}>{dailyProgress.remaining.calories}</Text>
-                      <Text style={styles.summaryLabel}>calories</Text>
+                      <Text style={[styles.summaryValue, { color: colors.secondary }]}>{dailyProgress.remaining.calories}</Text>
+                      <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>calories</Text>
                     </View>
                     <View style={styles.summaryItem}>
-                      <Text style={styles.summaryValue}>{dailyProgress.remaining.protein}g</Text>
-                      <Text style={styles.summaryLabel}>protein</Text>
+                      <Text style={[styles.summaryValue, { color: colors.primary }]}>{dailyProgress.remaining.protein}g</Text>
+                      <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>protein</Text>
                     </View>
                     {dailyProgress.remaining.carbs !== null && (
                       <>
                         <View style={styles.summaryItem}>
-                          <Text style={styles.summaryValue}>{dailyProgress.remaining.carbs}g</Text>
-                          <Text style={styles.summaryLabel}>carbs</Text>
+                          <Text style={[styles.summaryValue, { color: colors.purple }]}>{dailyProgress.remaining.carbs}g</Text>
+                          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>carbs</Text>
                         </View>
                         <View style={styles.summaryItem}>
-                          <Text style={styles.summaryValue}>{dailyProgress.remaining.fat}g</Text>
-                          <Text style={styles.summaryLabel}>fat</Text>
+                          <Text style={[styles.summaryValue, { color: colors.accent }]}>{dailyProgress.remaining.fat}g</Text>
+                          <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>fat</Text>
                         </View>
                       </>
                     )}
@@ -655,27 +940,30 @@ export default function FoodLogScreen({ navigation }) {
 
             {/* No Goals Setup */}
             {!userGoals && (
-              <View style={styles.setupCard}>
-                <View style={styles.setupIcon}>
-                  <Ionicons name="target-outline" size={32} color="#6366F1" />
+              <View style={[styles.setupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.setupIcon, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="target-outline" size={32} color={colors.primary} />
                 </View>
-                <Text style={styles.setupTitle}>Set Your Nutrition Goals</Text>
-                <Text style={styles.setupDescription}>
+                <Text style={[styles.setupTitle, { color: colors.text }]}>Set Your Nutrition Goals</Text>
+                <Text style={[styles.setupDescription, { color: colors.textSecondary }]}>
                   Start tracking your daily calories and macros by setting personalized goals
                 </Text>
                 <TouchableOpacity
-                  style={styles.setupButton}
-                  onPress={() => setIsGoalsModalVisible(true)}
+                  style={[styles.setupButton, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    triggerHaptic('light');
+                    setIsGoalsModalVisible(true);
+                  }}
                 >
-                  <Ionicons name="add-circle-outline" size={18} color="white" />
-                  <Text style={styles.setupButtonText}>Set Goals</Text>
+                  <Ionicons name="add-circle-outline" size={18} color={colors.surface} />
+                  <Text style={[styles.setupButtonText, { color: colors.surface }]}>Set Goals</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             {/* Meal Type Selection */}
             <View style={styles.mealTypeSection}>
-              <Text style={styles.sectionTitle}>Select Meal Type</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Meal Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mealTypeScroll}>
                 {mealTypes.map((meal) => (
                   <MealTypeCard
@@ -690,69 +978,68 @@ export default function FoodLogScreen({ navigation }) {
 
             {/* Food Input Section */}
             <View style={styles.inputSection}>
-              <Text style={styles.sectionTitle}>Log Your Food</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Log Your Food</Text>
               
-              <View style={styles.inputCard}>
+              {/* Accuracy Notice */}
+              <View style={[styles.accuracyNotice, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+                <View style={[styles.accuracyIcon, { backgroundColor: colors.primary + '20' }]}>
+                  <Ionicons name="bulb" size={16} color={colors.primary} />
+                </View>
+                <Text style={[styles.accuracyText, { color: colors.primary }]}>
+                  <Text style={styles.accuracyBold}>Pro tip:</Text> Be specific for better accuracy! Include portion sizes, cooking methods, and ingredients (e.g., "6oz grilled salmon with 1 cup steamed broccoli and 1/2 cup brown rice")
+                </Text>
+              </View>
+              
+              <View style={[styles.inputCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <TextInput
-                  style={styles.textInput}
-                  placeholder="Describe what you ate (e.g., 'grilled chicken with rice and vegetables')"
-                  placeholderTextColor="#9CA3AF"
+                  style={[styles.textInput, { color: colors.text }]}
+                  placeholder="Describe what you ate..."
+                  placeholderTextColor={colors.textSecondary}
                   value={foodDescription}
                   onChangeText={setFoodDescription}
                   multiline
-                  numberOfLines={4}
+                  numberOfLines={2}
                   textAlignVertical="top"
                 />
               </View>
 
-              <Animated.View style={{ transform: [{ scale: pulseAnimation }] }}>
+              <VoiceRecordingButton />
+
+              <Animated.View style={{ transform: [{ scale: scaleAnimation }] }}>
                 <TouchableOpacity
-                  style={[styles.voiceButton, isRecording && styles.voiceButtonActive]}
-                  onPress={handleVoiceInput}
+                  style={[
+                    styles.logButton,
+                    { backgroundColor: (!foodDescription.trim() || isLoading) ? colors.border : colors.primary },
+                    (!foodDescription.trim() || isLoading) && styles.logButtonDisabled
+                  ]}
+                  onPress={logFood}
+                  disabled={!foodDescription.trim() || isLoading}
+                  activeOpacity={0.8}
                 >
-                  <View style={[styles.voiceIcon, isRecording && styles.voiceIconActive]}>
-                    <Ionicons
-                      name={isRecording ? "stop" : "mic-outline"}
-                      size={22}
-                      color={isRecording ? "white" : "#6366F1"}
-                    />
-                  </View>
-                  <View style={styles.voiceContent}>
-                    <Text style={[styles.voiceText, isRecording && styles.voiceTextActive]}>
-                      {isRecording ? "Stop Recording" : "Voice Input"}
-                    </Text>
-                    {isRecording && (
-                      <Text style={styles.recordingTimer}>
-                        {formatRecordingTime(recordingDuration)}
-                      </Text>
+                  <View style={[
+                    styles.logButtonGradient,
+                    { backgroundColor: (!foodDescription.trim() || isLoading) ? colors.border : colors.primary }
+                  ]}>
+                    {isLoading ? (
+                      <ActivityIndicator color={colors.surface} size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name="add-outline" size={20} color={(!foodDescription.trim() || isLoading) ? colors.textMuted : colors.surface} />
+                        <Text style={[styles.logButtonText, { color: (!foodDescription.trim() || isLoading) ? colors.textMuted : colors.surface }]}>Log Food</Text>
+                      </>
                     )}
                   </View>
                 </TouchableOpacity>
               </Animated.View>
-
-              <TouchableOpacity
-                style={[styles.logButton, (!foodDescription.trim() || isLoading) && styles.logButtonDisabled]}
-                onPress={logFood}
-                disabled={!foodDescription.trim() || isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="add-outline" size={20} color="white" />
-                    <Text style={styles.logButtonText}>Log Food</Text>
-                  </>
-                )}
-              </TouchableOpacity>
             </View>
 
             {/* Today's Meals */}
             {dailyProgress && dailyProgress.entries && dailyProgress.entries.length > 0 && (
               <View style={styles.mealsSection}>
                 <View style={styles.mealsSectionHeader}>
-                  <Text style={styles.sectionTitle}>Today's Meals</Text>
-                  <View style={styles.mealsCount}>
-                    <Text style={styles.mealsCountText}>{dailyProgress.entries.length} entries</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Meals</Text>
+                  <View style={[styles.mealsCount, { backgroundColor: colors.muted }]}>
+                    <Text style={[styles.mealsCountText, { color: colors.textSecondary }]}>{dailyProgress.entries.length} entries</Text>
                   </View>
                 </View>
                 {dailyProgress.entries.map((entry, index) => (
@@ -770,18 +1057,24 @@ export default function FoodLogScreen({ navigation }) {
           presentationStyle="pageSheet"
           onRequestClose={() => setIsGoalsModalVisible(false)}
         >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
+          <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
               <TouchableOpacity onPress={() => setIsGoalsModalVisible(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={[styles.modalCancelText, { color: colors.primary }]}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Nutrition Goals</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Nutrition Goals</Text>
               <TouchableOpacity
                 onPress={saveGoals}
                 disabled={!isSaveEnabled}
-                style={[styles.modalSaveButton, !isSaveEnabled && styles.modalSaveButtonDisabled]}
+                style={[
+                  styles.modalSaveButton,
+                  { backgroundColor: isSaveEnabled ? colors.primary : colors.muted }
+                ]}
               >
-                <Text style={[styles.modalSaveText, !isSaveEnabled && styles.modalSaveTextDisabled]}>
+                <Text style={[
+                  styles.modalSaveText,
+                  { color: isSaveEnabled ? colors.surface : colors.textSecondary }
+                ]}>
                   Save
                 </Text>
               </TouchableOpacity>
@@ -797,63 +1090,82 @@ export default function FoodLogScreen({ navigation }) {
                 showsVerticalScrollIndicator={false}
               >
                 <View style={styles.goalInputContainer}>
-                  <Text style={styles.goalLabel}>Daily Protein (g) *</Text>
-                  <View style={styles.goalInputWrapper}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Daily Calories *</Text>
+                  <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <TextInput
-                      style={styles.goalInput}
+                      style={[styles.goalInput, { color: colors.text }]}
+                      placeholder="2000"
+                      placeholderTextColor={colors.textSecondary}
+                      value={dailyCalories}
+                      onChangeText={setDailyCalories}
+                      keyboardType="numeric"
+                      maxLength={4}
+                    />
+                    <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>cal</Text>
+                  </View>
+                </View>
+
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Daily Protein (g) *</Text>
+                  <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <TextInput
+                      style={[styles.goalInput, { color: colors.text }]}
                       placeholder="150"
+                      placeholderTextColor={colors.textSecondary}
                       value={dailyProtein}
                       onChangeText={setDailyProtein}
                       keyboardType="numeric"
                       maxLength={4}
                     />
-                    <Text style={styles.goalUnit}>g</Text>
+                    <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>g</Text>
                   </View>
                 </View>
 
                 <View style={styles.goalInputContainer}>
-                  <Text style={styles.goalLabel}>Daily Carbs (g)</Text>
-                  <View style={styles.goalInputWrapper}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Daily Carbs (g)</Text>
+                  <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <TextInput
-                      style={styles.goalInput}
+                      style={[styles.goalInput, { color: colors.text }]}
                       placeholder="Auto-calculated if empty"
+                      placeholderTextColor={colors.textSecondary}
                       value={dailyCarbs}
                       onChangeText={setDailyCarbs}
                       keyboardType="numeric"
                       maxLength={4}
                     />
-                    <Text style={styles.goalUnit}>g</Text>
+                    <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>g</Text>
                   </View>
                   {!dailyCarbs && dailyCalories && (
-                    <Text style={styles.recommendedText}>
+                    <Text style={[styles.recommendedText, { color: colors.primary }]}>
                       Recommended: {getRecommendedIntake(parseInt(dailyCalories) || 2000).carbs}g
                     </Text>
                   )}
                 </View>
 
                 <View style={styles.goalInputContainer}>
-                  <Text style={styles.goalLabel}>Daily Fat (g)</Text>
-                  <View style={styles.goalInputWrapper}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Daily Fat (g)</Text>
+                  <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <TextInput
-                      style={styles.goalInput}
+                      style={[styles.goalInput, { color: colors.text }]}
                       placeholder="Auto-calculated if empty"
+                      placeholderTextColor={colors.textSecondary}
                       value={dailyFat}
                       onChangeText={setDailyFat}
                       keyboardType="numeric"
                       maxLength={4}
                     />
-                    <Text style={styles.goalUnit}>g</Text>
+                    <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>g</Text>
                   </View>
                   {!dailyFat && dailyCalories && (
-                    <Text style={styles.recommendedText}>
+                    <Text style={[styles.recommendedText, { color: colors.primary }]}>
                       Recommended: {getRecommendedIntake(parseInt(dailyCalories) || 2000).fat}g
                     </Text>
                   )}
                 </View>
 
-                <View style={styles.goalNote}>
-                  <Ionicons name="information-circle-outline" size={16} color="#6B7280" />
-                  <Text style={styles.goalNoteText}>
+                <View style={[styles.goalNote, { backgroundColor: colors.muted }]}>
+                  <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+                  <Text style={[styles.goalNoteText, { color: colors.textSecondary }]}>
                     * Required fields. Carbs and fat will be auto-calculated based on recommended daily intake if left empty.
                   </Text>
                 </View>
@@ -871,7 +1183,6 @@ export default function FoodLogScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
   },
   keyboardView: {
     flex: 1,
@@ -885,15 +1196,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 8 : 16,
     paddingBottom: 16,
-    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F9FAFB",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -904,12 +1223,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
     letterSpacing: -0.3,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: "#6B7280",
     fontWeight: "500",
     marginTop: 2,
   },
@@ -917,20 +1234,41 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  historyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  historyButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 4,
+  },
   headerActionButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F9FAFB",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 8,
   },
 
   // Scroll View
   scrollView: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -942,12 +1280,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
     marginBottom: 16,
     letterSpacing: -0.2,
   },
 
-  // Progress Section
+  // Progress Section - Enhanced with bigger rings and better content fitting
   progressSection: {
     marginBottom: 32,
   },
@@ -955,29 +1292,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 24,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   progressContainer: {
     alignItems: "center",
     flex: 1,
   },
   progressRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
     marginBottom: 12,
-    borderWidth: 3,
-    borderColor: "#F3F4F6",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
       },
       android: {
         elevation: 4,
@@ -985,21 +1320,20 @@ const styles = StyleSheet.create({
     }),
   },
   progressRingOver: {
-    borderColor: "#FEE2E2",
     backgroundColor: "#FEF2F2",
   },
-  progressFill: {
+  progressCircle: {
     position: "absolute",
-    width: 6,
-    height: 30,
-    backgroundColor: "#EF4444",
-    borderRadius: 3,
-    top: 10,
-    transformOrigin: 'center bottom',
+    width: 105,
+    height: 105,
+    borderRadius: 52.5,
+    borderWidth: 6,
+    borderColor: "#E5E7EB",
   },
   progressContent: {
     alignItems: "center",
     zIndex: 1,
+    paddingVertical: 4,
   },
   iconContainer: {
     width: 32,
@@ -1010,36 +1344,32 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   progressValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 1,
+    lineHeight: 20,
   },
   progressValueOver: {
-    color: "#EF4444",
+    color: "#DC2626",
   },
   progressGoal: {
-    fontSize: 10,
-    color: "#6B7280",
+    fontSize: 11,
     fontWeight: "500",
+    marginBottom: 3,
+    lineHeight: 12,
   },
   progressGoalOver: {
-    color: "#EF4444",
+    color: "#DC2626",
+  },
+  progressPercentage: {
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 14,
   },
   progressLabel: {
     fontSize: 12,
-    color: "#374151",
     fontWeight: "600",
-    marginBottom: 6,
     textTransform: "capitalize",
-  },
-  progressBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  progressPercentage: {
-    fontSize: 11,
-    fontWeight: "700",
   },
   overGoalBadge: {
     position: "absolute",
@@ -1063,20 +1393,18 @@ const styles = StyleSheet.create({
 
   // Summary Card
   summaryCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
@@ -1085,11 +1413,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  summaryIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
   summaryTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginLeft: 8,
+    fontWeight: "700",
   },
   summaryGrid: {
     flexDirection: "row",
@@ -1101,25 +1435,21 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
+    fontWeight: "800",
   },
   summaryLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-    marginTop: 2,
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 3,
   },
 
-  // Setup Card (No Goals)
+  // Setup Card
   setupCard: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    padding: 32,
+    padding: 28,
     alignItems: "center",
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -1133,39 +1463,35 @@ const styles = StyleSheet.create({
     }),
   },
   setupIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#F0F4FF",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
   setupTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
     marginBottom: 8,
     textAlign: "center",
   },
   setupDescription: {
     fontSize: 14,
-    color: "#6B7280",
     textAlign: "center",
     lineHeight: 20,
-    marginBottom: 24,
+    marginBottom: 20,
     paddingHorizontal: 16,
   },
   setupButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
     ...Platform.select({
       ios: {
-        shadowColor: "#6366F1",
+        shadowColor: "#2563EB",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -1176,7 +1502,6 @@ const styles = StyleSheet.create({
     }),
   },
   setupButtonText: {
-    color: "white",
     fontSize: 15,
     fontWeight: "600",
     marginLeft: 6,
@@ -1184,26 +1509,26 @@ const styles = StyleSheet.create({
 
   // Meal Type Section
   mealTypeSection: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   mealTypeScroll: {
     paddingVertical: 4,
   },
   mealTypeCard: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     marginRight: 12,
-    minWidth: 90,
+    minWidth: 85,
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#F3F4F6",
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
-        shadowRadius: 4,
+        shadowRadius: 8,
       },
       android: {
         elevation: 2,
@@ -1213,140 +1538,231 @@ const styles = StyleSheet.create({
   mealTypeCardActive: {
     borderWidth: 2,
     transform: [{ scale: 1.02 }],
-  },
-  mealIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  mealTypeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#6B7280",
-    textAlign: "center",
-  },
-  mealTypeTextActive: {
-    fontWeight: "700",
-  },
-
-  // Input Section
-  inputSection: {
-    marginBottom: 32,
-  },
-  inputCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginBottom: 16,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  textInput: {
-    padding: 20,
-    fontSize: 16,
-    color: "#111827",
-    minHeight: 120,
-    maxHeight: 160,
-    fontWeight: "400",
-    lineHeight: 22,
-    textAlignVertical: "top",
-  },
-  voiceButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  voiceButtonActive: {
-    backgroundColor: "#6366F1",
-    borderColor: "#6366F1",
-  },
-  voiceIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F0F4FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  voiceIconActive: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-  },
-  voiceContent: {
-    flex: 1,
-  },
-  voiceText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  voiceTextActive: {
-    color: "white",
-  },
-  recordingTimer: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginTop: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontWeight: "600",
-  },
-  logButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#10B981",
-    borderRadius: 16,
-    paddingVertical: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#10B981",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
       },
       android: {
         elevation: 4,
       },
     }),
   },
+  mealIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  mealTypeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    textAlign: "center",
+  },
+
+  // Input Section - Smaller input box
+  inputSection: {
+    marginBottom: 32,
+  },
+  
+  // Accuracy Notice
+  accuracyNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  accuracyIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    marginTop: 1,
+  },
+  accuracyText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+  accuracyBold: {
+    fontWeight: "700",
+  },
+  
+  inputCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  textInput: {
+    padding: 16,
+    fontSize: 16,
+    minHeight: 80,
+    maxHeight: 120,
+    fontWeight: "500",
+    lineHeight: 22,
+    textAlignVertical: "top",
+  },
+
+  // Enhanced Voice Button
+  voiceButtonContainer: {
+    marginBottom: 16,
+  },
+  voiceButton: {
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  voiceButtonActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  voiceButtonProcessing: {
+    backgroundColor: "#059669",
+    borderColor: "#059669",
+  },
+  voiceButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    position: "relative",
+  },
+  voiceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  voiceIconActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  voiceIconProcessing: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  voiceTextContainer: {
+    flex: 1,
+  },
+  voiceMainText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  voiceMainTextActive: {
+    color: "white",
+  },
+  voiceMainTextProcessing: {
+    color: "white",
+  },
+  voiceSubText: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  recordingTimer: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.9)",
+    marginTop: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: "600",
+  },
+  recordingIndicator: {
+    position: "absolute",
+    right: 16,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#EF4444",
+  },
+
+  // Enhanced Log Button with better disabled state
+  logButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  logButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
   logButtonDisabled: {
-    opacity: 0.6,
-    transform: [{ scale: 0.98 }],
+    opacity: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   logButtonText: {
-    marginLeft: 8,
+    marginLeft: 10,
     fontSize: 16,
     fontWeight: "700",
-    color: "white",
   },
 
   // Meals Section
@@ -1360,7 +1776,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   mealsCount: {
-    backgroundColor: "#F3F4F6",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1368,7 +1783,6 @@ const styles = StyleSheet.create({
   mealsCountText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6B7280",
   },
   mealCard: {
     backgroundColor: "#FFFFFF",
@@ -1381,9 +1795,9 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
-        shadowRadius: 4,
+        shadowRadius: 8,
       },
       android: {
         elevation: 2,
@@ -1418,7 +1832,6 @@ const styles = StyleSheet.create({
   },
   mealTime: {
     fontSize: 12,
-    color: "#6B7280",
     fontWeight: "500",
   },
   deleteButton: {
@@ -1427,38 +1840,44 @@ const styles = StyleSheet.create({
   foodName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#111827",
     marginBottom: 12,
     lineHeight: 20,
   },
   nutritionGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    backgroundColor: "#F9FAFB",
-    padding: 12,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 4,
   },
   nutritionItem: {
     alignItems: "center",
     flex: 1,
   },
+  nutritionIconBg: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
   nutritionValue: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#111827",
-    marginTop: 4,
+    fontWeight: "800",
+    marginTop: 2,
   },
   nutritionLabel: {
-    fontSize: 10,
-    color: "#6B7280",
-    fontWeight: "500",
+    fontSize: 9,
+    fontWeight: "600",
     marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 
   // Modal Styles
   modalContainer: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
   },
   modalKeyboardView: {
     flex: 1,
@@ -1469,35 +1888,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF",
   },
   modalCancelText: {
     fontSize: 16,
-    color: "#6366F1",
     fontWeight: "600",
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
   },
   modalSaveButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "#10B981",
-  },
-  modalSaveButtonDisabled: {
-    backgroundColor: "#E5E7EB",
   },
   modalSaveText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "white",
-  },
-  modalSaveTextDisabled: {
-    color: "#9CA3AF",
   },
   modalContent: {
     flex: 1,
@@ -1509,15 +1916,12 @@ const styles = StyleSheet.create({
   goalLabel: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#111827",
     marginBottom: 8,
   },
   goalInputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#D1D5DB",
     borderRadius: 12,
     paddingHorizontal: 16,
     ...Platform.select({
@@ -1536,18 +1940,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     fontSize: 16,
-    color: "#111827",
     fontWeight: "500",
   },
   goalUnit: {
     fontSize: 14,
-    color: "#6B7280",
     fontWeight: "600",
     marginLeft: 8,
   },
   recommendedText: {
     fontSize: 12,
-    color: "#6366F1",
     marginTop: 6,
     fontWeight: "500",
     fontStyle: "italic",
@@ -1555,14 +1956,12 @@ const styles = StyleSheet.create({
   goalNote: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#FFFFFF",
     padding: 16,
     borderRadius: 12,
     marginTop: 8,
   },
   goalNoteText: {
     fontSize: 13,
-    color: "#6B7280",
     lineHeight: 18,
     marginLeft: 8,
     flex: 1,
@@ -1578,18 +1977,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderRadius: 16,
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
     zIndex: 9999,
   },
   toastText: {
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 12,
-    color: "white",
+    color: "#FFFFFF",
     flex: 1,
   },
 });

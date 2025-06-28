@@ -44,54 +44,55 @@ class GroceryListGenerator:
         self.cost_excluded_categories = ['herbs_spices', 'condiments', 'pantry']
         
         # Estimated costs per typical serving/recipe portion (USD, realistic grocery prices)
-        self.estimated_costs = {
+       self.estimated_costs = {
             # Proteins (per serving)
-            'chicken': 2.25, 'beef': 3.75, 'pork': 2.85, 'fish': 4.50, 'salmon': 5.50,
-            'tuna': 2.00, 'eggs': 1.25, 'tofu': 1.85, 'beans': 0.75, 'lentils': 0.60,
-            'turkey': 3.00, 'shrimp': 6.25, 'lamb': 4.75, 'bacon': 2.25,
-            'ground beef': 3.50, 'steak': 6.00, 'ham': 2.50, 'duck': 5.00,
+            'chicken': 2.50, 'beef': 4.25, 'pork': 3.10, 'fish': 5.00, 'salmon': 6.00,
+            'tuna': 2.25, 'eggs': 1.45, 'tofu': 2.10, 'beans': 0.85, 'lentils': 0.70,
+            'turkey': 3.35, 'shrimp': 6.75, 'lamb': 5.25, 'bacon': 2.50,
+            'ground beef': 3.90, 'steak': 6.75, 'ham': 2.80, 'duck': 5.50,
 
             # Vegetables (per serving)
-            'onion': 0.65, 'garlic': 0.30, 'tomato': 1.50, 'carrot': 0.75, 'celery': 0.95,
-            'bell pepper': 1.50, 'broccoli': 1.25, 'spinach': 1.00, 'lettuce': 0.90,
-            'cucumber': 1.10, 'potato': 0.75, 'sweet potato': 0.90, 'mushroom': 1.75,
-            'zucchini': 1.00, 'corn': 1.00, 'peas': 1.25, 'green beans': 1.35,
-            'cauliflower': 1.50, 'cabbage': 0.85, 'kale': 1.20, 'asparagus': 2.25,
-            'brussels sprouts': 1.75, 'beets': 1.10, 'radish': 0.85, 'arugula': 1.30,
+            'onion': 0.75, 'garlic': 0.35, 'tomato': 1.65, 'carrot': 0.85, 'celery': 1.05,
+            'bell pepper': 1.65, 'broccoli': 1.40, 'spinach': 1.15, 'lettuce': 1.00,
+            'cucumber': 1.25, 'potato': 0.85, 'sweet potato': 1.05, 'mushroom': 1.95,
+            'zucchini': 1.15, 'corn': 1.15, 'peas': 1.40, 'green beans': 1.50,
+            'cauliflower': 1.70, 'cabbage': 0.95, 'kale': 1.35, 'asparagus': 2.50,
+            'brussels sprouts': 2.00, 'beets': 1.25, 'radish': 0.95, 'arugula': 1.45,
 
             # Fruits (per serving)
-            'apple': 1.00, 'banana': 0.55, 'orange': 1.10, 'lemon': 0.75, 'lime': 0.60,
-            'berries': 2.25, 'strawberry': 1.85, 'blueberry': 2.50, 'grape': 1.50,
-            'avocado': 2.00, 'mango': 1.40, 'pineapple': 1.85, 'peach': 1.25, 'pear': 1.00,
-            'cherry': 2.75, 'plum': 1.15, 'watermelon': 1.50, 'cantaloupe': 1.40,
+            'apple': 1.10, 'banana': 0.65, 'orange': 1.25, 'lemon': 0.85, 'lime': 0.70,
+            'berries': 2.50, 'strawberry': 2.05, 'blueberry': 2.80, 'grape': 1.70,
+            'avocado': 2.25, 'mango': 1.60, 'pineapple': 2.10, 'peach': 1.45, 'pear': 1.10,
+            'cherry': 3.00, 'plum': 1.30, 'watermelon': 1.70, 'cantaloupe': 1.60,
 
             # Dairy (per serving)
-            'milk': 1.20, 'cheese': 1.85, 'butter': 0.90, 'yogurt': 1.35, 'cream': 1.00,
-            'sour cream': 0.90, 'cottage cheese': 1.25, 'mozzarella': 2.10, 'cheddar': 2.35,
-            'parmesan': 1.80, 'cream cheese': 1.25, 'feta': 1.50,
+            'milk': 1.35, 'cheese': 2.05, 'butter': 1.00, 'yogurt': 1.50, 'cream': 1.15,
+            'sour cream': 1.00, 'cottage cheese': 1.45, 'mozzarella': 2.35,
+            'cheddar': 2.60, 'parmesan': 2.00, 'cream cheese': 1.45, 'feta': 1.70,
 
             # Grains (per serving)
-            'rice': 0.65, 'pasta': 0.90, 'bread': 1.10, 'flour': 0.45, 'oats': 0.75,
-            'quinoa': 1.50, 'barley': 0.55, 'couscous': 0.85, 'noodles': 1.00,
-            'cereal': 1.25, 'tortilla': 0.95, 'crackers': 1.25, 'bagel': 1.00,
-            'english muffin': 1.00,
+            'rice': 0.75, 'pasta': 1.05, 'bread': 1.25, 'flour': 0.55, 'oats': 0.85,
+            'quinoa': 1.70, 'barley': 0.65, 'couscous': 1.00, 'noodles': 1.15,
+            'cereal': 1.40, 'tortilla': 1.10, 'crackers': 1.40, 'bagel': 1.15,
+            'english muffin': 1.15,
 
             # Frozen foods (per serving)
-            'frozen vegetables': 1.10, 'frozen fruit': 1.40, 'ice cream': 2.25,
-            'frozen pizza': 4.75, 'frozen chicken': 2.75, 'frozen meals': 3.50,
-            'frozen waffles': 1.75, 'frozen fries': 1.50,
+            'frozen vegetables': 1.25, 'frozen fruit': 1.60, 'ice cream': 2.50,
+            'frozen pizza': 5.25, 'frozen chicken': 3.10, 'frozen meals': 3.95,
+            'frozen waffles': 2.00, 'frozen fries': 1.75,
 
             # Snacks (per serving)
-            'nuts': 1.85, 'chips': 1.35, 'granola bars': 1.75, 'pretzels': 1.10,
-            'popcorn': 1.25, 'trail mix': 2.00, 'cookies': 1.50, 'crackers': 1.40,
+            'nuts': 2.10, 'chips': 1.55, 'granola bars': 1.95, 'pretzels': 1.25,
+            'popcorn': 1.45, 'trail mix': 2.25, 'cookies': 1.70, 'crackers': 1.55,
 
             # Beverages (per serving)
-            'water': 0.25, 'juice': 1.25, 'soda': 1.50, 'coffee': 0.65, 'tea': 0.45,
-            'wine': 5.25, 'beer': 2.75, 'smoothie': 3.00, 'energy drink': 2.00,
+            'water': 0.30, 'juice': 1.40, 'soda': 1.75, 'coffee': 0.75, 'tea': 0.55,
+            'wine': 5.75, 'beer': 3.00, 'smoothie': 3.40, 'energy drink': 2.25,
 
             # Default for unknown items
-            'default': 1.50
-        }
+            'default': 1.70
+            }
+
 
 
 

@@ -1,14 +1,13 @@
 {
   "build": {
-      
-          "development": {
-              "developmentClient": true,
-              "distribution": "internal"
-          },
-      
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
     "production": {
       "ios": {
         "resourceClass": "m-medium",
+        "distribution": "store",
         "prebuildCommand": "bash ./scripts/modify-podfile.sh"
       }
     },
@@ -17,6 +16,13 @@
         "resourceClass": "m-medium",
         "distribution": "internal",
         "prebuildCommand": "bash ./scripts/modify-podfile.sh"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "platematecontact@gmail.com"
       }
     }
   }
