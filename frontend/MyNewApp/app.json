@@ -20,7 +20,7 @@
       "entitlements": {
         "com.apple.developer.in-app-purchase": true
       },
-      "buildNumber": "1.0.1",
+      "buildNumber": "1.0.2",
       "googleServicesFile": "./assets/GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -77,7 +77,7 @@
       }
     },
     "owner": "mattnaples22",
-    "runtimeVersion": "1.0.1",
+    "runtimeVersion": "1.0.2",
     "updates": {
       "url": "https://u.expo.dev/3287301c-9f8d-4553-9f48-efc19ee880db"
     }

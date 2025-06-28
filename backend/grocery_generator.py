@@ -25,76 +25,178 @@ class CostBreakdown:
 
 class GroceryListGenerator:
     def __init__(self):
-        # Ingredient categories for organization
+        # Improved ingredient categories with more comprehensive and specific matching
         self.categories = {
-            'proteins': ['chicken', 'beef', 'pork', 'fish', 'salmon', 'tuna', 'eggs', 'tofu', 'beans', 'lentils', 'turkey', 'shrimp', 'lamb', 'duck'],
-            'vegetables': ['onion', 'garlic', 'tomato', 'carrot', 'celery', 'bell pepper', 'broccoli', 'spinach', 'lettuce', 'cucumber', 'potato', 'sweet potato', 'mushroom', 'zucchini', 'corn', 'peas', 'green beans', 'cauliflower', 'cabbage', 'kale', 'asparagus', 'brussels sprouts'],
-            'fruits': ['apple', 'banana', 'orange', 'lemon', 'lime', 'berries', 'strawberry', 'blueberry', 'grape', 'avocado', 'mango', 'pineapple', 'peach', 'pear'],
-            'dairy': ['milk', 'cheese', 'butter', 'yogurt', 'cream', 'sour cream', 'cottage cheese', 'mozzarella', 'cheddar', 'parmesan'],
-            'grains': ['rice', 'pasta', 'bread', 'flour', 'oats', 'quinoa', 'barley', 'couscous', 'noodles', 'cereal', 'tortilla', 'crackers'],
-            'pantry': ['olive oil', 'vegetable oil', 'salt', 'pepper', 'sugar', 'honey', 'vinegar', 'soy sauce', 'hot sauce', 'ketchup', 'mustard', 'mayo', 'ranch'],
-            'herbs_spices': ['basil', 'oregano', 'thyme', 'rosemary', 'paprika', 'cumin', 'chili powder', 'garlic powder', 'onion powder', 'cinnamon', 'ginger', 'turmeric', 'bay leaves'],
-            'condiments': ['mustard', 'ketchup', 'mayo', 'bbq sauce', 'ranch', 'italian dressing', 'balsamic', 'worcestershire', 'sriracha'],
-            'frozen': ['frozen vegetables', 'frozen fruit', 'ice cream', 'frozen pizza', 'frozen chicken'],
-            'snacks': ['nuts', 'chips', 'crackers', 'granola bars', 'pretzels'],
-            'beverages': ['water', 'juice', 'soda', 'coffee', 'tea', 'wine', 'beer']
+            'proteins': [
+                # Meat & Poultry
+                'chicken', 'beef', 'pork', 'turkey', 'lamb', 'duck', 'bacon', 'ham', 'sausage',
+                'ground beef', 'ground turkey', 'ground chicken', 'steak', 'pork chops',
+                'chicken breast', 'chicken thighs', 'chicken wings', 'ribs', 'brisket',
+                
+                # Seafood
+                'fish', 'salmon', 'tuna', 'shrimp', 'crab', 'lobster', 'cod', 'tilapia',
+                'mahi mahi', 'halibut', 'trout', 'sardines', 'anchovies', 'scallops',
+                
+                # Plant-based proteins
+                'tofu', 'tempeh', 'seitan', 'beans', 'lentils', 'chickpeas', 'black beans',
+                'kidney beans', 'pinto beans', 'navy beans', 'lima beans', 'edamame',
+                
+                # Eggs & Dairy proteins
+                'eggs', 'egg whites', 'cottage cheese', 'greek yogurt'
+            ],
+            
+            'vegetables': [
+                # Common vegetables
+                'onion', 'garlic', 'tomato', 'carrot', 'celery', 'bell pepper', 'broccoli',
+                'spinach', 'lettuce', 'cucumber', 'potato', 'sweet potato', 'mushroom',
+                'zucchini', 'corn', 'peas', 'green beans', 'cauliflower', 'cabbage',
+                'kale', 'asparagus', 'brussels sprouts', 'beets', 'radish', 'turnip',
+                'parsnip', 'leek', 'shallot', 'scallion', 'green onion', 'chives',
+                'jalapeño', 'serrano', 'poblano', 'habanero', 'thai chili',
+                'red pepper', 'yellow pepper', 'orange pepper', 'eggplant',
+                'artichoke', 'fennel', 'bok choy', 'swiss chard', 'collard greens',
+                'arugula', 'watercress', 'endive', 'radicchio'
+            ],
+            
+            'fruits': [
+                'apple', 'banana', 'orange', 'lemon', 'lime', 'grapefruit',
+                'strawberry', 'blueberry', 'raspberry', 'blackberry', 'cranberry',
+                'grape', 'avocado', 'mango', 'pineapple', 'peach', 'pear', 'plum',
+                'cherry', 'apricot', 'kiwi', 'papaya', 'passion fruit', 'pomegranate',
+                'watermelon', 'cantaloupe', 'honeydew', 'dates', 'figs', 'raisins'
+            ],
+            
+            'dairy': [
+                'milk', 'cheese', 'butter', 'yogurt', 'cream', 'sour cream',
+                'cottage cheese', 'mozzarella', 'cheddar', 'parmesan', 'feta',
+                'goat cheese', 'brie', 'camembert', 'swiss cheese', 'provolone',
+                'ricotta', 'mascarpone', 'cream cheese', 'heavy cream', 'half and half',
+                'buttermilk', 'whole milk', 'skim milk', '2% milk', 'almond milk',
+                'oat milk', 'soy milk', 'coconut milk'
+            ],
+            
+            'grains': [
+                'rice', 'pasta', 'bread', 'flour', 'oats', 'quinoa', 'barley',
+                'couscous', 'noodles', 'cereal', 'tortilla', 'crackers', 'bagel',
+                'english muffin', 'pita bread', 'sourdough', 'whole wheat bread',
+                'brown rice', 'white rice', 'jasmine rice', 'basmati rice',
+                'wild rice', 'arborio rice', 'spaghetti', 'penne', 'fettuccine',
+                'linguine', 'rigatoni', 'angel hair', 'lasagna sheets',
+                'all-purpose flour', 'whole wheat flour', 'bread flour',
+                'rolled oats', 'steel cut oats', 'instant oats'
+            ],
+            
+            'pantry': [
+                # Oils & Vinegars
+                'olive oil', 'vegetable oil', 'canola oil', 'coconut oil', 'sesame oil',
+                'vinegar', 'balsamic vinegar', 'apple cider vinegar', 'white vinegar',
+                'red wine vinegar', 'rice vinegar',
+                
+                # Basic seasonings & condiments
+                'salt', 'pepper', 'black pepper', 'white pepper', 'sea salt',
+                'kosher salt', 'sugar', 'brown sugar', 'honey', 'maple syrup',
+                'vanilla extract', 'baking powder', 'baking soda', 'cornstarch',
+                'flour', 'stock', 'broth', 'chicken stock', 'vegetable stock',
+                'beef stock', 'chicken broth', 'vegetable broth',
+                
+                # Canned goods
+                'canned tomatoes', 'tomato paste', 'tomato sauce', 'coconut milk',
+                'canned beans', 'canned corn', 'canned peas'
+            ],
+            
+            'herbs_spices': [
+                'basil', 'oregano', 'thyme', 'rosemary', 'sage', 'parsley', 'cilantro',
+                'dill', 'mint', 'tarragon', 'chervil', 'paprika', 'cumin', 'coriander',
+                'chili powder', 'cayenne', 'garlic powder', 'onion powder',
+                'cinnamon', 'nutmeg', 'ginger', 'turmeric', 'cardamom', 'cloves',
+                'allspice', 'bay leaves', 'fennel seeds', 'caraway seeds',
+                'mustard seeds', 'celery seeds', 'poppy seeds', 'sesame seeds',
+                'curry powder', 'garam masala', 'chinese five spice', 'italian seasoning',
+                'herbs de provence', 'za\'atar', 'sumac', 'smoked paprika'
+            ],
+            
+            'condiments': [
+                'mustard', 'ketchup', 'mayonnaise', 'bbq sauce', 'ranch dressing',
+                'italian dressing', 'caesar dressing', 'blue cheese dressing',
+                'balsamic glaze', 'worcestershire sauce', 'sriracha', 'hot sauce',
+                'tabasco', 'soy sauce', 'tamari', 'fish sauce', 'oyster sauce',
+                'hoisin sauce', 'teriyaki sauce', 'miso paste', 'tahini',
+                'pesto', 'salsa', 'marinara sauce', 'alfredo sauce'
+            ],
+            
+            'frozen': [
+                'frozen vegetables', 'frozen fruit', 'frozen berries', 'ice cream',
+                'frozen pizza', 'frozen chicken', 'frozen fish', 'frozen shrimp',
+                'frozen meals', 'frozen waffles', 'frozen fries', 'frozen corn',
+                'frozen peas', 'frozen broccoli', 'frozen spinach'
+            ],
+            
+            'snacks': [
+                'nuts', 'almonds', 'walnuts', 'pecans', 'cashews', 'peanuts',
+                'pistachios', 'chips', 'potato chips', 'tortilla chips',
+                'crackers', 'granola bars', 'pretzels', 'popcorn', 'trail mix',
+                'cookies', 'chocolate', 'candy'
+            ],
+            
+            'beverages': [
+                'water', 'sparkling water', 'juice', 'orange juice', 'apple juice',
+                'cranberry juice', 'soda', 'cola', 'sprite', 'coffee', 'tea',
+                'green tea', 'black tea', 'herbal tea', 'wine', 'red wine',
+                'white wine', 'beer', 'energy drink', 'sports drink'
+            ]
         }
         
         # Categories that should be excluded from cost calculations (reusable items)
-        self.cost_excluded_categories = ['herbs_spices', 'condiments', 'pantry']
+        self.cost_excluded_categories = ['herbs_spices', 'condiments']
         
-        # Estimated costs per typical serving/recipe portion (USD, realistic grocery prices)
+        # Reduced and more realistic estimated costs per typical serving/recipe portion (USD)
         self.estimated_costs = {
-            # Proteins (per serving)
-            'chicken': 2.50, 'beef': 4.25, 'pork': 3.10, 'fish': 5.00, 'salmon': 6.00,
-            'tuna': 2.25, 'eggs': 1.45, 'tofu': 2.10, 'beans': 0.85, 'lentils': 0.70,
-            'turkey': 3.35, 'shrimp': 6.75, 'lamb': 5.25, 'bacon': 2.50,
-            'ground beef': 3.90, 'steak': 6.75, 'ham': 2.80, 'duck': 5.50,
+            # Proteins (per serving) - reduced prices
+            'chicken': 1.80, 'beef': 3.20, 'pork': 2.40, 'fish': 3.50, 'salmon': 4.25,
+            'tuna': 1.60, 'eggs': 1.20, 'tofu': 1.50, 'beans': 0.60, 'lentils': 0.50,
+            'turkey': 2.40, 'shrimp': 4.50, 'lamb': 3.75, 'bacon': 1.80,
+            'ground beef': 2.80, 'steak': 4.50, 'ham': 2.00, 'duck': 3.90,
+            'chicken breast': 2.00, 'chicken thighs': 1.60, 'ground turkey': 2.20,
 
-            # Vegetables (per serving)
-            'onion': 0.75, 'garlic': 0.35, 'tomato': 1.65, 'carrot': 0.85, 'celery': 1.05,
-            'bell pepper': 1.65, 'broccoli': 1.40, 'spinach': 1.15, 'lettuce': 1.00,
-            'cucumber': 1.25, 'potato': 0.85, 'sweet potato': 1.05, 'mushroom': 1.95,
-            'zucchini': 1.15, 'corn': 1.15, 'peas': 1.40, 'green beans': 1.50,
-            'cauliflower': 1.70, 'cabbage': 0.95, 'kale': 1.35, 'asparagus': 2.50,
-            'brussels sprouts': 2.00, 'beets': 1.25, 'radish': 0.95, 'arugula': 1.45,
+            # Vegetables (per serving) - reduced prices
+            'onion': 0.50, 'garlic': 0.25, 'tomato': 1.20, 'carrot': 0.60, 'celery': 0.75,
+            'bell pepper': 1.20, 'broccoli': 1.00, 'spinach': 0.90, 'lettuce': 0.80,
+            'cucumber': 0.90, 'potato': 0.60, 'sweet potato': 0.80, 'mushroom': 1.40,
+            'zucchini': 0.85, 'corn': 0.85, 'peas': 1.00, 'green beans': 1.10,
+            'cauliflower': 1.20, 'cabbage': 0.70, 'kale': 1.00, 'asparagus': 1.80,
+            'brussels sprouts': 1.40, 'beets': 0.90, 'radish': 0.70, 'arugula': 1.10,
 
-            # Fruits (per serving)
-            'apple': 1.10, 'banana': 0.65, 'orange': 1.25, 'lemon': 0.85, 'lime': 0.70,
-            'berries': 2.50, 'strawberry': 2.05, 'blueberry': 2.80, 'grape': 1.70,
-            'avocado': 2.25, 'mango': 1.60, 'pineapple': 2.10, 'peach': 1.45, 'pear': 1.10,
-            'cherry': 3.00, 'plum': 1.30, 'watermelon': 1.70, 'cantaloupe': 1.60,
+            # Fruits (per serving) - reduced prices
+            'apple': 0.80, 'banana': 0.45, 'orange': 0.90, 'lemon': 0.60, 'lime': 0.50,
+            'berries': 1.80, 'strawberry': 1.50, 'blueberry': 2.00, 'grape': 1.20,
+            'avocado': 1.60, 'mango': 1.20, 'pineapple': 1.50, 'peach': 1.00, 'pear': 0.80,
+            'cherry': 2.10, 'plum': 0.90, 'watermelon': 1.20, 'cantaloupe': 1.10,
 
-            # Dairy (per serving)
-            'milk': 1.35, 'cheese': 2.05, 'butter': 1.00, 'yogurt': 1.50, 'cream': 1.15,
-            'sour cream': 1.00, 'cottage cheese': 1.45, 'mozzarella': 2.35,
-            'cheddar': 2.60, 'parmesan': 2.00, 'cream cheese': 1.45, 'feta': 1.70,
+            # Dairy (per serving) - reduced prices
+            'milk': 1.00, 'cheese': 1.50, 'butter': 0.75, 'yogurt': 1.10, 'cream': 0.85,
+            'sour cream': 0.75, 'cottage cheese': 1.10, 'mozzarella': 1.70,
+            'cheddar': 1.80, 'parmesan': 1.50, 'cream cheese': 1.10, 'feta': 1.20,
 
-            # Grains (per serving)
-            'rice': 0.75, 'pasta': 1.05, 'bread': 1.25, 'flour': 0.55, 'oats': 0.85,
-            'quinoa': 1.70, 'barley': 0.65, 'couscous': 1.00, 'noodles': 1.15,
-            'cereal': 1.40, 'tortilla': 1.10, 'crackers': 1.40, 'bagel': 1.15,
-            'english muffin': 1.15,
+            # Grains (per serving) - reduced prices
+            'rice': 0.50, 'pasta': 0.75, 'bread': 0.90, 'flour': 0.40, 'oats': 0.60,
+            'quinoa': 1.20, 'barley': 0.45, 'couscous': 0.70, 'noodles': 0.80,
+            'cereal': 1.00, 'tortilla': 0.80, 'crackers': 1.00, 'bagel': 0.85,
 
-            # Frozen foods (per serving)
-            'frozen vegetables': 1.25, 'frozen fruit': 1.60, 'ice cream': 2.50,
-            'frozen pizza': 5.25, 'frozen chicken': 3.10, 'frozen meals': 3.95,
-            'frozen waffles': 2.00, 'frozen fries': 1.75,
+            # Frozen foods (per serving) - reduced prices
+            'frozen vegetables': 0.90, 'frozen fruit': 1.20, 'ice cream': 1.80,
+            'frozen pizza': 3.75, 'frozen chicken': 2.20, 'frozen meals': 2.80,
 
-            # Snacks (per serving)
-            'nuts': 2.10, 'chips': 1.55, 'granola bars': 1.95, 'pretzels': 1.25,
-            'popcorn': 1.45, 'trail mix': 2.25, 'cookies': 1.70, 'crackers': 1.55,
+            # Snacks (per serving) - reduced prices
+            'nuts': 1.50, 'chips': 1.10, 'granola bars': 1.40, 'pretzels': 0.90,
+            'popcorn': 1.00, 'trail mix': 1.60, 'cookies': 1.20, 'crackers': 1.10,
 
-            # Beverages (per serving)
-            'water': 0.30, 'juice': 1.40, 'soda': 1.75, 'coffee': 0.75, 'tea': 0.55,
-            'wine': 5.75, 'beer': 3.00, 'smoothie': 3.40, 'energy drink': 2.25,
+            # Beverages (per serving) - reduced prices
+            'water': 0.20, 'juice': 1.00, 'soda': 1.25, 'coffee': 0.50, 'tea': 0.40,
+            'wine': 4.00, 'beer': 2.00, 'smoothie': 2.40, 'energy drink': 1.60,
 
             # Default for unknown items
-            'default': 1.70
-            }
-
-
-
+            'default': 1.20
+        }
 
     def parse_meal_plan(self, meal_plan_text: str) -> List[Dict]:
         """Parse meal plan text and extract ingredient lists"""
@@ -121,7 +223,10 @@ class GroceryListGenerator:
                     not line.lower().startswith('day ') and
                     not any(meal in line.lower() for meal in ['breakfast', 'lunch', 'dinner', 'snack']) and
                     ':' not in line and
-                    not line.startswith('•')):
+                    not line.startswith('•') and
+                    not line.lower().startswith('preparation') and
+                    not line.lower().startswith('cooking') and
+                    not line.lower().startswith('servings')):
                     recipe_data['title'] = line
                     break
             
@@ -187,17 +292,25 @@ class GroceryListGenerator:
         return grocery_items
 
     def _parse_ingredient(self, ingredient_text: str) -> Optional[Dict]:
-        """Parse individual ingredient text"""
+        """Parse individual ingredient text with improved accuracy"""
         # Clean up the text
         ingredient_text = ingredient_text.strip()
         if not ingredient_text:
             return None
         
-        # Patterns to extract quantity, unit, and ingredient name
+        # More comprehensive patterns to extract quantity, unit, and ingredient name
         patterns = [
-            r'^(\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?)\s*(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?|pieces?|cloves?|slices?|cans?|packages?|containers?|bottles?|jars?)\s+(.+)$',
-            r'^(\d+(?:\.\d+)?)\s*([a-zA-Z]*)\s+(.+)$',
-            r'^(.+)$'  # Just the ingredient name
+            # Pattern 1: Number + unit + ingredient (e.g., "2 cups flour", "1 lb chicken")
+            r'^(\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?)\s*(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?|pieces?|piece|cloves?|clove|slices?|slice|cans?|can|packages?|package|containers?|container|bottles?|bottle|jars?|jar|heads?|head|bunches?|bunch|stalks?|stalk)\s+(.+)$',
+            
+            # Pattern 2: Fraction + unit + ingredient (e.g., "1/2 cup milk")
+            r'^(\d+/\d+|\d+\s+\d+/\d+)\s*(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?)\s+(.+)$',
+            
+            # Pattern 3: Number + ingredient without clear unit (e.g., "2 chicken breasts", "3 eggs")
+            r'^(\d+(?:\.\d+)?)\s+(.+)$',
+            
+            # Pattern 4: Just the ingredient name
+            r'^(.+)$'
         ]
         
         quantity = "1"
@@ -208,37 +321,32 @@ class GroceryListGenerator:
         for pattern in patterns:
             match = re.match(pattern, ingredient_text, re.IGNORECASE)
             if match:
-                if len(match.groups()) == 3:
-                    quantity = match.group(1)
-                    unit = match.group(2) or "item"
-                    base_name = match.group(3).lower()
-                elif len(match.groups()) == 1:
-                    base_name = match.group(1).lower()
+                groups = match.groups()
+                if len(groups) == 3:  # quantity + unit + ingredient
+                    quantity = groups[0]
+                    unit = groups[1] or "item"
+                    base_name = groups[2].lower()
+                elif len(groups) == 2:  # quantity + ingredient or fraction + unit + ingredient
+                    if any(word in groups[1].lower() for word in ['cup', 'tbsp', 'tsp', 'lb', 'oz']):
+                        # This is likely fraction + unit + ingredient combined
+                        quantity = groups[0]
+                        # Try to separate unit from ingredient in groups[1]
+                        unit_ingredient = groups[1].split(' ', 1)
+                        if len(unit_ingredient) == 2:
+                            unit = unit_ingredient[0]
+                            base_name = unit_ingredient[1].lower()
+                        else:
+                            base_name = groups[1].lower()
+                    else:
+                        # This is quantity + ingredient
+                        quantity = groups[0]
+                        base_name = groups[1].lower()
+                elif len(groups) == 1:  # just ingredient
+                    base_name = groups[0].lower()
                 break
         
-        # Clean base name - remove common descriptors
-        descriptors_to_remove = [
-            'fresh', 'dried', 'chopped', 'diced', 'minced', 'sliced',
-            'ground', 'whole', 'crushed', 'grated', 'shredded',
-            'organic', 'raw', 'cooked', 'frozen', 'canned',
-            'large', 'medium', 'small', 'extra', 'virgin',
-            'unsalted', 'salted', 'low-fat', 'fat-free',
-            'to taste', 'optional', 'for serving', 'for garnish'
-        ]
-        
-        original_name = base_name
-        for descriptor in descriptors_to_remove:
-            if descriptor in base_name:
-                notes += f"{descriptor} "
-                base_name = base_name.replace(descriptor, "").strip()
-        
-        # Clean up extra spaces and commas
-        base_name = re.sub(r'\s+', ' ', base_name).strip(' ,')
-        notes = notes.strip()
-        
-        # If base_name becomes too short, use original
-        if len(base_name) < 2:
-            base_name = original_name
+        # Clean base name - remove common descriptors and extract core ingredient
+        base_name = self._clean_ingredient_name(base_name)
         
         return {
             'quantity': quantity,
@@ -247,89 +355,251 @@ class GroceryListGenerator:
             'notes': notes
         }
 
-    def _categorize_ingredient(self, ingredient_name: str) -> str:
-        """Categorize ingredient based on name"""
-        ingredient_lower = ingredient_name.lower()
+    def _clean_ingredient_name(self, ingredient_name: str) -> str:
+        """Clean ingredient name and extract the core ingredient"""
+        original_name = ingredient_name.lower().strip()
         
-        for category, items in self.categories.items():
+        # Remove common descriptors and preparation methods
+        descriptors_to_remove = [
+            # Preparation methods
+            'fresh', 'dried', 'chopped', 'diced', 'minced', 'sliced', 'grated', 'shredded',
+            'ground', 'whole', 'crushed', 'julienned', 'cubed', 'quartered', 'halved',
+            
+            # Quality/type descriptors
+            'organic', 'raw', 'cooked', 'frozen', 'canned', 'bottled', 'jarred',
+            'large', 'medium', 'small', 'extra', 'virgin', 'extra virgin',
+            'unsalted', 'salted', 'low-fat', 'fat-free', 'reduced-fat', 'skim',
+            'whole grain', 'refined', 'unrefined', 'processed', 'unprocessed',
+            
+            # Optional/serving descriptors
+            'to taste', 'optional', 'for serving', 'for garnish', 'as needed',
+            'or to taste', 'preferably', 'ideally', 'approximately',
+            
+            # Color descriptors
+            'red', 'green', 'yellow', 'white', 'black', 'brown', 'orange', 'purple',
+            
+            # Common adjectives
+            'hot', 'cold', 'warm', 'room temperature', 'chilled', 'heated'
+        ]
+        
+        cleaned_name = original_name
+        
+        # Remove descriptors
+        for descriptor in descriptors_to_remove:
+            # Use word boundaries to avoid removing parts of words
+            pattern = r'\b' + re.escape(descriptor) + r'\b'
+            cleaned_name = re.sub(pattern, '', cleaned_name)
+        
+        # Clean up extra spaces, commas, and parenthetical information
+        cleaned_name = re.sub(r'\([^)]*\)', '', cleaned_name)  # Remove parenthetical info
+        cleaned_name = re.sub(r'\s+', ' ', cleaned_name)  # Multiple spaces to single
+        cleaned_name = cleaned_name.strip(' ,.-')  # Remove leading/trailing punctuation
+        
+        # If cleaning made the name too short or empty, use original
+        if len(cleaned_name) < 2:
+            cleaned_name = original_name
+        
+        # Extract the core ingredient (first 1-2 meaningful words)
+        words = cleaned_name.split()
+        if len(words) >= 2:
+            # For compound ingredients, keep first two words if they make sense together
+            core_ingredient = ' '.join(words[:2])
+        else:
+            core_ingredient = cleaned_name
+        
+        return core_ingredient.strip()
+
+    def _categorize_ingredient(self, ingredient_name: str) -> str:
+        """Improved categorization with priority-based matching"""
+        ingredient_lower = ingredient_name.lower().strip()
+        
+        # Priority order for categorization (more specific categories first)
+        category_priority = [
+            'proteins', 'vegetables', 'fruits', 'dairy', 'grains',
+            'herbs_spices', 'condiments', 'frozen', 'snacks', 'beverages', 'pantry'
+        ]
+        
+        for category in category_priority:
+            items = self.categories[category]
+            
+            # Exact match first
+            if ingredient_lower in items:
+                return category
+            
+            # Partial match - check if ingredient contains any category item
             for item in items:
-                if item in ingredient_lower or ingredient_lower in item:
+                if item in ingredient_lower:
                     return category
+            
+            # Reverse partial match - check if any category item contains the ingredient
+            for item in items:
+                if ingredient_lower in item:
+                    return category
+        
+        # Special case handling for common misclassifications
+        
+        # Meat/protein keywords
+        protein_keywords = ['meat', 'protein', 'breast', 'thigh', 'fillet', 'cutlet', 'chop']
+        if any(keyword in ingredient_lower for keyword in protein_keywords):
+            return 'proteins'
+        
+        # Vegetable keywords
+        vegetable_keywords = ['vegetable', 'veggie', 'fresh produce']
+        if any(keyword in ingredient_lower for keyword in vegetable_keywords):
+            return 'vegetables'
+        
+        # Spice/herb keywords
+        spice_keywords = ['spice', 'herb', 'seasoning', 'powder', 'dried']
+        if any(keyword in ingredient_lower for keyword in spice_keywords):
+            return 'herbs_spices'
+        
+        # Oil/pantry keywords
+        pantry_keywords = ['oil', 'sauce', 'stock', 'broth', 'paste', 'extract']
+        if any(keyword in ingredient_lower for keyword in pantry_keywords):
+            return 'pantry'
         
         return 'pantry'  # Default category
 
     def _combine_quantities(self, quantities: List[str], units: List[str]) -> Dict:
-        """Intelligently combine quantities"""
+        """Intelligently combine quantities with better handling"""
         if not quantities:
             return {'display': '1', 'unit': 'item'}
         
-        # If all quantities are numeric, sum them
-        numeric_quantities = []
-        for q in quantities:
+        # Handle fractions and mixed numbers
+        def parse_quantity(q_str):
+            q_str = q_str.strip()
+            
+            # Handle ranges like "1-2"
+            if '-' in q_str:
+                parts = q_str.split('-')
+                try:
+                    return (float(parts[0]) + float(parts[1])) / 2
+                except ValueError:
+                    return 1.0
+            
+            # Handle fractions like "1/2" or "1 1/2"
+            if '/' in q_str:
+                try:
+                    if ' ' in q_str:  # Mixed number like "1 1/2"
+                        whole, fraction = q_str.split(' ', 1)
+                        whole_val = float(whole)
+                        num, den = fraction.split('/')
+                        frac_val = float(num) / float(den)
+                        return whole_val + frac_val
+                    else:  # Simple fraction like "1/2"
+                        num, den = q_str.split('/')
+                        return float(num) / float(den)
+                except ValueError:
+                    return 1.0
+            
+            # Handle regular numbers
             try:
-                # Handle ranges like "1-2"
-                if '-' in q:
-                    parts = q.split('-')
-                    avg = (float(parts[0]) + float(parts[1])) / 2
-                    numeric_quantities.append(avg)
-                else:
-                    numeric_quantities.append(float(q))
+                return float(q_str)
             except ValueError:
-                pass
+                return 1.0
+        
+        # Parse all quantities
+        numeric_quantities = [parse_quantity(q) for q in quantities]
         
         if numeric_quantities:
             total = sum(numeric_quantities)
-            # Round to reasonable precision
-            if total < 1:
-                display = f"{total:.2f}".rstrip('0').rstrip('.')
-            elif total < 10:
-                display = f"{total:.1f}".rstrip('0').rstrip('.')
-            else:
-                display = str(int(total))
             
-            # Choose most common unit
-            unit = max(set(units), key=units.count) if units else 'item'
+            # Format the display based on the total
+            if total < 1:
+                if total == 0.5:
+                    display = "1/2"
+                elif total == 0.25:
+                    display = "1/4"
+                elif total == 0.75:
+                    display = "3/4"
+                else:
+                    display = f"{total:.2f}".rstrip('0').rstrip('.')
+            elif total < 10:
+                # Check if it's close to a common fraction
+                if abs(total - round(total) - 0.5) < 0.1:
+                    display = f"{int(total)} 1/2"
+                else:
+                    display = f"{total:.1f}".rstrip('0').rstrip('.')
+            else:
+                display = str(int(round(total)))
+            
+            # Choose most appropriate unit
+            if units:
+                # Remove empty units and choose the most common
+                valid_units = [u for u in units if u and u != 'item']
+                if valid_units:
+                    unit = max(set(valid_units), key=valid_units.count)
+                else:
+                    unit = 'item'
+            else:
+                unit = 'item'
             
             return {'display': display, 'unit': unit}
         
-        # If can't combine numerically, show range or count
+        # If can't combine numerically, show count or first quantity
         if len(quantities) == 1:
-            unit = units[0] if units else 'item'
+            unit = units[0] if units and units[0] else 'item'
             return {'display': quantities[0], 'unit': unit}
         else:
             return {'display': f"{len(quantities)} portions", 'unit': 'needed'}
 
     def _estimate_cost(self, ingredient_name: str, quantity_info: Dict, category: str) -> float:
-        """Estimate cost for an ingredient if it's not in excluded categories"""
+        """Estimate cost for an ingredient with improved accuracy"""
         # Return 0 for excluded categories
         if category in self.cost_excluded_categories:
             return 0.0
-            
-        base_cost = self.estimated_costs.get(ingredient_name.lower(), self.estimated_costs['default'])
         
-        # Adjust based on quantity - much more conservative multiplier
+        # Get base cost
+        ingredient_lower = ingredient_name.lower()
+        base_cost = self.estimated_costs.get(ingredient_lower, self.estimated_costs['default'])
+        
+        # Check for more specific matches in cost database
+        if base_cost == self.estimated_costs['default']:
+            for cost_item, cost in self.estimated_costs.items():
+                if cost_item in ingredient_lower or ingredient_lower in cost_item:
+                    base_cost = cost
+                    break
+        
+        # Adjust based on quantity with more conservative scaling
         try:
             quantity_str = quantity_info['display']
-            # Handle different quantity formats
+            
             if 'portions' in quantity_str:
                 # Extract number from "X portions"
-                multiplier = float(re.search(r'(\d+(?:\.\d+)?)', quantity_str).group(1)) if re.search(r'(\d+(?:\.\d+)?)', quantity_str) else 1.0
+                match = re.search(r'(\d+(?:\.\d+)?)', quantity_str)
+                multiplier = float(match.group(1)) if match else 1.0
             else:
-                multiplier = float(quantity_str)
-            
-            # Cap multiplier to prevent unrealistic costs
-            if multiplier > 5:  # Cap at 5x base cost
-                multiplier = min(multiplier, 8)
-            elif multiplier > 2:  # Reduce scaling for larger quantities
-                multiplier = 2 + (multiplier - 2) * 0.5
-                
-        except (ValueError, AttributeError):
+                # Handle fractions and regular numbers
+                if '/' in quantity_str:
+                    if ' ' in quantity_str:  # Mixed number
+                        whole, fraction = quantity_str.split(' ', 1)
+                        whole_val = float(whole)
+                        num, den = fraction.split('/')
+                        frac_val = float(num) / float(den)
+                        multiplier = whole_val + frac_val
+                    else:  # Simple fraction
+                        num, den = quantity_str.split('/')
+                        multiplier = float(num) / float(den)
+                else:
+                    multiplier = float(quantity_str)
+                    
+        except (ValueError, AttributeError, ZeroDivisionError):
             multiplier = 1.0
         
-        # Add smaller variance for more consistent estimates
-        variance = random.uniform(0.9, 1.1)
+        # More conservative quantity scaling to prevent unrealistic costs
+        if multiplier > 10:  # Cap at 10x for very large quantities
+            adjusted_multiplier = min(multiplier, 15)
+        elif multiplier > 3:  # Reduce scaling for larger quantities
+            adjusted_multiplier = 3 + (multiplier - 3) * 0.3
+        elif multiplier < 0.5:  # Don't go below half the base cost
+            adjusted_multiplier = 0.5
+        else:
+            adjusted_multiplier = multiplier
         
-        estimated_cost = base_cost * multiplier * variance
+        # Add smaller variance for more consistent estimates
+        variance = random.uniform(0.85, 1.15)
+        
+        estimated_cost = base_cost * adjusted_multiplier * variance
         return round(estimated_cost, 2)
 
     def generate_grocery_list(self, meal_plan_text: str, days: int, meals_per_day: int) -> Dict:
@@ -356,8 +626,14 @@ class GroceryListGenerator:
                 'error': 'No ingredients could be extracted from meal plan'
             }
         
-        # Sort items by category
-        grocery_items.sort(key=lambda x: (x.category, x.name))
+        # Sort items by category and then alphabetically within category
+        category_order = {
+            'proteins': 1, 'vegetables': 2, 'fruits': 3, 'dairy': 4,
+            'grains': 5, 'pantry': 6, 'frozen': 7, 'snacks': 8,
+            'beverages': 9, 'condiments': 10, 'herbs_spices': 11
+        }
+        
+        grocery_items.sort(key=lambda x: (category_order.get(x.category, 99), x.name))
         
         # Calculate cost breakdown (only for non-excluded categories)
         excluded_items = []
@@ -394,13 +670,19 @@ class GroceryListGenerator:
                 'name': item.name,
                 'quantity': item.quantity,
                 'unit': item.unit,
-                'category': item.category,
+                'category': item.category.replace('_', ' ').title(),  # Format category name
                 'notes': item.notes,
                 'excluded_from_cost': item.category in self.cost_excluded_categories
             })
         
+        # Calculate some useful statistics
+        category_counts = defaultdict(int)
+        for item in grocery_items:
+            category_counts[item.category] += 1
+        
         print(f"✅ Generated grocery list with {len(grocery_items)} items")
         print(f"💰 Total cost: ${total_cost:.2f} (excluding {len(excluded_items)} reusable items)")
+        print(f"📊 Category breakdown: {dict(category_counts)}")
         
         return {
             'success': True,
@@ -409,7 +691,7 @@ class GroceryListGenerator:
                 'total_cost': cost_breakdown.total_cost,
                 'cost_per_day': cost_breakdown.cost_per_day,
                 'cost_per_meal': cost_breakdown.cost_per_meal,
-                'category_breakdown': cost_breakdown.category_breakdown,
+                'category_breakdown': {k.replace('_', ' ').title(): v for k, v in cost_breakdown.category_breakdown.items()},
                 'item_count': cost_breakdown.item_count,
                 'excluded_items': cost_breakdown.excluded_items
             },
@@ -419,6 +701,40 @@ class GroceryListGenerator:
                 'excluded_items_count': len(excluded_items),
                 'days': days,
                 'meals_per_day': meals_per_day,
-                'recipes_parsed': len(recipes)
+                'recipes_parsed': len(recipes),
+                'category_counts': {k.replace('_', ' ').title(): v for k, v in category_counts.items()}
             }
         }
+
+    def get_shopping_tips(self, grocery_list_data: List[Dict]) -> List[str]:
+        """Generate helpful shopping tips based on the grocery list"""
+        tips = []
+        
+        # Count items by category
+        category_counts = defaultdict(int)
+        for item in grocery_list_data:
+            category_counts[item['category'].lower().replace(' ', '_')] += 1
+        
+        # Shopping route optimization tip
+        if len(grocery_list_data) > 10:
+            tips.append("🛒 Shop the perimeter of the store first (produce, meat, dairy) then move to inner aisles")
+        
+        # Produce tips
+        if category_counts.get('vegetables', 0) + category_counts.get('fruits', 0) > 5:
+            tips.append("🥬 Buy produce that ripens at different rates - some ready to eat, some for later in the week")
+        
+        # Protein tips
+        if category_counts.get('proteins', 0) > 3:
+            tips.append("🥩 Consider buying proteins in bulk and freezing portions for later use")
+        
+        # Cost-saving tips
+        total_items = len(grocery_list_data)
+        if total_items > 15:
+            tips.append("💰 Check store sales and consider generic brands for pantry staples")
+            tips.append("📋 Stick to your list to avoid impulse purchases")
+        
+        # Storage tips
+        if category_counts.get('herbs_spices', 0) > 0:
+            tips.append("🌿 Store fresh herbs in water like flowers to keep them fresh longer")
+        
+        return tips
