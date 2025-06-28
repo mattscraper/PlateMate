@@ -44,7 +44,7 @@ class GroceryListGenerator:
         self.cost_excluded_categories = ['herbs_spices', 'condiments', 'pantry']
         
         # Estimated costs per typical serving/recipe portion (USD, realistic grocery prices)
-       self.estimated_costs = {
+        self.estimated_costs = {
             # Proteins (per serving)
             'chicken': 2.50, 'beef': 4.25, 'pork': 3.10, 'fish': 5.00, 'salmon': 6.00,
             'tuna': 2.25, 'eggs': 1.45, 'tofu': 2.10, 'beans': 0.85, 'lentils': 0.70,
