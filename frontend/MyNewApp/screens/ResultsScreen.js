@@ -1361,7 +1361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingContainer: {
-    backgroundColor: 'white',
+    backgroundColor: 'f8f9fa',
     padding: 32,
     borderRadius: 20,
     alignItems: 'center',
