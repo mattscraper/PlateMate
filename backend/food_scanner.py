@@ -3,6 +3,8 @@ import requests
 import re
 from typing import Dict, List, Optional
 import logging
+import time
+import json
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -12,6 +14,19 @@ food_scanner_bp = Blueprint('food_scanner', __name__)
 
 class FoodHealthAnalyzer:
     def __init__(self):
+        # Initialize with multiple API endpoints for maximum reliability
+        self.openfoodfacts_endpoints = [
+            "https://world.openfoodfacts.org/api/v0/product/{}.json",
+            "https://world.openfoodfacts.net/api/v0/product/{}.json",
+            "https://fr.openfoodfacts.org/api/v0/product/{}.json",
+            "https://de.openfoodfacts.org/api/v0/product/{}.json"
+        ]
+        
+        # Backup APIs (free, no API key required)
+        self.backup_apis = [
+            "https://api.upcitemdb.com/prod/trial/lookup?upc={}",  # UPC Database
+        ]
+        
         # Harmful additives database with risk levels (expanded)
         self.harmful_additives = {
             # Preservatives
@@ -119,7 +134,144 @@ class FoodHealthAnalyzer:
                 'excellent': 25
             }
         }
-    # need to figure out how to pull from own database
+
+    def fetch_from_openfoodfacts(self, barcode: str) -> Optional[Dict]:
+        """Fetch from OpenFoodFacts with multiple endpoint fallback"""
+        headers = {
+            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)',
+            'Accept': 'application/json',
+            'Connection': 'close',
+            'Cache-Control': 'no-cache'
+        }
+        
+        for i, endpoint_template in enumerate(self.openfoodfacts_endpoints):
+            url = endpoint_template.format(barcode)
+            try:
+                logger.info(f"Trying OpenFoodFacts endpoint {i+1}: {url}")
+                
+                # Short timeout for fast failover
+                response = requests.get(url, headers=headers, timeout=(3, 5))
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('status') == 1 and 'product' in data:
+                        logger.info(f"SUCCESS from OpenFoodFacts endpoint {i+1}")
+                        return data
+                    elif data.get('status') == 0:
+                        logger.info(f"Product not found in OpenFoodFacts endpoint {i+1}")
+                        continue
+                
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout on OpenFoodFacts endpoint {i+1}")
+                continue
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Request error on OpenFoodFacts endpoint {i+1}: {e}")
+                continue
+            except Exception as e:
+                logger.error(f"Unexpected error on OpenFoodFacts endpoint {i+1}: {e}")
+                continue
+        
+        return None
+
+    def fetch_from_upc_database(self, barcode: str) -> Optional[Dict]:
+        """Fetch from UPC Database as backup"""
+        try:
+            url = f"https://api.upcitemdb.com/prod/trial/lookup?upc={barcode}"
+            headers = {
+                'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)',
+                'Accept': 'application/json'
+            }
+            
+            logger.info(f"Trying UPC Database: {url}")
+            response = requests.get(url, headers=headers, timeout=(3, 5))
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('code') == 'OK' and data.get('items'):
+                    item = data['items'][0]
+                    
+                    # Convert UPC Database format to OpenFoodFacts-like format
+                    converted_data = {
+                        'status': 1,
+                        'product': {
+                            'product_name': item.get('title', 'Unknown Product'),
+                            'brands': item.get('brand', ''),
+                            'categories': ', '.join(item.get('category', [])) if item.get('category') else '',
+                            'ingredients_text': '',
+                            'image_url': item.get('images', [None])[0] if item.get('images') else '',
+                            'serving_size': '',
+                            'nutriments': {},
+                            'nutriscore_grade': '',
+                            'quantity': item.get('size', ''),
+                            '_source': 'upc_database'
+                        }
+                    }
+                    
+                    logger.info("SUCCESS from UPC Database")
+                    return converted_data
+                
+        except Exception as e:
+            logger.warning(f"UPC Database error: {e}")
+        
+        return None
+
+    def fetch_product_data(self, barcode: str) -> Optional[Dict]:
+        """Master fetch function that tries all APIs"""
+        
+        # Try OpenFoodFacts first (best nutritional data)
+        data = self.fetch_from_openfoodfacts(barcode)
+        if data:
+            return data
+        
+        # Try UPC Database as backup (basic product info)
+        data = self.fetch_from_upc_database(barcode)
+        if data:
+            return data
+        
+        logger.error(f"All APIs failed for barcode: {barcode}")
+        return None
+
+    def create_fallback_product(self, barcode: str) -> Dict:
+        """Create fallback product when all APIs fail"""
+        return {
+            'barcode': barcode,
+            'product_name': f'Product {barcode}',
+            'brands': '',
+            'categories': '',
+            'ingredients_text': '',
+            'image_url': '',
+            'serving_size': 33.0,
+            'serving_info': {
+                'serving_size': 33.0,
+                'confidence': 'fallback',
+                'source': 'api_failure_default',
+                'original_value': 'all_apis_failed',
+                'unit': 'g'
+            },
+            'nutri_score': {'score': 0, 'grade': 'Unknown', 'points': 0},
+            'ingredients_analysis': {
+                'additives': [],
+                'quality_score': 50,
+                'warnings': ['Product data temporarily unavailable - please try scanning again'],
+                'ingredient_count': 0
+            },
+            'nutriments': {},
+            'health_score': 50,
+            'recommendations': [
+                'Product information unavailable - please try scanning again',
+                'Check product packaging for nutritional information',
+                'Consider choosing products with verified nutritional data'
+            ],
+            'quality_indicators': {
+                'is_ultra_processed': False,
+                'has_high_risk_additives': False,
+                'additive_count': 0,
+                'overall_quality': 'unknown'
+            },
+            'api_status': 'failed'
+        }
+
     def parse_serving_string(self, serving_str):
         """Parse serving size string and extract numeric value in grams"""
         if not serving_str or not isinstance(serving_str, str):
@@ -170,14 +322,9 @@ class FoodHealthAnalyzer:
             if 1 <= value <= 1000:
                 return value
             return None
-    
-    
 
     def get_serving_size_from_api(self, product: Dict) -> Dict:
-        """
-        Extract serving size from OpenFoodFacts API with comprehensive field checking
-        This is the ONLY method that should be used for serving size calculation
-        """
+        """Extract serving size from product data with comprehensive field checking"""
         
         # Priority 1: Check serving_size field (string with units)
         serving_size = product.get('serving_size')
@@ -527,76 +674,6 @@ class FoodHealthAnalyzer:
         # Ensure score is within bounds
         return max(0, min(100, base_score))
 
-    def analyze_nutrient_quality(self, key: str, value: float, serving_size: float = 33) -> Dict:
-        """Analyze individual nutrient quality with serving size consideration"""
-        if not value:
-            return {
-                'level': 'unknown',
-                'color': '#9CA3AF',
-                'category': 'neutral',
-                'per_serving': 0,
-                'unit': 'g'
-            }
-        
-        # Convert to per serving
-        per_serving = (value * serving_size / 100)
-        
-        # Get quality level
-        level = self.evaluate_nutrient_level(key, value)
-        
-        # Determine color and category
-        color_map = {
-            'excellent': '#10B981',
-            'good': '#10B981',
-            'fair': '#F59E0B',
-            'poor': '#EF4444',
-            'terrible': '#DC2626',
-            'unknown': '#9CA3AF'
-        }
-        
-        # Determine category (positive/negative) based on level and nutrient type
-        if key in ['fiber_100g', 'proteins_100g']:
-            # Beneficial nutrients
-            category = 'positive' if level in ['excellent', 'good'] else 'negative'
-        else:
-            # Nutrients to limit
-            category = 'positive' if level in ['excellent', 'good'] else 'negative'
-        
-        # Determine unit
-        unit = 'kcal' if 'energy' in key else 'mg' if 'sodium' in key else 'g'
-        
-        return {
-            'level': level,
-            'color': color_map[level],
-            'category': category,
-            'per_serving': round(per_serving * (1000 if unit == 'mg' else 1), 1),
-            'unit': unit,
-            'description': self.get_level_description(key, level)
-        }
-
-    def get_level_description(self, key: str, level: str) -> str:
-        """Get human-readable description for nutrient level"""
-        if key in ['fiber_100g', 'proteins_100g']:
-            # Beneficial nutrients
-            descriptions = {
-                'excellent': 'Excellent amount',
-                'good': 'Good amount',
-                'fair': 'Moderate amount',
-                'poor': 'Low amount',
-                'terrible': 'Very low amount'
-            }
-        else:
-            # Nutrients to limit
-            descriptions = {
-                'excellent': 'Very low',
-                'good': 'Low impact',
-                'fair': 'Moderate impact',
-                'poor': 'High impact',
-                'terrible': 'Very high impact'
-            }
-        
-        return descriptions.get(level, 'Unknown')
-
     def analyze_ingredients(self, ingredients_text: str) -> Dict:
         """Analyze ingredients for harmful additives and overall quality"""
         if not ingredients_text:
@@ -864,29 +941,26 @@ analyzer = FoodHealthAnalyzer()
 
 @food_scanner_bp.route('/product/<barcode>', methods=['GET'])
 def get_product_info(barcode):
-    """Get product information by barcode with accurate serving size extraction"""
+    """Get product information by barcode with bulletproof reliability"""
     try:
         # Validate barcode
         if not barcode or not barcode.isdigit():
             return jsonify({'error': 'Invalid barcode format'}), 400
         
-        # Query OpenFoodFacts API
-        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-        headers = {
-            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
-        }
+        logger.info(f"Processing barcode: {barcode}")
         
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+        # Try to fetch product data from multiple APIs
+        data = analyzer.fetch_product_data(barcode)
         
-        data = response.json()
-        
-        if data.get('status') != 1:
-            return jsonify({'error': 'Product not found'}), 404
+        if not data:
+            # All APIs failed - return fallback data so app doesn't crash
+            logger.warning(f"All APIs failed for {barcode}, returning fallback data")
+            fallback = analyzer.create_fallback_product(barcode)
+            return jsonify(fallback), 200  # Return 200 to prevent app crash
         
         product = data['product']
         
-        # Get ACCURATE serving size from API - this is the ONLY method used
+        # Get serving size from API data
         serving_info = analyzer.get_serving_size_from_api(product)
         serving_size = serving_info['serving_size']
         
@@ -943,7 +1017,7 @@ def get_product_info(barcode):
             'ingredients_text': ingredients_text,
             'image_url': product.get('image_url', ''),
             
-            # ACCURATE serving size information
+            # Serving size information
             'serving_size': serving_size,
             'serving_info': serving_info,
             
@@ -957,106 +1031,26 @@ def get_product_info(barcode):
                 'has_high_risk_additives': len([a for a in ingredients_analysis.get('additives', []) if a['risk_level'] == 'high']) > 0,
                 'additive_count': len(ingredients_analysis.get('additives', [])),
                 'overall_quality': 'excellent' if health_score >= 80 else 'good' if health_score >= 60 else 'fair' if health_score >= 40 else 'poor'
-            }
-        }
-        
-        return jsonify(result)
-    
-    except requests.exceptions.RequestException as e:
-        logger.error(f"API request failed: {e}")
-        return jsonify({'error': 'Failed to fetch product data'}), 500
-    
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-# Debug endpoint to test serving size extraction
-@food_scanner_bp.route('/debug-serving/<barcode>', methods=['GET'])
-def debug_serving_size(barcode):
-    """Debug endpoint to see all serving size related data from OpenFoodFacts API"""
-    try:
-        # Query OpenFoodFacts API
-        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-        headers = {
-            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
-        }
-        
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if data.get('status') != 1:
-            return jsonify({'error': 'Product not found'}), 404
-        
-        product = data['product']
-        
-        # Extract all serving-related fields
-        serving_fields = {
-            'serving_size': product.get('serving_size'),
-            'serving_quantity': product.get('serving_quantity'),
-            'quantity': product.get('quantity'),
-            'product_quantity': product.get('product_quantity'),
-        }
-        
-        # Extract serving nutrients
-        nutriments = product.get('nutriments', {})
-        serving_nutrients = {}
-        per_100g_nutrients = {}
-        
-        for key, value in nutriments.items():
-            if key.endswith('_serving'):
-                serving_nutrients[key] = value
-            elif key.endswith('_100g'):
-                per_100g_nutrients[key] = value
-        
-        # Get our calculated serving size
-        serving_info = analyzer.get_serving_size_from_api(product)
-        
-        # Test parsing of serving_size field specifically
-        serving_size_parsed = None
-        if product.get('serving_size'):
-            serving_size_parsed = analyzer.parse_serving_string(product.get('serving_size'))
-        
-        # Return comprehensive debug info
-        debug_info = {
-            'barcode': barcode,
-            'product_name': product.get('product_name'),
-            'brands': product.get('brands'),
-            'categories': product.get('categories'),
-            
-            # Raw serving data from API
-            'raw_serving_fields': serving_fields,
-            'serving_nutrients': serving_nutrients,
-            'per_100g_nutrients': per_100g_nutrients,
-            
-            # Our calculation process
-            'serving_size_parsing': {
-                'original': product.get('serving_size'),
-                'parsed_value': serving_size_parsed,
-                'parsing_worked': serving_size_parsed is not None
             },
-            
-            # Final result
-            'final_serving_calculation': serving_info,
-            
-            # Category analysis
-            'category_analysis': {
-                'categories_list': product.get('categories', '').lower().split(','),
-                'product_name_keywords': product.get('product_name', '').lower().split(),
-            }
+            'api_status': 'success',
+            'data_source': product.get('_source', 'openfoodfacts')
         }
         
-        return jsonify(debug_info)
-    
+        logger.info(f"Successfully processed: {barcode} from {result.get('data_source', 'unknown')}")
+        return jsonify(result)
+        
     except Exception as e:
-        logger.error(f"Debug serving size error: {e}")
-        return jsonify({'error': f'Debug failed: {str(e)}'}), 500
+        # Catch any other errors
+        logger.error(f"Unexpected error for {barcode}: {e}")
+        fallback = analyzer.create_fallback_product(barcode)
+        fallback['error_details'] = str(e)
+        return jsonify(fallback), 200
 
 @food_scanner_bp.route('/search/<query>', methods=['GET'])
 def search_products(query):
-    """Search for products by name"""
+    """Search for products by name with enhanced reliability"""
     try:
+        # Try OpenFoodFacts search first
         url = f"https://world.openfoodfacts.org/cgi/search.pl"
         params = {
             'search_terms': query,
@@ -1067,10 +1061,12 @@ def search_products(query):
         }
         
         headers = {
-            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
+            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)',
+            'Accept': 'application/json',
+            'Connection': 'close'
         }
         
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response = requests.get(url, params=params, headers=headers, timeout=(3, 6))
         response.raise_for_status()
         
         data = response.json()
@@ -1118,51 +1114,121 @@ def search_products(query):
     
     except Exception as e:
         logger.error(f"Search error: {e}")
-        return jsonify({'error': 'Search failed'}), 500
+        return jsonify({
+            'products': [],
+            'error': 'Search temporarily unavailable',
+            'message': 'Please try again or scan a barcode directly'
+        }), 200
 
 @food_scanner_bp.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for food scanner"""
     return jsonify({
         'status': 'healthy',
-        'message': 'Enhanced Food Scanner API with Accurate Serving Sizes',
-        'version': '3.0',
+        'message': 'Bulletproof Food Scanner API with Multiple Data Sources',
+        'version': '4.0',
         'features': [
-            'Accurate serving size extraction from OpenFoodFacts API',
-            'Comprehensive field checking (serving_size, serving_quantity, nutrient ratios)',
-            'Smart unit conversion (g, ml, oz, tbsp, etc.)',
-            'Category-based intelligent fallbacks',
-            'Strict health scoring',
-            'Enhanced additive detection',
-            'Ultra-processed food detection'
+            'Multiple OpenFoodFacts server endpoints',
+            'UPC Database backup API',
+            'Ultra-short timeouts for fast failover',
+            'Graceful degradation with fallback data',
+            'Always returns 200 to prevent app crashes',
+            'Comprehensive health scoring',
+            'Enhanced additive detection'
+        ],
+        'data_sources': [
+            'OpenFoodFacts (primary - nutritional data)',
+            'UPC Database (backup - basic product info)',
+            'Fallback system (ensures app never crashes)'
         ]
     })
 
-@food_scanner_bp.route('/analyze-text', methods=['POST'])
-def analyze_ingredients_text():
-    """Analyze ingredients text directly"""
-    try:
-        data = request.get_json()
-        ingredients_text = data.get('ingredients_text', '')
-        
-        if not ingredients_text:
-            return jsonify({'error': 'No ingredients text provided'}), 400
-        
-        analysis = analyzer.analyze_ingredients(ingredients_text)
-        
-        return jsonify({
-            'ingredients_text': ingredients_text,
-            'analysis': analysis,
-            'recommendations': [
-                f"Quality score: {analysis['quality_score']}/100",
-                f"Found {len(analysis['additives'])} additives",
-                f"Ingredient complexity: {'High' if analysis['ingredient_count'] > 10 else 'Moderate' if analysis['ingredient_count'] > 5 else 'Low'}"
-            ]
-        })
+@food_scanner_bp.route('/test-connectivity', methods=['GET'])
+def test_connectivity():
+    """Test endpoint to check all API connectivity"""
+    test_barcode = "051500255650"  # Your problematic barcode
+    results = {}
     
+    # Test OpenFoodFacts endpoints
+    for i, endpoint_template in enumerate(analyzer.openfoodfacts_endpoints):
+        url = endpoint_template.format(test_barcode)
+        endpoint_name = f"openfoodfacts_{i+1}"
+        
+        try:
+            start_time = time.time()
+            response = requests.get(url, timeout=(3, 5), headers={
+                'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
+            })
+            end_time = time.time()
+            
+            results[endpoint_name] = {
+                'url': url,
+                'status_code': response.status_code,
+                'response_time_ms': round((end_time - start_time) * 1000),
+                'success': response.status_code == 200,
+                'has_data': False
+            }
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    results[endpoint_name]['has_data'] = data.get('status') == 1
+                except:
+                    pass
+                    
+        except Exception as e:
+            results[endpoint_name] = {
+                'url': url,
+                'error': str(e),
+                'success': False,
+                'has_data': False
+            }
+    
+    # Test UPC Database
+    try:
+        start_time = time.time()
+        response = requests.get(f"https://api.upcitemdb.com/prod/trial/lookup?upc={test_barcode}",
+                              timeout=(3, 5))
+        end_time = time.time()
+        
+        results['upc_database'] = {
+            'url': f"https://api.upcitemdb.com/prod/trial/lookup?upc={test_barcode}",
+            'status_code': response.status_code,
+            'response_time_ms': round((end_time - start_time) * 1000),
+            'success': response.status_code == 200,
+            'has_data': False
+        }
+        
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                results['upc_database']['has_data'] = data.get('code') == 'OK' and bool(data.get('items'))
+            except:
+                pass
+                
     except Exception as e:
-        logger.error(f"Ingredients analysis error: {e}")
-        return jsonify({'error': 'Analysis failed'}), 500
+        results['upc_database'] = {
+            'url': f"https://api.upcitemdb.com/prod/trial/lookup?upc={test_barcode}",
+            'error': str(e),
+            'success': False,
+            'has_data': False
+        }
+    
+    # Summary
+    successful_endpoints = sum(1 for r in results.values() if r.get('success'))
+    total_endpoints = len(results)
+    
+    return jsonify({
+        'test_barcode': test_barcode,
+        'timestamp': time.time(),
+        'endpoint_results': results,
+        'summary': {
+            'total_endpoints': total_endpoints,
+            'successful_endpoints': successful_endpoints,
+            'success_rate': f"{(successful_endpoints/total_endpoints)*100:.1f}%",
+            'overall_status': 'healthy' if successful_endpoints > 0 else 'degraded'
+        }
+    })
 
 def init_food_scanner_routes(app):
     """Initialize food scanner routes"""
