@@ -3,6 +3,9 @@ import requests
 import re
 from typing import Dict, List, Optional
 import logging
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -12,6 +15,29 @@ food_scanner_bp = Blueprint('food_scanner', __name__)
 
 class FoodHealthAnalyzer:
     def __init__(self):
+        # Setup session with retry strategy and connection pooling
+        self.session = requests.Session()
+        
+        # Retry strategy for failed requests
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS"]
+        )
+        
+        adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=20)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
+        # Set default headers
+        self.session.headers.update({
+            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)',
+            'Accept': 'application/json',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive'
+        })
+        
         # Harmful additives database with risk levels (expanded)
         self.harmful_additives = {
             # Preservatives
@@ -119,6 +145,105 @@ class FoodHealthAnalyzer:
                 'excellent': 25
             }
         }
+
+    def make_api_request(self, url: str, params: dict = None, timeout: int = 20) -> requests.Response:
+        """
+        Make API request with comprehensive error handling and multiple timeout strategies
+        """
+        # Try multiple timeout strategies
+        timeout_strategies = [
+            (5, 10),   # (connect_timeout, read_timeout) - Fast attempt
+            (10, 20),  # Medium attempt
+            (15, 30)   # Slow but thorough attempt
+        ]
+        
+        last_exception = None
+        
+        for attempt, (connect_timeout, read_timeout) in enumerate(timeout_strategies, 1):
+            try:
+                logger.info(f"API attempt {attempt} with timeout ({connect_timeout}s, {read_timeout}s): {url}")
+                
+                response = self.session.get(
+                    url,
+                    params=params,
+                    timeout=(connect_timeout, read_timeout)
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"API request successful on attempt {attempt}")
+                    return response
+                else:
+                    logger.warning(f"API returned status {response.status_code} on attempt {attempt}")
+                    response.raise_for_status()
+                    
+            except requests.exceptions.Timeout as e:
+                last_exception = e
+                logger.warning(f"Timeout on attempt {attempt} ({connect_timeout}s, {read_timeout}s): {e}")
+                if attempt < len(timeout_strategies):
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                continue
+                
+            except requests.exceptions.ConnectionError as e:
+                last_exception = e
+                logger.warning(f"Connection error on attempt {attempt}: {e}")
+                if attempt < len(timeout_strategies):
+                    time.sleep(2 ** attempt)
+                continue
+                
+            except requests.exceptions.HTTPError as e:
+                last_exception = e
+                logger.error(f"HTTP error on attempt {attempt}: {e}")
+                if e.response.status_code >= 500 and attempt < len(timeout_strategies):
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    raise
+                    
+            except Exception as e:
+                last_exception = e
+                logger.error(f"Unexpected error on attempt {attempt}: {e}")
+                if attempt < len(timeout_strategies):
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    raise
+        
+        # If all attempts failed, raise the last exception
+        if last_exception:
+            raise last_exception
+        else:
+            raise requests.exceptions.RequestException("All API attempts failed")
+
+    def get_product_from_cache_or_api(self, barcode: str) -> dict:
+        """
+        Try multiple OpenFoodFacts endpoints for better reliability
+        """
+        # Try multiple endpoints in order of preference
+        endpoints = [
+            f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json",
+            f"https://world.openfoodfacts.net/api/v0/product/{barcode}.json",
+            f"https://fr.openfoodfacts.org/api/v0/product/{barcode}.json"
+        ]
+        
+        for endpoint in endpoints:
+            try:
+                logger.info(f"Trying endpoint: {endpoint}")
+                response = self.make_api_request(endpoint)
+                data = response.json()
+                
+                if data.get('status') == 1:
+                    logger.info(f"Product found at endpoint: {endpoint}")
+                    return data
+                else:
+                    logger.info(f"Product not found at endpoint: {endpoint}")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to fetch from {endpoint}: {e}")
+                continue
+        
+        # If all endpoints fail, raise an exception
+        raise requests.exceptions.RequestException("Product not found in any OpenFoodFacts database")
+
     # need to figure out how to pull from own database
     def parse_serving_string(self, serving_str):
         """Parse serving size string and extract numeric value in grams"""
@@ -171,8 +296,6 @@ class FoodHealthAnalyzer:
                 return value
             return None
     
-    
-
     def get_serving_size_from_api(self, product: Dict) -> Dict:
         """
         Extract serving size from OpenFoodFacts API with comprehensive field checking
@@ -859,32 +982,25 @@ class FoodHealthAnalyzer:
         
         return recommendations
 
+
 # Initialize analyzer
 analyzer = FoodHealthAnalyzer()
 
 @food_scanner_bp.route('/product/<barcode>', methods=['GET'])
 def get_product_info(barcode):
-    """Get product information by barcode with accurate serving size extraction"""
+    """Get product information by barcode with enhanced timeout handling"""
     try:
         # Validate barcode
         if not barcode or not barcode.isdigit():
             return jsonify({'error': 'Invalid barcode format'}), 400
         
-        # Query OpenFoodFacts API
-        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-        headers = {
-            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
-        }
+        logger.info(f"Starting product lookup for barcode: {barcode}")
         
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if data.get('status') != 1:
-            return jsonify({'error': 'Product not found'}), 404
-        
+        # Get product data with retry logic
+        data = analyzer.get_product_from_cache_or_api(barcode)
         product = data['product']
+        
+        logger.info(f"Product found: {product.get('product_name', 'Unknown')}")
         
         # Get ACCURATE serving size from API - this is the ONLY method used
         serving_info = analyzer.get_serving_size_from_api(product)
@@ -960,35 +1076,57 @@ def get_product_info(barcode):
             }
         }
         
+        logger.info(f"Successfully processed product: {product.get('product_name', 'Unknown')}")
         return jsonify(result)
     
+    except requests.exceptions.Timeout as e:
+        logger.error(f"API timeout after all retries for barcode {barcode}: {e}")
+        return jsonify({
+            'error': 'Product lookup timed out. Please try again.',
+            'error_type': 'timeout',
+            'retry_suggested': True
+        }), 504
+    
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"Connection error for barcode {barcode}: {e}")
+        return jsonify({
+            'error': 'Unable to connect to product database. Please check your internet connection.',
+            'error_type': 'connection_error',
+            'retry_suggested': True
+        }), 503
+    
     except requests.exceptions.RequestException as e:
-        logger.error(f"API request failed: {e}")
-        return jsonify({'error': 'Failed to fetch product data'}), 500
+        if "Product not found" in str(e):
+            logger.info(f"Product not found for barcode: {barcode}")
+            return jsonify({
+                'error': 'Product not found in database',
+                'error_type': 'not_found',
+                'barcode': barcode
+            }), 404
+        else:
+            logger.error(f"API request failed for barcode {barcode}: {e}")
+            return jsonify({
+                'error': 'Failed to fetch product data',
+                'error_type': 'api_error',
+                'retry_suggested': True
+            }), 502
     
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        logger.error(f"Unexpected error processing barcode {barcode}: {e}", exc_info=True)
+        return jsonify({
+            'error': 'Internal server error',
+            'error_type': 'server_error'
+        }), 500
 
 # Debug endpoint to test serving size extraction
 @food_scanner_bp.route('/debug-serving/<barcode>', methods=['GET'])
 def debug_serving_size(barcode):
     """Debug endpoint to see all serving size related data from OpenFoodFacts API"""
     try:
-        # Query OpenFoodFacts API
-        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-        headers = {
-            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
-        }
+        logger.info(f"Debug serving size for barcode: {barcode}")
         
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if data.get('status') != 1:
-            return jsonify({'error': 'Product not found'}), 404
-        
+        # Get product data with enhanced timeout handling
+        data = analyzer.get_product_from_cache_or_api(barcode)
         product = data['product']
         
         # Extract all serving-related fields
@@ -1050,13 +1188,15 @@ def debug_serving_size(barcode):
         return jsonify(debug_info)
     
     except Exception as e:
-        logger.error(f"Debug serving size error: {e}")
+        logger.error(f"Debug serving size error for barcode {barcode}: {e}", exc_info=True)
         return jsonify({'error': f'Debug failed: {str(e)}'}), 500
 
 @food_scanner_bp.route('/search/<query>', methods=['GET'])
 def search_products(query):
-    """Search for products by name"""
+    """Search for products by name with enhanced timeout handling"""
     try:
+        logger.info(f"Searching for products: {query}")
+        
         url = f"https://world.openfoodfacts.org/cgi/search.pl"
         params = {
             'search_terms': query,
@@ -1066,13 +1206,8 @@ def search_products(query):
             'page_size': 20
         }
         
-        headers = {
-            'User-Agent': 'PlateMate-FoodScanner/1.0 (platemate-app@example.com)'
-        }
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-        
+        # Use analyzer's enhanced request method
+        response = analyzer.make_api_request(url, params=params, timeout=15)
         data = response.json()
         products = []
         
@@ -1114,27 +1249,43 @@ def search_products(query):
         # Sort by health score (best first)
         products.sort(key=lambda x: x['quick_health_score'], reverse=True)
         
+        logger.info(f"Found {len(products)} products for query: {query}")
         return jsonify({'products': products})
     
+    except requests.exceptions.Timeout as e:
+        logger.error(f"Search timeout for query '{query}': {e}")
+        return jsonify({
+            'error': 'Search timed out. Please try again.',
+            'error_type': 'timeout'
+        }), 504
+    
     except Exception as e:
-        logger.error(f"Search error: {e}")
-        return jsonify({'error': 'Search failed'}), 500
+        logger.error(f"Search error for query '{query}': {e}", exc_info=True)
+        return jsonify({
+            'error': 'Search failed',
+            'error_type': 'search_error'
+        }), 500
 
 @food_scanner_bp.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for food scanner"""
     return jsonify({
         'status': 'healthy',
-        'message': 'Enhanced Food Scanner API with Accurate Serving Sizes',
-        'version': '3.0',
+        'message': 'Enhanced Food Scanner API with Robust Timeout Handling',
+        'version': '3.1',
         'features': [
+            'Robust timeout handling with multiple retry strategies',
+            'Multiple OpenFoodFacts endpoints for better reliability',
+            'Connection pooling and session reuse',
+            'Exponential backoff for failed requests',
             'Accurate serving size extraction from OpenFoodFacts API',
             'Comprehensive field checking (serving_size, serving_quantity, nutrient ratios)',
             'Smart unit conversion (g, ml, oz, tbsp, etc.)',
             'Category-based intelligent fallbacks',
             'Strict health scoring',
             'Enhanced additive detection',
-            'Ultra-processed food detection'
+            'Ultra-processed food detection',
+            'Detailed error reporting with retry suggestions'
         ]
     })
 
@@ -1163,6 +1314,56 @@ def analyze_ingredients_text():
     except Exception as e:
         logger.error(f"Ingredients analysis error: {e}")
         return jsonify({'error': 'Analysis failed'}), 500
+
+@food_scanner_bp.route('/test-connection', methods=['GET'])
+def test_connection():
+    """Test connection to OpenFoodFacts API"""
+    try:
+        # Test with a well-known product (Coca-Cola)
+        test_barcode = "5449000000996"
+        logger.info(f"Testing connection with barcode: {test_barcode}")
+        
+        start_time = time.time()
+        data = analyzer.get_product_from_cache_or_api(test_barcode)
+        end_time = time.time()
+        
+        response_time = round((end_time - start_time) * 1000, 2)  # Convert to milliseconds
+        
+        product = data.get('product', {})
+        product_name = product.get('product_name', 'Unknown')
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Connection to OpenFoodFacts API is working',
+            'response_time_ms': response_time,
+            'test_product': {
+                'barcode': test_barcode,
+                'name': product_name,
+                'found': data.get('status') == 1
+            },
+            'api_endpoints_tested': [
+                'https://world.openfoodfacts.org',
+                'https://world.openfoodfacts.net',
+                'https://fr.openfoodfacts.org'
+            ]
+        })
+    
+    except requests.exceptions.Timeout as e:
+        logger.error(f"Connection test timeout: {e}")
+        return jsonify({
+            'status': 'timeout',
+            'message': 'API connection test timed out',
+            'error': str(e),
+            'suggestion': 'Check your internet connection and try again'
+        }), 504
+    
+    except Exception as e:
+        logger.error(f"Connection test failed: {e}")
+        return jsonify({
+            'status': 'failed',
+            'message': 'API connection test failed',
+            'error': str(e)
+        }), 500
 
 def init_food_scanner_routes(app):
     """Initialize food scanner routes"""
