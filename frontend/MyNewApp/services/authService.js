@@ -1,70 +1,54 @@
-import { auth, db } from "../firebaseConfig";
+// Enhanced authService.js
+import * as SecureStore from "expo-secure-store";
+import axios from "axios";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
   sendPasswordResetEmail,
+  signOut,
+  onAuthStateChanged,
 } from "firebase/auth";
-import {
-  doc,
-  setDoc,
-  getDoc,
-  serverTimestamp,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-} from "firebase/firestore";
-import * as SecureStore from "expo-secure-store";
+import { doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { auth, db } from "../firebaseConfig";
 
-// figure out if our delete functions are properly integrated
 export const authService = {
-  // Basic auth operations
+  // Cache for premium status to avoid excessive Firestore calls
+  _premiumStatusCache: null,
+  _cacheTimestamp: null,
+  _cacheValidityMs: 30000, // 30 seconds
+
   getCurrentUser() {
     return auth.currentUser;
   },
 
-  async getToken() {
+  async register(email, password) {
     try {
-      return await SecureStore.getItemAsync("auth_token");
-    } catch (error) {
-      console.error("Error getting token:", error);
-      return null;
-    }
-  },
-
-  async saveToken(token) {
-    try {
-      await SecureStore.setItemAsync("auth_token", token);
-    } catch (error) {
-      console.error("Error saving token:", error);
-    }
-  },
-
-  async register(email, password, displayName) {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Save token
-      const token = await user.getIdToken();
-      await this.saveToken(token);
-
-      // Initialize user document
-      await setDoc(doc(db, "users", user.uid), {
-        email,
-        displayName,
-        createdAt: serverTimestamp(),
+      // Create comprehensive user document
+      const userData = {
+        email: user.email,
+        createdAt: new Date().toISOString(),
+        isPremium: false,
         savedRecipes: [],
         mealPlans: [],
-        isPremium: false,
-      });
+        preferences: {
+          dietaryRestrictions: [],
+          allergies: [],
+          cuisinePreferences: []
+        },
+        usage: {
+          recipesViewed: 0,
+          mealPlansCreated: 0,
+          lastActive: new Date().toISOString()
+        }
+      };
 
-      return { user };
+      await setDoc(doc(db, "users", user.uid), userData);
+      console.log('✅ User registered and document created');
+
+      return { ...user, ...userData };
     } catch (error) {
       console.error("Registration error:", error);
       throw error;
@@ -73,18 +57,51 @@ export const authService = {
 
   async login(email, password) {
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Save token
-      const token = await user.getIdToken();
-      await this.saveToken(token);
+      // Get or create user document
+      const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
+      
+      let userData;
+      if (userDoc.exists()) {
+        userData = userDoc.data();
+        
+        // Update last active timestamp
+        await updateDoc(userRef, {
+          'usage.lastActive': new Date().toISOString()
+        });
+      } else {
+        // Create missing user document
+        userData = {
+          email: user.email,
+          createdAt: new Date().toISOString(),
+          isPremium: false,
+          savedRecipes: [],
+          mealPlans: [],
+          preferences: {
+            dietaryRestrictions: [],
+            allergies: [],
+            cuisinePreferences: []
+          },
+          usage: {
+            recipesViewed: 0,
+            mealPlansCreated: 0,
+            lastActive: new Date().toISOString()
+          }
+        };
+        
+        await setDoc(userRef, userData);
+        console.log('✅ Missing user document created during login');
+      }
 
-      return { user };
+      // Clear premium cache since user just logged in
+      this._premiumStatusCache = null;
+      this._cacheTimestamp = null;
+
+      console.log('✅ User logged in successfully');
+      return { ...user, ...userData };
     } catch (error) {
       console.error("Login error:", error);
       throw error;
@@ -93,9 +110,13 @@ export const authService = {
 
   async logout() {
     try {
-      await firebaseSignOut(auth);
-      await SecureStore.deleteItemAsync("auth_token");
-      return true;
+      await signOut(auth);
+      
+      // Clear caches
+      this._premiumStatusCache = null;
+      this._cacheTimestamp = null;
+      
+      console.log('✅ User logged out successfully');
     } catch (error) {
       console.error("Error during logout:", error);
       throw error;
@@ -105,57 +126,109 @@ export const authService = {
   async forgotPassword(email) {
     try {
       await sendPasswordResetEmail(auth, email);
+      console.log('✅ Password reset email sent');
     } catch (error) {
       console.error("Password reset error:", error);
       throw error;
     }
   },
 
-  // Premium status
-  async checkPremiumStatus() {
+  // Enhanced premium status checking with caching
+  async checkPremiumStatus(useCache = true) {
     try {
+      // Check cache first if enabled
+      if (useCache && this._premiumStatusCache !== null && this._cacheTimestamp) {
+        const cacheAge = Date.now() - this._cacheTimestamp;
+        if (cacheAge < this._cacheValidityMs) {
+          console.log('📋 Using cached premium status:', this._premiumStatusCache);
+          return this._premiumStatusCache;
+        }
+      }
+
       const user = auth.currentUser;
-      if (!user) return false;
+      if (!user) {
+        this._premiumStatusCache = false;
+        this._cacheTimestamp = Date.now();
+        return false;
+      }
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        return userDoc.data().isPremium || false;
-      }
-      return false;
+      const isPremium = userDoc.exists() ? userDoc.data().isPremium || false : false;
+      
+      // Update cache
+      this._premiumStatusCache = isPremium;
+      this._cacheTimestamp = Date.now();
+      
+      console.log('✅ Premium status checked:', isPremium);
+      return isPremium;
     } catch (error) {
       console.error("Error checking premium status:", error);
-      return false;
+      // Return cached value if available, otherwise false
+      return this._premiumStatusCache !== null ? this._premiumStatusCache : false;
     }
   },
 
-  async upgradeToPremuim() {
+  // Enhanced method to get premium status from multiple sources
+  async getPremiumStatusWithSource() {
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error("User not logged in");
+      if (!user) {
+        return { isPremium: false, source: 'no_user' };
+      }
 
-      await updateDoc(doc(db, "users", user.uid), {
-        isPremium: true,
-      });
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (!userDoc.exists()) {
+        return { isPremium: false, source: 'no_document' };
+      }
 
-      return true;
+      const userData = userDoc.data();
+      const isPremium = userData.isPremium || false;
+      const subscriptionInfo = userData.subscriptionInfo;
+      const lastSynced = userData.lastSyncedAt;
+
+      return {
+        isPremium,
+        source: 'firestore',
+        subscriptionInfo,
+        lastSynced,
+        cacheAge: this._cacheTimestamp ? Date.now() - this._cacheTimestamp : null
+      };
     } catch (error) {
-      console.error("Error upgrading to premium:", error);
-      throw error;
+      console.error("Error getting premium status with source:", error);
+      return { isPremium: false, source: 'error', error: error.message };
     }
   },
 
-  // Recipe operations
+  // Clear premium cache (useful after purchases)
+  clearPremiumCache() {
+    this._premiumStatusCache = null;
+    this._cacheTimestamp = null;
+    console.log('🗑️ Premium status cache cleared');
+  },
+
+  // Enhanced recipe operations with premium checks
   async saveRecipe(recipeData) {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("User not logged in");
 
-      // Ensure recipe has an ID
-      if (!recipeData.id) {
-        recipeData.id = `recipe_${Date.now()}`;
+      // Check if user has premium for unlimited saves
+      const isPremium = await this.checkPremiumStatus();
+      
+      if (!isPremium) {
+        // Check current saved recipes count for free users
+        const currentRecipes = await this.getSavedRecipes();
+        const FREE_RECIPE_LIMIT = 10; // Adjust as needed
+        
+        if (currentRecipes.length >= FREE_RECIPE_LIMIT) {
+          throw new Error(`Free users can only save ${FREE_RECIPE_LIMIT} recipes. Upgrade to Premium for unlimited saves.`);
+        }
       }
 
-      // Add saved timestamp
+      if (!recipeData.id) {
+        recipeData.id = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
       recipeData.savedAt = new Date().toISOString();
 
       const userRef = doc(db, "users", user.uid);
@@ -164,15 +237,16 @@ export const authService = {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const savedRecipes = userData.savedRecipes || [];
-        const recipeExists = savedRecipes.some(
-          (recipe) => recipe.id === recipeData.id
-        );
+        const recipeExists = savedRecipes.some(recipe => recipe.id === recipeData.id);
 
         if (!recipeExists) {
-          // Using array update for Firestore
           await updateDoc(userRef, {
             savedRecipes: arrayUnion(recipeData),
           });
+          
+          console.log('✅ Recipe saved successfully');
+        } else {
+          console.log('ℹ️ Recipe already saved');
         }
 
         return await this.getSavedRecipes();
@@ -191,10 +265,7 @@ export const authService = {
       if (!user) throw new Error("User not logged in");
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        return userDoc.data().savedRecipes || [];
-      }
-      return [];
+      return userDoc.exists() ? userDoc.data().savedRecipes || [] : [];
     } catch (error) {
       console.error("Error getting saved recipes:", error);
       throw error;
@@ -212,15 +283,13 @@ export const authService = {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const savedRecipes = userData.savedRecipes || [];
-
-        const recipeToRemove = savedRecipes.find(
-          (recipe) => recipe.id === recipeId
-        );
+        const recipeToRemove = savedRecipes.find(recipe => recipe.id === recipeId);
 
         if (recipeToRemove) {
           await updateDoc(userRef, {
             savedRecipes: arrayRemove(recipeToRemove),
           });
+          console.log('✅ Recipe removed successfully');
         }
       }
 
@@ -231,27 +300,31 @@ export const authService = {
     }
   },
 
-  // Meal plan operations
+  // Enhanced meal plan operations with premium checks
   async saveMealPlan(mealPlanData) {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("User not logged in");
 
-      // Ensure meal plan has an ID
-      if (!mealPlanData.id) {
-        mealPlanData.id = `mealplan_${Date.now()}`;
+      // Check if user has premium for meal plans
+      const isPremium = await this.checkPremiumStatus();
+      if (!isPremium) {
+        throw new Error("Meal plans are a premium feature. Please upgrade to access this functionality.");
       }
 
-      // Add saved timestamp
+      if (!mealPlanData.id) {
+        mealPlanData.id = `mealplan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
       mealPlanData.savedAt = new Date().toISOString();
 
       const userRef = doc(db, "users", user.uid);
-
-      // Using arrayUnion for Firestore
       await updateDoc(userRef, {
         mealPlans: arrayUnion(mealPlanData),
+        'usage.mealPlansCreated': arrayUnion(new Date().toISOString())
       });
 
+      console.log('✅ Meal plan saved successfully');
       return await this.getMealPlans();
     } catch (error) {
       console.error("Error saving meal plan:", error);
@@ -265,17 +338,13 @@ export const authService = {
       if (!user) throw new Error("User not logged in");
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        return userDoc.data().mealPlans || [];
-      }
-      return [];
+      return userDoc.exists() ? userDoc.data().mealPlans || [] : [];
     } catch (error) {
       console.error("Error getting meal plans:", error);
       throw error;
     }
   },
 
-  // we need to fix this if we plan on having users name their meal plans for saving
   async removeMealPlan(mealPlanId) {
     try {
       const user = auth.currentUser;
@@ -287,15 +356,13 @@ export const authService = {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         const mealPlans = userData.mealPlans || [];
-
-        const mealPlanToRemove = mealPlans.find(
-          (plan) => plan.id === mealPlanId
-        );
+        const mealPlanToRemove = mealPlans.find(plan => plan.id === mealPlanId);
 
         if (mealPlanToRemove) {
           await updateDoc(userRef, {
             mealPlans: arrayRemove(mealPlanToRemove),
           });
+          console.log('✅ Meal plan removed successfully');
         }
       }
 
@@ -306,23 +373,45 @@ export const authService = {
     }
   },
 
-  // Auth state
   onAuthStateChange(callback) {
     return onAuthStateChanged(auth, callback);
   },
 
-  async initialize() {
-    return new Promise((resolve) => {
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        unsubscribe();
-        if (user) {
-          const token = await user.getIdToken();
-          await this.saveToken(token);
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      });
-    });
+  async getUserData() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      return userDoc.exists() ? userDoc.data() : null;
+    } catch (error) {
+      console.error("Error getting user data:", error);
+      throw error;
+    }
   },
+
+  // Utility method for debugging
+  async debugUserState() {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { error: 'No user logged in' };
+
+      const userData = await this.getUserData();
+      const premiumStatus = await this.getPremiumStatusWithSource();
+
+      return {
+        userId: user.uid,
+        email: user.email,
+        userData,
+        premiumStatus,
+        cacheInfo: {
+          cached: this._premiumStatusCache,
+          timestamp: this._cacheTimestamp,
+          age: this._cacheTimestamp ? Date.now() - this._cacheTimestamp : null
+        }
+      };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
 };

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kitchly",
     "slug": "platemate",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "baseUrl": "http:172.20.10.2:5000",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
@@ -20,7 +20,7 @@
       "entitlements": {
         "com.apple.developer.in-app-purchase": true
       },
-      "buildNumber": "1.0.2",
+      "buildNumber": "1.0.4",
       "googleServicesFile": "./assets/GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

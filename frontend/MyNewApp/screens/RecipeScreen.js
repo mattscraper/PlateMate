@@ -38,6 +38,7 @@ const RecipeScreen = ({ navigation }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [isLoginVisible, setIsLoginVisible] = useState(false);
+  const [premiumStatusLoading, setPremiumStatusLoading] = useState(true);
 
   const [loadingText, setLoadingText] = useState("");
   const loadingTexts = [
@@ -47,6 +48,67 @@ const RecipeScreen = ({ navigation }) => {
     "Preparing recipe collection...",
     "Gathering cooking ideas...",
   ];
+
+  // Conversion functions for US standards
+  const convertToUSMeasurements = (measure) => {
+    if (!measure || typeof measure !== 'string') return measure;
+    
+    let converted = measure.toLowerCase();
+    
+    // Temperature conversions
+    converted = converted.replace(/(\d+)\s*°?c\b/g, (match, celsius) => {
+      const fahrenheit = Math.round((parseInt(celsius) * 9/5) + 32);
+      return `${fahrenheit}°F`;
+    });
+    
+    // Weight conversions
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*g\b/g, (match, grams) => {
+      const oz = (parseFloat(grams) * 0.035274).toFixed(1);
+      return `${oz} oz`;
+    });
+    
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*kg\b/g, (match, kg) => {
+      const lbs = (parseFloat(kg) * 2.20462).toFixed(1);
+      return `${lbs} lbs`;
+    });
+    
+    // Volume conversions
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*ml\b/g, (match, ml) => {
+      const flOz = (parseFloat(ml) * 0.033814).toFixed(1);
+      return `${flOz} fl oz`;
+    });
+    
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*l\b/g, (match, liters) => {
+      const cups = (parseFloat(liters) * 4.22675).toFixed(1);
+      return `${cups} cups`;
+    });
+    
+    // Common UK to US conversions
+    converted = converted.replace(/\btsp\b/g, 'tsp');
+    converted = converted.replace(/\btbsp\b/g, 'tbsp');
+    
+    return converted.charAt(0).toUpperCase() + converted.slice(1);
+  };
+
+  const convertInstructionsToUS = (instructions) => {
+    if (!instructions || typeof instructions !== 'string') return instructions;
+    
+    let converted = instructions;
+    
+    // Temperature conversions in instructions
+    converted = converted.replace(/(\d+)\s*°?c\b/gi, (match, celsius) => {
+      const fahrenheit = Math.round((parseInt(celsius) * 9/5) + 32);
+      return `${fahrenheit}°F`;
+    });
+    
+    // Common cooking temperature conversions
+    converted = converted.replace(/gas mark (\d+)/gi, (match, gasMark) => {
+      const gasToF = { 1: 275, 2: 300, 3: 325, 4: 350, 5: 375, 6: 400, 7: 425, 8: 450, 9: 475 };
+      return gasToF[gasMark] ? `${gasToF[gasMark]}°F` : match;
+    });
+    
+    return converted;
+  };
 
   useEffect(() => {
     if (loading && !refreshing) {
@@ -68,30 +130,38 @@ const RecipeScreen = ({ navigation }) => {
   useEffect(() => {
     loadRecipes();
     
-    const unsubscribe = authService.onAuthStateChange((user) => {
+    const unsubscribe = authService.onAuthStateChange(async (user) => {
       setIsLoggedIn(!!user);
       if (user) {
-        checkPremiumStatus();
+        setPremiumStatusLoading(true);
+        await checkPremiumStatus();
+        setPremiumStatusLoading(false);
       } else {
         setIsPremium(false);
+        setPremiumStatusLoading(false);
       }
     });
 
-    authService.initialize().then((isAuthenticated) => {
-      setIsLoggedIn(isAuthenticated);
-      if (isAuthenticated) {
-        checkPremiumStatus();
-      }
-    });
+    checkLoginStatus();
 
     return () => unsubscribe();
   }, []);
 
   const checkLoginStatus = async () => {
-    const user = authService.getCurrentUser();
-    setIsLoggedIn(!!user);
-    if (user) {
-      checkPremiumStatus();
+    try {
+      const user = authService.getCurrentUser();
+      setIsLoggedIn(!!user);
+      if (user) {
+        setPremiumStatusLoading(true);
+        await checkPremiumStatus();
+        setPremiumStatusLoading(false);
+      } else {
+        setPremiumStatusLoading(false);
+      }
+    } catch (error) {
+      console.error("Error checking login status:", error);
+      setIsLoggedIn(false);
+      setPremiumStatusLoading(false);
     }
   };
 
@@ -101,6 +171,7 @@ const RecipeScreen = ({ navigation }) => {
       setIsPremium(isPremiumUser);
     } catch (error) {
       console.error("Error checking premium status:", error);
+      setIsPremium(false);
     }
   };
 
@@ -125,7 +196,7 @@ const RecipeScreen = ({ navigation }) => {
       const measure = recipe[`strMeasure${i}`];
       
       if (ingredient && ingredient.trim()) {
-        const measureText = measure && measure.trim() ? `${measure.trim()} ` : '';
+        const measureText = measure && measure.trim() ? `${convertToUSMeasurements(measure.trim())} ` : '';
         recipeText += `• ${measureText}${ingredient.trim()}\n`;
       }
     }
@@ -133,7 +204,8 @@ const RecipeScreen = ({ navigation }) => {
 
     recipeText += 'Instructions:\n';
     if (recipe.strInstructions) {
-      const steps = recipe.strInstructions
+      const convertedInstructions = convertInstructionsToUS(recipe.strInstructions);
+      const steps = convertedInstructions
         .split(/\r?\n/)
         .filter(step => step.trim().length > 0)
         .map(step => step.trim());
@@ -388,7 +460,8 @@ const RecipeScreen = ({ navigation }) => {
   const parseInstructions = (instructionsText) => {
     if (!instructionsText) return [];
     
-    let cleanText = instructionsText.trim();
+    // Convert to US standards first
+    let cleanText = convertInstructionsToUS(instructionsText.trim());
     
     let steps = cleanText
       .split(/(?:\r?\n)+|(?:\d+\.)|(?:STEP \d+)|(?:Step \d+)/i)
@@ -422,7 +495,7 @@ const RecipeScreen = ({ navigation }) => {
         if (ingredient && ingredient.trim()) {
           ingredients.push({
             ingredient: ingredient.trim(),
-            measure: measure && measure.trim() ? measure.trim() : ''
+            measure: measure && measure.trim() ? convertToUSMeasurements(measure.trim()) : ''
           });
         }
       }
@@ -432,10 +505,12 @@ const RecipeScreen = ({ navigation }) => {
           <View style={styles.ingredientsGrid}>
             {ingredients.map((item, index) => (
               <View key={index} style={styles.ingredientCard}>
-                <Text style={styles.ingredientName}>{item.ingredient}</Text>
-                {item.measure && (
-                  <Text style={styles.ingredientMeasure}>{item.measure}</Text>
-                )}
+                <View style={styles.ingredientHeader}>
+                  <Text style={styles.ingredientName}>{item.ingredient}</Text>
+                  {item.measure && (
+                    <Text style={styles.ingredientMeasure}>{item.measure}</Text>
+                  )}
+                </View>
               </View>
             ))}
           </View>
@@ -648,7 +723,7 @@ const RecipeScreen = ({ navigation }) => {
       <PersistentFooter
         navigation={navigation}
         isLoggedIn={isLoggedIn}
-        isPremium={isPremium}
+        isPremium={!premiumStatusLoading ? isPremium : false}
         onLoginRequired={handleLoginRequired}
       />
 
@@ -868,7 +943,7 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     position: 'relative',
-    height: height * 0.3,
+    height: height * 0.25, // Reduced from 0.3 to give more room below
     marginHorizontal: 20,
     marginTop: 10,
     borderRadius: 20,
@@ -946,7 +1021,7 @@ const styles = StyleSheet.create({
   actionButtonsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12, // Reduced from 16 to 12
     gap: 12,
   },
   saveButton: {
@@ -1019,7 +1094,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 16,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: 12, // Reduced from 16 to 12
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1062,82 +1137,89 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ingredientsGrid: {
-    gap: 12,
+    gap: 16, // Increased from 12 to 16 for more spacing
   },
   ingredientCard: {
     backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 3,
+    padding: 20, // Increased from 16 to 20 for more room
+    borderRadius: 16, // Increased from 12 to 16 for better visual
+    borderLeftWidth: 4, // Increased from 3 to 4
     borderLeftColor: '#008b8b',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
+  ingredientHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
   ingredientName: {
-    fontSize: 15,
+    flex: 1,
+    fontSize: 16, // Increased from 15 to 16
     fontWeight: '600',
     color: '#2c3e50',
-    marginBottom: 2,
+    lineHeight: 22, // Added line height for better readability
   },
   ingredientMeasure: {
-    fontSize: 13,
+    fontSize: 14, // Increased from 13 to 14
     color: '#008b8b',
-    fontWeight: '500',
+    fontWeight: '600', // Increased from 500 to 600
+    textAlign: 'right',
+    minWidth: 60, // Added minimum width to prevent cramping
   },
   instructionsGrid: {
-    gap: 16,
+    gap: 20, // Increased from 16 to 20 for more spacing
   },
   instructionCard: {
     backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
+    padding: 20, // Increased from 16 to 20
+    borderRadius: 16, // Increased from 12 to 16
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 16, // Increased from 12 to 16
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
   stepIndicator: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32, // Increased from 28 to 32
+    height: 32, // Increased from 28 to 32
+    borderRadius: 16, // Increased from 14 to 16
     backgroundColor: '#008b8b',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
+    flexShrink: 0, // Prevent shrinking
   },
   stepNumber: {
     color: 'white',
-    fontSize: 13,
+    fontSize: 14, // Increased from 13 to 14
     fontWeight: 'bold',
   },
   instructionText: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16, // Increased from 15 to 16
+    lineHeight: 24, // Increased from 22 to 24 for better readability
     color: '#2c3e50',
     fontWeight: '400',
-  },
-  modalBottomSpacing: {
-    height: 30,
   },
 });
 

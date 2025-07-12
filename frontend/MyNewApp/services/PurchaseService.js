@@ -6,7 +6,7 @@ import { auth, db } from '../firebaseConfig';
 class PurchaseService {
   static isConfigured = false;
 
-  // Simplified configuration that actually works
+
   static async configure() {
     if (this.isConfigured) {
       return;

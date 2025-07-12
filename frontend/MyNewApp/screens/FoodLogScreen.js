@@ -1,3 +1,4 @@
+// fixed this july 9, 2025 need to implement ML ai scanner
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -28,6 +29,7 @@ const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 export default function FoodLogScreen({ navigation }) {
   // Core State
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true); // Add this state
   const [user, setUser] = useState(null);
   const [foodDescription, setFoodDescription] = useState("");
   const [selectedMealType, setSelectedMealType] = useState("other");
@@ -35,6 +37,7 @@ export default function FoodLogScreen({ navigation }) {
   const [dailyProgress, setDailyProgress] = useState(null);
   const [isGoalsModalVisible, setIsGoalsModalVisible] = useState(false);
   
+    
   // Goal Form State
   const [dailyCalories, setDailyCalories] = useState("");
   const [dailyProtein, setDailyProtein] = useState("");
@@ -201,6 +204,8 @@ export default function FoodLogScreen({ navigation }) {
     } else {
       navigation.navigate("Landing");
     }
+    // Set initial loading to false after everything is loaded
+    setIsInitialLoading(false);
   };
 
   const refreshData = async (userId) => {
@@ -810,6 +815,18 @@ export default function FoodLogScreen({ navigation }) {
 
   const isSaveEnabled = dailyCalories.trim() && dailyProtein.trim() && !isLoading;
 
+  // Add initial loading screen
+  if (isInitialLoading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading your nutrition data...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
@@ -938,8 +955,8 @@ export default function FoodLogScreen({ navigation }) {
               </View>
             )}
 
-            {/* No Goals Setup */}
-            {!userGoals && (
+            {/* No Goals Setup - Only show if not loading and no goals exist */}
+            {!userGoals && !isInitialLoading && (
               <View style={[styles.setupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={[styles.setupIcon, { backgroundColor: colors.primary + '15' }]}>
                   <Ionicons name="target-outline" size={32} color={colors.primary} />
@@ -1186,6 +1203,20 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  
+  // Loading Screen Styles
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 16,
   },
   
   // Header Styles

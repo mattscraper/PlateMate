@@ -30,6 +30,7 @@ export default function LandingScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isForgotVisible, setIsForgotVisible] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [premiumStatusLoading, setPremiumStatusLoading] = useState(true); // Add loading state
 
   // Create animated value for scroll position
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -46,22 +47,20 @@ export default function LandingScreen({ navigation }) {
   );
 
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChange((user) => {
+    const unsubscribe = authService.onAuthStateChange(async (user) => {
       setIsLoggedIn(!!user);
       if (user) {
-        checkPremiumStatus();
+        setPremiumStatusLoading(true);
+        await checkPremiumStatus();
+        setPremiumStatusLoading(false);
       } else {
         setIsPremium(false);
+        setPremiumStatusLoading(false);
       }
     });
 
-    // Initialize auth service
-    authService.initialize().then((isAuthenticated) => {
-      setIsLoggedIn(isAuthenticated);
-      if (isAuthenticated) {
-        checkPremiumStatus();
-      }
-    });
+    // Initialize by checking current user status
+    checkLoginStatus();
 
     return () => unsubscribe();
   }, []);
@@ -71,11 +70,16 @@ export default function LandingScreen({ navigation }) {
       const user = authService.getCurrentUser();
       setIsLoggedIn(!!user);
       if (user) {
-        checkPremiumStatus();
+        setPremiumStatusLoading(true);
+        await checkPremiumStatus();
+        setPremiumStatusLoading(false);
+      } else {
+        setPremiumStatusLoading(false);
       }
     } catch (error) {
       console.error("Error checking login status:", error);
       setIsLoggedIn(false);
+      setPremiumStatusLoading(false);
     }
   };
 
@@ -93,6 +97,15 @@ export default function LandingScreen({ navigation }) {
   const handleLoginRequired = () => {
     setIsLoginVisible(true);
   };
+
+  // Memoized input handlers to prevent re-renders
+  const handleEmailChange = useCallback((text) => {
+    setEmail(text);
+  }, []);
+
+  const handlePasswordChange = useCallback((text) => {
+    setPassword(text);
+  }, []);
 
   // State for custom toast messages
   const [showToast, setShowToast] = useState(false);
@@ -433,8 +446,8 @@ export default function LandingScreen({ navigation }) {
     );
   };
 
-  // Dashboard Header Component
-  const DashboardHeader = () => (
+  // Memoized Dashboard Header Component to prevent unnecessary re-renders
+  const DashboardHeader = React.memo(() => (
     <View style={styles.dashboardHeader}>
       <View style={styles.headerLeft}>
         <Image
@@ -442,11 +455,14 @@ export default function LandingScreen({ navigation }) {
           style={styles.dashboardLogo}
           resizeMode="contain"
           fadeDuration={0}
+          cache="force-cache"
+          loadingIndicatorSource={require("../assets/logo.png")}
         />
         <View style={styles.headerTextContainer}>
           <View style={styles.titleRow}>
             <Text style={styles.dashboardTitle}>Kitchly</Text>
-            {isPremium && isLoggedIn && (
+            {/* Only show premium badge when not loading and user is premium */}
+            {!premiumStatusLoading && isPremium && isLoggedIn && (
               <View style={styles.premiumBadgeSmall}>
                 <Ionicons name="diamond" size={12} color="#FFD700" />
                 <Text style={styles.premiumBadgeText}>PRO</Text>
@@ -476,6 +492,7 @@ export default function LandingScreen({ navigation }) {
                         await authService.logout();
                         setIsLoggedIn(false);
                         setIsPremium(false);
+                        setPremiumStatusLoading(false);
                         showCustomToast("Signed out successfully", "success");
                       } catch (error) {
                         console.error("Logout error:", error);
@@ -498,10 +515,14 @@ export default function LandingScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     </View>
-  );
+  ), [isLoggedIn, isPremium, premiumStatusLoading]); // Add premiumStatusLoading to dependencies
 
   // Premium CTA Section
   const PremiumCTASection = () => {
+    // Don't show anything while premium status is loading
+    if (premiumStatusLoading) return null;
+    
+    // Don't show if user is premium or not logged in
     if (isPremium || !isLoggedIn) return null;
 
     return (
@@ -666,189 +687,256 @@ export default function LandingScreen({ navigation }) {
       {/* Login Overlay */}
       {isLoginVisible && (
         <View style={styles.overlay}>
-          <View style={styles.blurBackground} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderIcon}>
-                <Ionicons name="person" size={32} color="#008b8b" />
-              </View>
-              <Text style={styles.modalTitle}>Welcome to Kitchly</Text>
-              <Text style={styles.modalSubtitle}>
-                {isNewUser
-                  ? "Create an account to start your nutrition journey"
-                  : "Sign in to continue your nutrition journey"}
-              </Text>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="mail"
-                size={20}
-                color="#008b8b"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                ref={emailRef}
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="lock-closed"
-                size={20}
-                color="#008b8b"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                ref={passwordRef}
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor="#999"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
+          <View style={styles.fullScreenBackground} />
+          <SafeAreaView style={styles.loginSafeArea}>
+            {/* Header with Close Button */}
+            <View style={styles.loginHeader}>
               <TouchableOpacity
-                style={styles.inputIcon}
-                onPress={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-              >
-                <Ionicons
-                  name={showPassword ? "eye-off" : "eye"}
-                  size={20}
-                  color="#008b8b"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {!isNewUser && (
-              <TouchableOpacity
-                style={styles.forgotPasswordButton}
+                style={styles.closeButton}
                 onPress={() => {
                   setIsLoginVisible(false);
-                  setIsForgotVisible(true);
+                  setEmail("");
+                  setPassword("");
+                  setIsNewUser(false);
                 }}
                 disabled={isLoading}
               >
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                <Ionicons name="close" size={28} color="#2c3e50" />
               </TouchableOpacity>
-            )}
+            </View>
 
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                ((!email || !password) || isLoading) && styles.loginButtonDisabled,
-              ]}
-              onPress={handleLogin}
-              disabled={isLoading || !email || !password}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.keyboardContainer}
+              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
             >
-              {isLoading ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <Text style={styles.loginButtonText}>
-                  {isNewUser ? "Create Account" : "Sign In"}
-                </Text>
-              )}
-            </TouchableOpacity>
+              <ScrollView
+                contentContainerStyle={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+              >
+                {/* Logo and Welcome */}
+                <View style={styles.loginWelcomeSection}>
+                  <Image
+                    source={require("../assets/logo.png")}
+                    style={styles.loginLogo}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.loginWelcomeTitle}>Welcome to Kitchly</Text>
+                  <Text style={styles.loginWelcomeSubtitle}>
+                    Your AI nutrition assistant
+                  </Text>
+                </View>
 
-            <TouchableOpacity
-              style={styles.switchModeButton}
-              onPress={() => setIsNewUser(!isNewUser)}
-              disabled={isLoading}
-            >
-              <Text style={styles.switchModeText}>
-                {isNewUser
-                  ? "Already have an account? Sign in"
-                  : "New user? Create account"}
-              </Text>
-            </TouchableOpacity>
+                {/* Mode Toggle */}
+                <View style={styles.modeToggleContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeToggleButton,
+                      !isNewUser && styles.modeToggleButtonActive
+                    ]}
+                    onPress={() => setIsNewUser(false)}
+                    disabled={isLoading}
+                  >
+                    <Text style={[
+                      styles.modeToggleText,
+                      !isNewUser && styles.modeToggleTextActive
+                    ]}>
+                      Sign In
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeToggleButton,
+                      isNewUser && styles.modeToggleButtonActive
+                    ]}
+                    onPress={() => setIsNewUser(true)}
+                    disabled={isLoading}
+                  >
+                    <Text style={[
+                      styles.modeToggleText,
+                      isNewUser && styles.modeToggleTextActive
+                    ]}>
+                      Create Account
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => {
-                setIsLoginVisible(false);
-                setEmail("");
-                setPassword("");
-                setIsNewUser(false);
-              }}
-              disabled={isLoading}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+                {/* Form */}
+                <View style={styles.formContainer}>
+                  <View style={styles.inputContainer}>
+                    <Ionicons
+                      name="mail"
+                      size={20}
+                      color="#008b8b"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      ref={emailRef}
+                      style={styles.input}
+                      placeholder="Email address"
+                      placeholderTextColor="#999"
+                      value={email}
+                      onChangeText={handleEmailChange}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!isLoading}
+                      returnKeyType="next"
+                      onSubmitEditing={() => passwordRef.current?.focus()}
+                    />
+                  </View>
+
+                  <View style={styles.inputContainer}>
+                    <Ionicons
+                      name="lock-closed"
+                      size={20}
+                      color="#008b8b"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      ref={passwordRef}
+                      style={styles.input}
+                      placeholder="Password"
+                      placeholderTextColor="#999"
+                      value={password}
+                      onChangeText={handlePasswordChange}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!isLoading}
+                      returnKeyType="done"
+                      onSubmitEditing={handleLogin}
+                    />
+                    <TouchableOpacity
+                      style={styles.inputIcon}
+                      onPress={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off" : "eye"}
+                        size={20}
+                        color="#008b8b"
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {!isNewUser && (
+                    <TouchableOpacity
+                      style={styles.forgotPasswordButton}
+                      onPress={() => {
+                        setIsLoginVisible(false);
+                        setIsForgotVisible(true);
+                      }}
+                      disabled={isLoading}
+                    >
+                      <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={[
+                      styles.loginButton,
+                      ((!email || !password) || isLoading) && styles.loginButtonDisabled,
+                    ]}
+                    onPress={handleLogin}
+                    disabled={isLoading || !email || !password}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="white" size="small" />
+                    ) : (
+                      <Text style={styles.loginButtonText}>
+                        {isNewUser ? "Create Account" : "Sign In"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
         </View>
       )}
 
       {/* Forgot Password Overlay */}
       {isForgotVisible && (
         <View style={styles.overlay}>
-          <View style={styles.blurBackground} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderIcon}>
-                <Ionicons name="key" size={32} color="#008b8b" />
-              </View>
-              <Text style={styles.modalTitle}>Reset Password</Text>
-              <Text style={styles.modalSubtitle}>
-                Enter your email to receive password reset instructions
-              </Text>
+          <View style={styles.fullScreenBackground} />
+          <SafeAreaView style={styles.loginSafeArea}>
+            {/* Header with Back Button */}
+            <View style={styles.loginHeader}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  setIsForgotVisible(false);
+                  setEmail("");
+                }}
+                disabled={isLoading}
+              >
+                <Ionicons name="arrow-back" size={28} color="#2c3e50" />
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="mail"
-                size={20}
-                color="#008b8b"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.loginButton, (!email || isLoading) && styles.loginButtonDisabled]}
-              onPress={handleForgotPassword}
-              disabled={isLoading || !email}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.keyboardContainer}
             >
-              {isLoading ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <Text style={styles.loginButtonText}>Send Reset Link</Text>
-              )}
-            </TouchableOpacity>
+              <ScrollView
+                contentContainerStyle={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+              >
+                {/* Reset Password Header */}
+                <View style={styles.loginWelcomeSection}>
+                  <View style={styles.resetPasswordIcon}>
+                    <Ionicons name="key" size={40} color="#008b8b" />
+                  </View>
+                  <Text style={styles.loginWelcomeTitle}>Reset Password</Text>
+                  <Text style={styles.loginWelcomeSubtitle}>
+                    Enter your email address and we'll send you instructions to reset your password
+                  </Text>
+                </View>
 
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => {
-                setIsForgotVisible(false);
-                setEmail("");
-              }}
-              disabled={isLoading}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+                {/* Form */}
+                <View style={styles.formContainer}>
+                  <View style={styles.inputContainer}>
+                    <Ionicons
+                      name="mail"
+                      size={20}
+                      color="#008b8b"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Email address"
+                      placeholderTextColor="#999"
+                      value={email}
+                      onChangeText={handleEmailChange}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!isLoading}
+                      returnKeyType="done"
+                      onSubmitEditing={handleForgotPassword}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.loginButton, (!email || isLoading) && styles.loginButtonDisabled]}
+                    onPress={handleForgotPassword}
+                    disabled={isLoading || !email}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="white" size="small" />
+                    ) : (
+                      <Text style={styles.loginButtonText}>Send Reset Instructions</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
         </View>
       )}
 
@@ -1255,60 +1343,134 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
     zIndex: 1000,
   },
-  blurBackground: {
+  fullScreenBackground: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  modalContent: {
     backgroundColor: "white",
-    borderRadius: 20,
-    width: "100%",
-    padding: 24,
+  },
+  loginSafeArea: {
+    flex: 1,
+    backgroundColor: "white",
+  },
+  loginHeader: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: "white",
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#f8f9fa",
+    justifyContent: "center",
+    alignItems: "center",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 8,
+        elevation: 2,
       },
     }),
   },
-  modalHeader: {
+  keyboardContainer: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  loginWelcomeSection: {
     alignItems: "center",
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  loginLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
     marginBottom: 24,
   },
-  modalHeaderIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  resetPasswordIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  modalTitle: {
-    fontSize: 24,
+  loginWelcomeTitle: {
+    fontSize: 28,
     fontWeight: "700",
     color: "#2c3e50",
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: "center",
   },
-  modalSubtitle: {
+  loginWelcomeSubtitle: {
     fontSize: 16,
     color: "#7f8c8d",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 24,
+    paddingHorizontal: 20,
+  },
+  
+  // Mode Toggle Styles
+  modeToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: "#f8f9fa",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+  },
+  modeToggleButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modeToggleButtonActive: {
+    backgroundColor: "#008b8b",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  modeToggleText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#7f8c8d",
+  },
+  modeToggleTextActive: {
+    color: "white",
+    fontWeight: "700",
+  },
+
+  formContainer: {
+    flex: 1,
   },
   inputContainer: {
     flexDirection: "row",
@@ -1317,59 +1479,57 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e9ecef",
-    marginBottom: 20,
+    marginBottom: 16,
+    minHeight: 56,
   },
   inputIcon: {
-    padding: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
   },
   input: {
     flex: 1,
     fontSize: 16,
     color: "#2c3e50",
-    padding: 12,
+    paddingVertical: 16,
+    paddingRight: 16,
   },
   loginButton: {
     backgroundColor: "#008b8b",
     padding: 16,
     borderRadius: 12,
     alignItems: "center",
-    marginBottom: 12,
-    minHeight: 52,
+    marginTop: 8,
+    marginBottom: 20,
+    minHeight: 56,
     justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   loginButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   loginButtonText: {
     color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  switchModeButton: {
-    padding: 12,
-    alignItems: "center",
-  },
-  switchModeText: {
-    color: "#008b8b",
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 17,
+    fontWeight: "700",
   },
   forgotPasswordButton: {
-    alignItems: "flex-end",
-    marginBottom: 20,
+    alignItems: "center",
+    marginBottom: 24,
+    paddingVertical: 12,
   },
   forgotPasswordText: {
     color: "#008b8b",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  cancelButton: {
-    padding: 16,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#7f8c8d",
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

@@ -131,6 +131,20 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       isPremiumFeature: false,
     },
     {
+      name: "FoodLog",
+      icon: "nutrition-outline",
+      label: "Track",
+      requiresLogin: true,
+      isPremiumFeature: true,
+    },
+    {
+      name: "FoodScannerHome",
+      icon: "scan",
+      label: "Scan",
+      requiresLogin: true,
+      isPremiumFeature: false,
+    },
+    {
       name: "FindByIngredients",
       icon: "basket-outline",
       label: "Ingredients",
@@ -138,25 +152,11 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       isPremiumFeature: true,
     },
     {
-      name: "FoodScannerHome",
-      icon: "scan",
-      label: "Scanner",
-      requiresLogin: true,
-      isPremiumFeature: false,
-    },
-    {
       name: "MealPlans",
       icon: "book-outline",
       label: "Meal Plan",
       requiresLogin: true,
       isPremiumFeature: true,
-    },
-    {
-      name: "MyRecipes",
-      icon: "bookmark",
-      label: "Saved",
-      requiresLogin: true,
-      isPremiumFeature: false,
     },
   ];
 
