@@ -30,7 +30,8 @@ export default function LandingScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isForgotVisible, setIsForgotVisible] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
-  const [premiumStatusLoading, setPremiumStatusLoading] = useState(true); // Add loading state
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [premiumCheckInProgress, setPremiumCheckInProgress] = useState(false);
 
   // Create animated value for scroll position
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -39,30 +40,91 @@ export default function LandingScreen({ navigation }) {
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
+  // Ref to track if component is mounted
+  const isMounted = useRef(true);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   // Check login status whenever screen is focused
   useFocusEffect(
     useCallback(() => {
-      checkLoginStatus();
-    }, [])
+      if (isInitialized) {
+        checkLoginStatus();
+      }
+    }, [isInitialized])
   );
 
+  // Initialize auth service and set up listener
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChange(async (user) => {
-      setIsLoggedIn(!!user);
-      if (user) {
-        setPremiumStatusLoading(true);
-        await checkPremiumStatus();
-        setPremiumStatusLoading(false);
-      } else {
-        setIsPremium(false);
-        setPremiumStatusLoading(false);
+    let unsubscribe = null;
+    
+    const initializeAuth = async () => {
+      try {
+        console.log('Initializing auth service...');
+        
+        // Set up auth state listener first
+        unsubscribe = authService.onAuthStateChange(async (user) => {
+          console.log('Auth state changed:', !!user);
+          
+          if (!isMounted.current) return;
+          
+          setIsLoggedIn(!!user);
+          
+          if (user) {
+            // Check premium status with a delay to ensure document exists
+            console.log('User logged in, checking premium status...');
+            setPremiumCheckInProgress(true);
+            
+            // Wait a bit longer for new registrations
+            setTimeout(async () => {
+              if (isMounted.current) {
+                await checkPremiumStatusSafely(user);
+                setPremiumCheckInProgress(false);
+              }
+            }, 2000);
+          } else {
+            setIsPremium(false);
+            setPremiumCheckInProgress(false);
+          }
+        });
+
+        // Initialize auth service
+        const isAuthenticated = await authService.initialize();
+        
+        if (!isMounted.current) return;
+        
+        console.log('Auth initialized:', isAuthenticated);
+        setIsLoggedIn(isAuthenticated);
+        setIsInitialized(true);
+        
+        if (isAuthenticated) {
+          setPremiumCheckInProgress(true);
+          await checkPremiumStatusSafely();
+          setPremiumCheckInProgress(false);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (isMounted.current) {
+          setIsLoggedIn(false);
+          setIsPremium(false);
+          setIsInitialized(true);
+          setPremiumCheckInProgress(false);
+        }
       }
-    });
+    };
 
-    // Initialize by checking current user status
-    checkLoginStatus();
+    initializeAuth();
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const checkLoginStatus = async () => {
@@ -70,26 +132,62 @@ export default function LandingScreen({ navigation }) {
       const user = authService.getCurrentUser();
       setIsLoggedIn(!!user);
       if (user) {
-        setPremiumStatusLoading(true);
-        await checkPremiumStatus();
-        setPremiumStatusLoading(false);
-      } else {
-        setPremiumStatusLoading(false);
+        setPremiumCheckInProgress(true);
+        await checkPremiumStatusSafely(user);
+        setPremiumCheckInProgress(false);
       }
     } catch (error) {
       console.error("Error checking login status:", error);
       setIsLoggedIn(false);
-      setPremiumStatusLoading(false);
+      setIsPremium(false);
+      setPremiumCheckInProgress(false);
     }
   };
 
-  const checkPremiumStatus = async () => {
+  const checkPremiumStatusSafely = async (user = null) => {
     try {
-      const isPremiumUser = await authService.checkPremiumStatus();
-      setIsPremium(isPremiumUser);
+      console.log('Checking premium status...');
+      const currentUser = user || authService.getCurrentUser();
+      
+      if (!currentUser) {
+        setIsPremium(false);
+        return;
+      }
+
+      // Force a fresh check without cache for accuracy
+      let retries = 5; // Increased retries for better reliability
+      let isPremiumUser = false;
+      
+      while (retries > 0) {
+        try {
+          // Force fresh check to ensure we get latest data
+          isPremiumUser = await authService.checkPremiumStatus(false);
+          console.log('Premium status check result:', isPremiumUser);
+          break;
+        } catch (error) {
+          console.log(`Premium status check failed, retries left: ${retries - 1}`, error.message);
+          retries--;
+          
+          if (retries > 0) {
+            // Exponential backoff
+            const delay = 1000 * (6 - retries);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            console.error('Final premium status check failed:', error);
+            isPremiumUser = false;
+          }
+        }
+      }
+      
+      if (isMounted.current) {
+        console.log('Setting premium status:', isPremiumUser);
+        setIsPremium(isPremiumUser);
+      }
     } catch (error) {
       console.error("Error checking premium status:", error);
-      setIsPremium(false);
+      if (isMounted.current) {
+        setIsPremium(false);
+      }
     }
   };
 
@@ -159,32 +257,46 @@ export default function LandingScreen({ navigation }) {
       let user = null;
       
       if (isNewUser) {
-        // Register and automatically log in
+        // Register new user
         user = await authService.register(email.trim().toLowerCase(), password);
         console.log('Registration successful:', !!user);
         
         if (user) {
-          setIsLoggedIn(true);
-          setIsPremium(false); // New users start with free tier
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
           showCustomToast("Welcome to Kitchly! Account created successfully.", "success");
+          
+          // Force premium status check after successful registration
+          setPremiumCheckInProgress(true);
+          setTimeout(async () => {
+            if (isMounted.current) {
+              await checkPremiumStatusSafely(user);
+              setPremiumCheckInProgress(false);
+            }
+          }, 2000);
         } else {
           throw new Error("Registration failed - no user returned");
         }
       } else {
-        // Login
+        // Login existing user
         user = await authService.login(email.trim().toLowerCase(), password);
         console.log('Login successful:', !!user);
         
         if (user) {
-          setIsLoggedIn(true);
-          setIsPremium(user.isPremium || false);
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
           showCustomToast("Welcome back to Kitchly!", "success");
+          
+          // Force premium status check after successful login
+          setPremiumCheckInProgress(true);
+          setTimeout(async () => {
+            if (isMounted.current) {
+              await checkPremiumStatusSafely(user);
+              setPremiumCheckInProgress(false);
+            }
+          }, 1000);
         } else {
           throw new Error("Login failed - no user returned");
         }
@@ -231,6 +343,9 @@ export default function LandingScreen({ navigation }) {
             break;
           case "auth/operation-not-allowed":
             errorMessage = "This sign-in method is not enabled. Please contact support.";
+            break;
+          case "permission-denied":
+            errorMessage = "Unable to create user profile. Please try again.";
             break;
           default:
             errorMessage = `Authentication failed: ${error.message}`;
@@ -328,6 +443,17 @@ export default function LandingScreen({ navigation }) {
     }
 
     navigation.navigate(screenName);
+  };
+
+  // Enhanced debug function for testing
+  const debugAuthState = async () => {
+    console.log('=== DEBUGGING AUTH STATE ===');
+    const debug = await authService.debugUserState();
+    console.log('Auth Debug:', debug);
+    
+    const premiumStatus = await authService.checkPremiumStatus(false);
+    console.log('Fresh Premium Check:', premiumStatus);
+    console.log('=== DEBUG COMPLETE ===');
   };
 
   // Hero Feature Card Component
@@ -461,12 +587,14 @@ export default function LandingScreen({ navigation }) {
         <View style={styles.headerTextContainer}>
           <View style={styles.titleRow}>
             <Text style={styles.dashboardTitle}>Kitchly</Text>
-            {/* Only show premium badge when not loading and user is premium */}
-            {!premiumStatusLoading && isPremium && isLoggedIn && (
+            {isPremium && isLoggedIn && (
               <View style={styles.premiumBadgeSmall}>
                 <Ionicons name="diamond" size={12} color="#FFD700" />
                 <Text style={styles.premiumBadgeText}>PRO</Text>
               </View>
+            )}
+            {premiumCheckInProgress && isLoggedIn && (
+              <ActivityIndicator size="small" color="#008b8b" style={{ marginLeft: 8 }} />
             )}
           </View>
           <Text style={styles.dashboardSubtitle}>AI Nutrition Assistant</Text>
@@ -478,27 +606,26 @@ export default function LandingScreen({ navigation }) {
           onPress={() => {
             if (isLoggedIn) {
               Alert.alert(
-                "Sign Out",
-                "Are you sure you want to sign out?",
+                "Profile Options",
+                "What would you like to do?",
                 [
-                  {
-                    text: "Cancel",
-                    style: "cancel",
-                  },
+                 
                   {
                     text: "Sign Out",
                     onPress: async () => {
                       try {
                         await authService.logout();
-                        setIsLoggedIn(false);
-                        setIsPremium(false);
-                        setPremiumStatusLoading(false);
                         showCustomToast("Signed out successfully", "success");
                       } catch (error) {
                         console.error("Logout error:", error);
                         showCustomToast("Failed to sign out. Please try again.", "error");
                       }
                     },
+                    style: "destructive",
+                  },
+                  {
+                    text: "Cancel",
+                    style: "cancel",
                   },
                 ]
               );
@@ -515,14 +642,10 @@ export default function LandingScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     </View>
-  ), [isLoggedIn, isPremium, premiumStatusLoading]); // Add premiumStatusLoading to dependencies
+  ), [isLoggedIn, isPremium, premiumCheckInProgress]);
 
   // Premium CTA Section
   const PremiumCTASection = () => {
-    // Don't show anything while premium status is loading
-    if (premiumStatusLoading) return null;
-    
-    // Don't show if user is premium or not logged in
     if (isPremium || !isLoggedIn) return null;
 
     return (
@@ -552,10 +675,20 @@ export default function LandingScreen({ navigation }) {
     );
   };
 
-  // Account Status Card
+  // Account Status Card - Removed as per original code
   const AccountStatusCard = () => {
-    return null; // Removed this component entirely
+    return null;
   };
+
+  // Show loading screen until initialized
+  if (!isInitialized) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#008b8b" />
+        <Text style={{ marginTop: 16, color: "#7f8c8d" }}>Loading Kitchly...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -566,6 +699,10 @@ export default function LandingScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 70 }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
       >
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.container}>
@@ -684,179 +821,179 @@ export default function LandingScreen({ navigation }) {
         onLoginRequired={handleLoginRequired}
       />
 
-      {/* Login Overlay */}
-      {isLoginVisible && (
-        <View style={styles.overlay}>
-          <View style={styles.fullScreenBackground} />
-          <SafeAreaView style={styles.loginSafeArea}>
-            {/* Header with Close Button */}
-            <View style={styles.loginHeader}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => {
-                  setIsLoginVisible(false);
-                  setEmail("");
-                  setPassword("");
-                  setIsNewUser(false);
-                }}
-                disabled={isLoading}
-              >
-                <Ionicons name="close" size={28} color="#2c3e50" />
-              </TouchableOpacity>
-            </View>
-
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.keyboardContainer}
-              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-            >
-              <ScrollView
-                contentContainerStyle={styles.scrollContainer}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                bounces={false}
-              >
-                {/* Logo and Welcome */}
-                <View style={styles.loginWelcomeSection}>
-                  <Image
-                    source={require("../assets/logo.png")}
-                    style={styles.loginLogo}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.loginWelcomeTitle}>Welcome to Kitchly</Text>
-                  <Text style={styles.loginWelcomeSubtitle}>
-                    Your AI nutrition assistant
-                  </Text>
-                </View>
-
-                {/* Mode Toggle */}
-                <View style={styles.modeToggleContainer}>
+          {/* Login Overlay */}
+          {isLoginVisible && (
+            <View style={styles.overlay}>
+              <View style={styles.fullScreenBackground} />
+              <SafeAreaView style={styles.loginSafeArea}>
+                {/* Header with Close Button */}
+                <View style={styles.loginHeader}>
                   <TouchableOpacity
-                    style={[
-                      styles.modeToggleButton,
-                      !isNewUser && styles.modeToggleButtonActive
-                    ]}
-                    onPress={() => setIsNewUser(false)}
+                    style={styles.closeButton}
+                    onPress={() => {
+                      setIsLoginVisible(false);
+                      setEmail("");
+                      setPassword("");
+                      setIsNewUser(false);
+                    }}
                     disabled={isLoading}
                   >
-                    <Text style={[
-                      styles.modeToggleText,
-                      !isNewUser && styles.modeToggleTextActive
-                    ]}>
-                      Sign In
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.modeToggleButton,
-                      isNewUser && styles.modeToggleButtonActive
-                    ]}
-                    onPress={() => setIsNewUser(true)}
-                    disabled={isLoading}
-                  >
-                    <Text style={[
-                      styles.modeToggleText,
-                      isNewUser && styles.modeToggleTextActive
-                    ]}>
-                      Create Account
-                    </Text>
+                    <Ionicons name="close" size={28} color="#2c3e50" />
                   </TouchableOpacity>
                 </View>
 
-                {/* Form */}
-                <View style={styles.formContainer}>
-                  <View style={styles.inputContainer}>
-                    <Ionicons
-                      name="mail"
-                      size={20}
-                      color="#008b8b"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      ref={emailRef}
-                      style={styles.input}
-                      placeholder="Email address"
-                      placeholderTextColor="#999"
-                      value={email}
-                      onChangeText={handleEmailChange}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      editable={!isLoading}
-                      returnKeyType="next"
-                      onSubmitEditing={() => passwordRef.current?.focus()}
-                    />
-                  </View>
-
-                  <View style={styles.inputContainer}>
-                    <Ionicons
-                      name="lock-closed"
-                      size={20}
-                      color="#008b8b"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      ref={passwordRef}
-                      style={styles.input}
-                      placeholder="Password"
-                      placeholderTextColor="#999"
-                      value={password}
-                      onChangeText={handlePasswordChange}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      editable={!isLoading}
-                      returnKeyType="done"
-                      onSubmitEditing={handleLogin}
-                    />
-                    <TouchableOpacity
-                      style={styles.inputIcon}
-                      onPress={() => setShowPassword(!showPassword)}
-                      disabled={isLoading}
-                    >
-                      <Ionicons
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color="#008b8b"
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === "ios" ? "padding" : "height"}
+                  style={styles.keyboardContainer}
+                  keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+                >
+                  <ScrollView
+                    contentContainerStyle={styles.scrollContainer}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    bounces={false}
+                  >
+                    {/* Logo and Welcome */}
+                    <View style={styles.loginWelcomeSection}>
+                      <Image
+                        source={require("../assets/logo.png")}
+                        style={styles.loginLogo}
+                        resizeMode="contain"
                       />
-                    </TouchableOpacity>
-                  </View>
-
-                  {!isNewUser && (
-                    <TouchableOpacity
-                      style={styles.forgotPasswordButton}
-                      onPress={() => {
-                        setIsLoginVisible(false);
-                        setIsForgotVisible(true);
-                      }}
-                      disabled={isLoading}
-                    >
-                      <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={[
-                      styles.loginButton,
-                      ((!email || !password) || isLoading) && styles.loginButtonDisabled,
-                    ]}
-                    onPress={handleLogin}
-                    disabled={isLoading || !email || !password}
-                  >
-                    {isLoading ? (
-                      <ActivityIndicator color="white" size="small" />
-                    ) : (
-                      <Text style={styles.loginButtonText}>
-                        {isNewUser ? "Create Account" : "Sign In"}
+                      <Text style={styles.loginWelcomeTitle}>Welcome to Kitchly</Text>
+                      <Text style={styles.loginWelcomeSubtitle}>
+                        Your AI nutrition assistant
                       </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            </KeyboardAvoidingView>
-          </SafeAreaView>
-        </View>
-      )}
+                    </View>
+
+                    {/* Mode Toggle */}
+                    <View style={styles.modeToggleContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.modeToggleButton,
+                          !isNewUser && styles.modeToggleButtonActive
+                        ]}
+                        onPress={() => setIsNewUser(false)}
+                        disabled={isLoading}
+                      >
+                        <Text style={[
+                          styles.modeToggleText,
+                          !isNewUser && styles.modeToggleTextActive
+                        ]}>
+                          Sign In
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.modeToggleButton,
+                          isNewUser && styles.modeToggleButtonActive
+                        ]}
+                        onPress={() => setIsNewUser(true)}
+                        disabled={isLoading}
+                      >
+                        <Text style={[
+                          styles.modeToggleText,
+                          isNewUser && styles.modeToggleTextActive
+                        ]}>
+                          Create Account
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Form */}
+                    <View style={styles.formContainer}>
+                      <View style={styles.inputContainer}>
+                        <Ionicons
+                          name="mail"
+                          size={20}
+                          color="#008b8b"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          ref={emailRef}
+                          style={styles.input}
+                          placeholder="Email address"
+                          placeholderTextColor="#999"
+                          value={email}
+                          onChangeText={handleEmailChange}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          editable={!isLoading}
+                          returnKeyType="next"
+                          onSubmitEditing={() => passwordRef.current?.focus()}
+                        />
+                      </View>
+
+                      <View style={styles.inputContainer}>
+                        <Ionicons
+                          name="lock-closed"
+                          size={20}
+                          color="#008b8b"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          ref={passwordRef}
+                          style={styles.input}
+                          placeholder="Password"
+                          placeholderTextColor="#999"
+                          value={password}
+                          onChangeText={handlePasswordChange}
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          editable={!isLoading}
+                          returnKeyType="done"
+                          onSubmitEditing={handleLogin}
+                        />
+                        <TouchableOpacity
+                          style={styles.inputIcon}
+                          onPress={() => setShowPassword(!showPassword)}
+                          disabled={isLoading}
+                        >
+                          <Ionicons
+                            name={showPassword ? "eye-off" : "eye"}
+                            size={20}
+                            color="#008b8b"
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {!isNewUser && (
+                        <TouchableOpacity
+                          style={styles.forgotPasswordButton}
+                          onPress={() => {
+                            setIsLoginVisible(false);
+                            setIsForgotVisible(true);
+                          }}
+                          disabled={isLoading}
+                        >
+                          <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity
+                        style={[
+                          styles.loginButton,
+                          ((!email || !password) || isLoading) && styles.loginButtonDisabled,
+                        ]}
+                        onPress={handleLogin}
+                        disabled={isLoading || !email || !password}
+                      >
+                        {isLoading ? (
+                          <ActivityIndicator color="white" size="small" />
+                        ) : (
+                          <Text style={styles.loginButtonText}>
+                            {isNewUser ? "Create Account" : "Sign In"}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </KeyboardAvoidingView>
+              </SafeAreaView>
+            </View>
+          )}
 
       {/* Forgot Password Overlay */}
       {isForgotVisible && (
@@ -1028,65 +1165,6 @@ const styles = StyleSheet.create({
   },
   profileIconButton: {
     padding: 5,
-  },
-
-  // Account Status Card
-  accountStatusCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: "#008b8b",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  statusContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-  },
-  statusIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f1f5f9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  statusTextContainer: {
-    flex: 1,
-    marginRight: 16,
-  },
-  statusTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
-    marginBottom: 2,
-  },
-  statusSubtitle: {
-    fontSize: 13,
-    color: "#7f8c8d",
-  },
-  upgradeButton: {
-    backgroundColor: "#008b8b",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  upgradeButtonText: {
-    fontWeight: "600",
-    color: "white",
-    fontSize: 13,
   },
 
   // Premium CTA Section

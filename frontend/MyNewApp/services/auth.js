@@ -1,4 +1,4 @@
-// Enhanced authService.js with onboarding data handling
+// Enhanced authService.js with fixed timing and permission issues
 import * as SecureStore from "expo-secure-store";
 import axios from "axios";
 import {
@@ -16,6 +16,7 @@ export const authService = {
   _premiumStatusCache: null,
   _cacheTimestamp: null,
   _cacheValidityMs: 30000, // 30 seconds
+  _isCreatingDocument: false, // Flag to prevent race conditions
 
   async getToken() {
     try {
@@ -32,15 +33,24 @@ export const authService = {
 
   async register(email, password) {
     try {
+      console.log('🔄 Starting user registration...');
+      
+      // Set flag to indicate document creation is in progress
+      this._isCreatingDocument = true;
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      console.log('✅ Firebase user created:', user.uid);
+
+      // Get token first
       const token = await user.getIdToken();
       await this.saveToken(token);
 
-      // Create comprehensive user document
+      // Create comprehensive user document with retry logic
       const userData = {
         email: user.email,
+        uid: user.uid, // Explicitly include UID
         createdAt: new Date().toISOString(),
         isPremium: false,
         savedRecipes: [],
@@ -67,11 +77,41 @@ export const authService = {
         }
       };
 
-      await setDoc(doc(db, "users", user.uid), userData);
-      console.log('✅ User registered and document created');
+      // Create document with retry logic
+      let retries = 3;
+      let documentCreated = false;
+      
+      while (retries > 0 && !documentCreated) {
+        try {
+          console.log(`🔄 Attempting to create user document (attempt ${4 - retries})`);
+          await setDoc(doc(db, "users", user.uid), userData);
+          console.log('✅ User document created successfully');
+          documentCreated = true;
+        } catch (docError) {
+          console.error(`❌ Document creation attempt ${4 - retries} failed:`, docError);
+          retries--;
+          
+          if (retries > 0) {
+            // Wait before retry with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
+          } else {
+            // If all retries failed, still continue but log error
+            console.error('❌ Failed to create user document after all retries');
+            // Don't throw error here - let the user continue even if document creation failed
+            // The login process will create the document if it's missing
+          }
+        }
+      }
 
+      // Clear flags and cache
+      this._isCreatingDocument = false;
+      this._premiumStatusCache = false; // New users are not premium
+      this._cacheTimestamp = Date.now();
+
+      console.log('✅ User registration completed');
       return { ...user, ...userData };
     } catch (error) {
+      this._isCreatingDocument = false;
       console.error("Registration error:", error);
       throw error;
     }
@@ -79,65 +119,211 @@ export const authService = {
 
   async login(email, password) {
     try {
+      console.log('🔄 Starting user login...');
+      
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+
+      console.log('✅ Firebase authentication successful:', user.uid);
 
       const token = await user.getIdToken();
       await this.saveToken(token);
 
-      // Get or create user document
+      // Get or create user document with improved error handling
       const userRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userRef);
-      
       let userData;
-      if (userDoc.exists()) {
-        userData = userDoc.data();
+      
+      try {
+        const userDoc = await getDoc(userRef);
         
-        // Update last active timestamp
-        await updateDoc(userRef, {
-          'usage.lastActive': new Date().toISOString()
-        });
-      } else {
-        // Create missing user document
+        if (userDoc.exists()) {
+          userData = userDoc.data();
+          console.log('✅ User document found');
+          
+          // Update last active timestamp
+          try {
+            await updateDoc(userRef, {
+              'usage.lastActive': new Date().toISOString()
+            });
+          } catch (updateError) {
+            console.warn('⚠️ Could not update last active timestamp:', updateError);
+            // Don't throw - this is not critical
+          }
+        } else {
+          console.log('⚠️ User document not found, creating new one...');
+          
+          // Create missing user document
+          userData = {
+            email: user.email,
+            uid: user.uid,
+            createdAt: new Date().toISOString(),
+            isPremium: false,
+            savedRecipes: [],
+            mealPlans: [],
+            preferences: {
+              dietaryRestrictions: [],
+              allergies: [],
+              cuisinePreferences: []
+            },
+            profile: {
+              height: null,
+              weight: null,
+              targetWeight: null,
+              age: null,
+              activityLevel: null,
+              healthGoals: [],
+              onboardingCompleted: false,
+              onboardingData: null
+            },
+            usage: {
+              recipesViewed: 0,
+              mealPlansCreated: 0,
+              lastActive: new Date().toISOString()
+            }
+          };
+          
+          await setDoc(userRef, userData);
+          console.log('✅ Missing user document created during login');
+        }
+      } catch (firestoreError) {
+        console.error('❌ Firestore error during login:', firestoreError);
+        
+        // Create minimal userData if Firestore fails
         userData = {
           email: user.email,
-          createdAt: new Date().toISOString(),
+          uid: user.uid,
           isPremium: false,
-          savedRecipes: [],
-          mealPlans: [],
-          preferences: {
-            dietaryRestrictions: [],
-            allergies: [],
-            cuisinePreferences: []
-          },
-          profile: {
-            height: null,
-            weight: null,
-            targetWeight: null,
-            age: null,
-            activityLevel: null,
-            healthGoals: [],
-            onboardingCompleted: false,
-            onboardingData: null
-          },
-          usage: {
-            recipesViewed: 0,
-            mealPlansCreated: 0,
-            lastActive: new Date().toISOString()
-          }
+          createdAt: new Date().toISOString()
         };
         
-        await setDoc(userRef, userData);
-        console.log('✅ Missing user document created during login');
+        console.log('⚠️ Using minimal user data due to Firestore error');
       }
 
       // Clear premium cache since user just logged in
       this._premiumStatusCache = null;
       this._cacheTimestamp = null;
 
+      console.log('✅ User login completed');
       return { ...user, ...userData };
     } catch (error) {
       console.error("Login error:", error);
+      throw error;
+    }
+  },
+
+  // Enhanced premium status checking with better error handling
+  async checkPremiumStatus(useCache = true) {
+    try {
+      // If document is being created, wait for it
+      if (this._isCreatingDocument) {
+        console.log('⏳ Waiting for document creation to complete...');
+        let attempts = 0;
+        while (this._isCreatingDocument && attempts < 10) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          attempts++;
+        }
+      }
+
+      // Check cache first if enabled
+      if (useCache && this._premiumStatusCache !== null && this._cacheTimestamp) {
+        const cacheAge = Date.now() - this._cacheTimestamp;
+        if (cacheAge < this._cacheValidityMs) {
+          console.log('📋 Using cached premium status:', this._premiumStatusCache);
+          return this._premiumStatusCache;
+        }
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        this._premiumStatusCache = false;
+        this._cacheTimestamp = Date.now();
+        return false;
+      }
+
+      // Add retry logic for premium status check
+      let retries = 3;
+      let isPremium = false;
+      
+      while (retries > 0) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          
+          if (userDoc.exists()) {
+            isPremium = userDoc.data().isPremium || false;
+            console.log('✅ Premium status retrieved from Firestore:', isPremium);
+            break;
+          } else {
+            console.log('⚠️ User document does not exist for premium check');
+            // Try to create the document if it doesn't exist
+            if (retries === 3) { // Only try once
+              await this.createMissingUserDocument(user);
+            }
+            isPremium = false;
+          }
+        } catch (error) {
+          console.error(`❌ Premium status check attempt ${4 - retries} failed:`, error);
+          retries--;
+          
+          if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            console.error('❌ All premium status check attempts failed');
+            isPremium = false;
+          }
+        }
+      }
+      
+      // Update cache
+      this._premiumStatusCache = isPremium;
+      this._cacheTimestamp = Date.now();
+      
+      return isPremium;
+    } catch (error) {
+      console.error("Error checking premium status:", error);
+      // Return cached value if available, otherwise false
+      return this._premiumStatusCache !== null ? this._premiumStatusCache : false;
+    }
+  },
+
+  // Helper method to create missing user document
+  async createMissingUserDocument(user) {
+    try {
+      console.log('🔄 Creating missing user document...');
+      
+      const userData = {
+        email: user.email,
+        uid: user.uid,
+        createdAt: new Date().toISOString(),
+        isPremium: false,
+        savedRecipes: [],
+        mealPlans: [],
+        preferences: {
+          dietaryRestrictions: [],
+          allergies: [],
+          cuisinePreferences: []
+        },
+        profile: {
+          height: null,
+          weight: null,
+          targetWeight: null,
+          age: null,
+          activityLevel: null,
+          healthGoals: [],
+          onboardingCompleted: false,
+          onboardingData: null
+        },
+        usage: {
+          recipesViewed: 0,
+          mealPlansCreated: 0,
+          lastActive: new Date().toISOString()
+        }
+      };
+      
+      await setDoc(doc(db, "users", user.uid), userData);
+      console.log('✅ Missing user document created');
+      return userData;
+    } catch (error) {
+      console.error('❌ Failed to create missing user document:', error);
       throw error;
     }
   },
@@ -410,6 +596,7 @@ export const authService = {
       // Clear caches
       this._premiumStatusCache = null;
       this._cacheTimestamp = null;
+      this._isCreatingDocument = false;
       
       console.log('✅ User logged out successfully');
     } catch (error) {
@@ -428,7 +615,7 @@ export const authService = {
     }
   },
 
-  // this is a function to refresh token
+  // Enhanced token refresh with better error handling
   async refreshToken() {
     const MAX_RETRIES = 3;
     let retryCount = 0;
@@ -456,41 +643,6 @@ export const authService = {
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
       }
-    }
-  },
-
-  // Enhanced premium status checking with caching
-  async checkPremiumStatus(useCache = true) {
-    try {
-      // Check cache first if enabled
-      if (useCache && this._premiumStatusCache !== null && this._cacheTimestamp) {
-        const cacheAge = Date.now() - this._cacheTimestamp;
-        if (cacheAge < this._cacheValidityMs) {
-          console.log('📋 Using cached premium status:', this._premiumStatusCache);
-          return this._premiumStatusCache;
-        }
-      }
-
-      const user = auth.currentUser;
-      if (!user) {
-        this._premiumStatusCache = false;
-        this._cacheTimestamp = Date.now();
-        return false;
-      }
-
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      const isPremium = userDoc.exists() ? userDoc.data().isPremium || false : false;
-      
-      // Update cache
-      this._premiumStatusCache = isPremium;
-      this._cacheTimestamp = Date.now();
-      
-      console.log('✅ Premium status checked:', isPremium);
-      return isPremium;
-    } catch (error) {
-      console.error("Error checking premium status:", error);
-      // Return cached value if available, otherwise false
-      return this._premiumStatusCache !== null ? this._premiumStatusCache : false;
     }
   },
 
@@ -767,7 +919,6 @@ export const authService = {
       if (!user) throw new Error("User not logged in");
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      return userDoc.exists() ? userDoc.data() : null;
     } catch (error) {
       console.error("Error getting user data:", error);
       throw error;
@@ -823,3 +974,6 @@ export const authService = {
     }
   }
 };
+
+// Export for use in other files
+export default authService;
