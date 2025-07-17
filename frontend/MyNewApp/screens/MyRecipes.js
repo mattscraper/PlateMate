@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authService } from "../services/auth";
+import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 
@@ -28,9 +29,12 @@ export default function MyRecipesScreen({ navigation }) {
   // Animation value for tab indicator
   const tabIndicatorPosition = useState(new Animated.Value(0))[0];
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
+  // Load data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserData();
+    }, [])
+  );
 
   useEffect(() => {
     // Animate tab indicator
@@ -43,20 +47,54 @@ export default function MyRecipesScreen({ navigation }) {
 
   const loadUserData = async () => {
     try {
+      console.log('🔄 Loading user data in MyRecipes...');
       setIsLoading(true);
-      // Load both saved recipes and meal plans
-      const userData = await authService.getUserData();
-
-      if (userData) {
-        setRecipes(userData.savedRecipes || []);
-        setMealPlans(userData.mealPlans || []);
+      
+      // Check if user is logged in
+      const user = authService.getCurrentUser();
+      if (!user) {
+        console.log('❌ No user logged in');
+        Alert.alert(
+          "Authentication Required",
+          "Please log in to view your saved content.",
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.goBack()
+            }
+          ]
+        );
+        return;
       }
+
+      console.log('👤 Loading data for user:', user.uid);
+
+      // Load saved recipes and meal plans separately
+      const [savedRecipes, savedMealPlans] = await Promise.all([
+        authService.getSavedRecipes(),
+        authService.getMealPlans()
+      ]);
+
+      console.log('📖 Loaded recipes:', savedRecipes.length);
+      console.log('📅 Loaded meal plans:', savedMealPlans.length);
+
+      setRecipes(savedRecipes || []);
+      setMealPlans(savedMealPlans || []);
+
     } catch (error) {
-      console.error("Error loading user data:", error);
-      Alert.alert(
-        "Error",
-        "Failed to load your saved content. Please try again."
-      );
+      console.error("❌ Error loading user data:", error);
+      
+      let errorMessage = "Failed to load your saved content. Please try again.";
+      
+      // Handle specific error cases
+      if (error.message.includes("User not logged in")) {
+        errorMessage = "Please log in to view your saved content.";
+        setTimeout(() => navigation.goBack(), 2000);
+      } else if (error.message.includes("network") || error.message.includes("offline")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -64,34 +102,53 @@ export default function MyRecipesScreen({ navigation }) {
   };
 
   const handleRefresh = () => {
+    console.log('🔄 Refreshing user data...');
     setRefreshing(true);
     loadUserData();
   };
 
   const navigateToRecipeDetail = (recipe) => {
+    console.log('🍳 Navigating to recipe detail:', recipe.title);
     navigation.navigate("RecipeDetail", { recipe });
   };
 
   const navigateToMealPlanDetail = (mealPlan) => {
+    console.log('📅 Navigating to meal plan detail:', mealPlan.name);
     navigation.navigate("MealPlanDetail", { mealPlan });
   };
 
   const handleDelete = async (item, type) => {
     try {
+      console.log(`🗑️ Deleting ${type}:`, item.id);
+      
       if (type === "recipe") {
         await authService.removeRecipe(item.id);
         // Update local state to remove the deleted recipe
-        setRecipes(prevRecipes => prevRecipes.filter(recipe => recipe.id !== item.id));
+        setRecipes(prevRecipes => {
+          const updated = prevRecipes.filter(recipe => recipe.id !== item.id);
+          console.log('📖 Recipes after deletion:', updated.length);
+          return updated;
+        });
         Alert.alert("Success", "Recipe removed successfully!");
       } else {
         await authService.removeMealPlan(item.id);
         // Update local state to remove the deleted meal plan
-        setMealPlans(prevMealPlans => prevMealPlans.filter(plan => plan.id !== item.id));
+        setMealPlans(prevMealPlans => {
+          const updated = prevMealPlans.filter(plan => plan.id !== item.id);
+          console.log('📅 Meal plans after deletion:', updated.length);
+          return updated;
+        });
         Alert.alert("Success", "Meal plan removed successfully!");
       }
     } catch (error) {
-      console.error(`Error deleting ${type}:`, error);
-      Alert.alert("Error", `Failed to remove ${type}. Please try again.`);
+      console.error(`❌ Error deleting ${type}:`, error);
+      
+      let errorMessage = `Failed to remove ${type}. Please try again.`;
+      if (error.message.includes("User not logged in")) {
+        errorMessage = "Please log in to manage your saved content.";
+      }
+      
+      Alert.alert("Error", errorMessage);
     }
   };
 
@@ -104,22 +161,31 @@ export default function MyRecipesScreen({ navigation }) {
       <View style={styles.recipeHeader}>
         <View style={styles.recipeTitleContainer}>
           <Text style={styles.recipeTitle} numberOfLines={1}>
-            {item.title}
+            {item.title || "Untitled Recipe"}
           </Text>
           <View style={styles.recipeMetaContainer}>
             <View style={styles.recipeMeta}>
               <Ionicons name="time-outline" size={16} color="#7f8c8d" />
               <Text style={styles.recipeMetaText}>
-                {item.cookTime || "30 min"}
+                {item.cookTime || item.readyInMinutes || "30 min"}
               </Text>
             </View>
 
             <View style={styles.recipeMeta}>
               <Ionicons name="restaurant-outline" size={16} color="#7f8c8d" />
               <Text style={styles.recipeMetaText}>
-                {item.difficulty || "Easy"}
+                {item.difficulty || item.spoonacularScore ? "Easy" : "Medium"}
               </Text>
             </View>
+
+            {item.servings && (
+              <View style={styles.recipeMeta}>
+                <Ionicons name="people-outline" size={16} color="#7f8c8d" />
+                <Text style={styles.recipeMetaText}>
+                  {item.servings} servings
+                </Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.recipeIcon}>
@@ -129,13 +195,33 @@ export default function MyRecipesScreen({ navigation }) {
 
       <View style={styles.recipeInfo}>
         <View style={styles.recipeTagsContainer}>
+          {/* Handle different tag formats */}
           {item.tags &&
             item.tags.slice(0, 3).map((tag, index) => (
               <View key={index} style={styles.recipeTag}>
                 <Text style={styles.recipeTagText}>{tag}</Text>
               </View>
             ))}
+          {item.cuisines &&
+            item.cuisines.slice(0, 2).map((cuisine, index) => (
+              <View key={`cuisine-${index}`} style={styles.recipeTag}>
+                <Text style={styles.recipeTagText}>{cuisine}</Text>
+              </View>
+            ))}
+          {item.dishTypes &&
+            item.dishTypes.slice(0, 1).map((dishType, index) => (
+              <View key={`dish-${index}`} style={styles.recipeTag}>
+                <Text style={styles.recipeTagText}>{dishType}</Text>
+              </View>
+            ))}
         </View>
+        
+        {/* Show saved date */}
+        {item.savedAt && (
+          <Text style={styles.savedDateText}>
+            Saved on {new Date(item.savedAt).toLocaleDateString()}
+          </Text>
+        )}
       </View>
 
       <TouchableOpacity
@@ -169,7 +255,7 @@ export default function MyRecipesScreen({ navigation }) {
       <View style={styles.mealPlanHeader}>
         <View style={styles.mealPlanInfo}>
           <Text style={styles.mealPlanTitle}>
-            {item.name || "Weekly Meal Plan"}
+            {item.name || item.title || "Weekly Meal Plan"}
           </Text>
           <Text style={styles.mealPlanDate}>
             {item.savedAt ? new Date(item.savedAt).toLocaleDateString() : ""}
@@ -184,23 +270,46 @@ export default function MyRecipesScreen({ navigation }) {
         <View style={styles.mealPlanStats}>
           <View style={styles.mealPlanStat}>
             <Ionicons name="calendar-outline" size={16} color="#008b8b" />
-            <Text style={styles.mealPlanStatText}>{item.days} days</Text>
+            <Text style={styles.mealPlanStatText}>
+              {item.days || item.duration || "7"} days
+            </Text>
           </View>
 
           <View style={styles.mealPlanStat}>
             <Ionicons name="restaurant-outline" size={16} color="#008b8b" />
             <Text style={styles.mealPlanStatText}>
-              {item.mealsPerDay} meals/day
+              {item.mealsPerDay || "3"} meals/day
             </Text>
           </View>
 
-          {item.dietType && (
+          {(item.dietType || item.diet) && (
             <View style={styles.mealPlanStat}>
               <Ionicons name="leaf-outline" size={16} color="#008b8b" />
-              <Text style={styles.mealPlanStatText}>{item.dietType}</Text>
+              <Text style={styles.mealPlanStatText}>
+                {item.dietType || item.diet}
+              </Text>
             </View>
           )}
         </View>
+
+        {/* Show meal preview if available */}
+        {item.meals && item.meals.length > 0 && (
+          <View style={styles.mealsPreview}>
+            {item.meals.slice(0, 3).map((meal, index) => (
+              <View key={index} style={styles.mealPreviewItem}>
+                <View style={styles.mealDot} />
+                <Text style={styles.mealPreviewText} numberOfLines={1}>
+                  {meal.title || meal.name || `Meal ${index + 1}`}
+                </Text>
+              </View>
+            ))}
+            {item.meals.length > 3 && (
+              <Text style={styles.moreMealsText}>
+                +{item.meals.length - 3} more meals
+              </Text>
+            )}
+          </View>
+        )}
       </View>
 
       <TouchableOpacity
@@ -250,8 +359,47 @@ export default function MyRecipesScreen({ navigation }) {
         Create your first meal plan to organize your weekly meals and shopping
         list!
       </Text>
+      <TouchableOpacity
+        style={styles.exploreButton}
+        onPress={() => navigation.navigate("MealPlans")}
+      >
+        <Text style={styles.exploreButtonText}>Create Meal Plan</Text>
+      </TouchableOpacity>
     </View>
   );
+
+  // Show authentication required if no user
+  const user = authService.getCurrentUser();
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>My Saved Content</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        
+        <View style={styles.emptyContainer}>
+          <Ionicons name="person-outline" size={64} color="#008b8b" />
+          <Text style={styles.emptyTitle}>Login Required</Text>
+          <Text style={styles.emptyText}>
+            Please log in to view your saved recipes and meal plans.
+          </Text>
+          <TouchableOpacity
+            style={styles.exploreButton}
+            onPress={() => navigation.navigate("LandingPage")}
+          >
+            <Text style={styles.exploreButtonText}>Go to Login</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -263,7 +411,17 @@ export default function MyRecipesScreen({ navigation }) {
           <Ionicons name="arrow-back" size={24} color="#2c3e50" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Saved Content</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={handleRefresh}
+          disabled={refreshing}
+        >
+          {refreshing ? (
+            <ActivityIndicator size="small" color="#008b8b" />
+          ) : (
+            <Ionicons name="refresh" size={20} color="#008b8b" />
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.tabContainer}>
@@ -285,7 +443,7 @@ export default function MyRecipesScreen({ navigation }) {
               activeTab === "recipes" && styles.activeTabButtonText,
             ]}
           >
-            Recipes
+            Recipes ({recipes.length})
           </Text>
         </TouchableOpacity>
 
@@ -307,7 +465,7 @@ export default function MyRecipesScreen({ navigation }) {
               activeTab === "mealPlans" && styles.activeTabButtonText,
             ]}
           >
-            Meal Plans
+            Meal Plans ({mealPlans.length})
           </Text>
         </TouchableOpacity>
 
@@ -324,6 +482,7 @@ export default function MyRecipesScreen({ navigation }) {
       {isLoading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#008b8b" />
+          <Text style={styles.loadingText}>Loading your saved content...</Text>
         </View>
       ) : (
         <>
@@ -340,6 +499,8 @@ export default function MyRecipesScreen({ navigation }) {
               onRefresh={handleRefresh}
               ListEmptyComponent={EmptyRecipesComponent}
               initialNumToRender={6}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
             />
           )}
 
@@ -356,6 +517,8 @@ export default function MyRecipesScreen({ navigation }) {
               onRefresh={handleRefresh}
               ListEmptyComponent={EmptyMealPlansComponent}
               initialNumToRender={6}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
             />
           )}
         </>
@@ -375,20 +538,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#008b8b",
+    borderBottomColor: "#e0e0e0",
     backgroundColor: "#f8f9fa",
-    marginTop: -10,
-    borderRadius: 10,
-    borderBlockColor: "#008b8b",
   },
   backButton: {
     padding: 4,
+  },
+  refreshButton: {
+    padding: 4,
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#2c3e50",
-    marginTop: 20,
   },
   tabContainer: {
     flexDirection: "row",
@@ -409,7 +575,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#008b8b",
   },
   tabButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "500",
     color: "#95a5a6",
   },
@@ -428,6 +594,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#7f8c8d",
+    fontWeight: "500",
   },
   listContainer: {
     padding: 16,
@@ -485,11 +657,13 @@ const styles = StyleSheet.create({
   recipeMetaContainer: {
     flexDirection: "row",
     marginBottom: 12,
+    flexWrap: "wrap",
   },
   recipeMeta: {
     flexDirection: "row",
     alignItems: "center",
     marginRight: 16,
+    marginBottom: 4,
   },
   recipeMetaText: {
     fontSize: 14,
@@ -499,6 +673,7 @@ const styles = StyleSheet.create({
   recipeTagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
+    marginBottom: 8,
   },
   recipeTag: {
     backgroundColor: "#e6f3f3",
@@ -511,6 +686,11 @@ const styles = StyleSheet.create({
   recipeTagText: {
     fontSize: 12,
     color: "#008b8b",
+  },
+  savedDateText: {
+    fontSize: 12,
+    color: "#95a5a6",
+    fontStyle: "italic",
   },
   // Meal plan card styles
   mealPlanCard: {
@@ -561,16 +741,20 @@ const styles = StyleSheet.create({
     color: "#7f8c8d",
   },
   mealPlanContent: {
-    padding: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
   },
   mealPlanStats: {
     flexDirection: "row",
     marginBottom: 12,
+    flexWrap: "wrap",
   },
   mealPlanStat: {
     flexDirection: "row",
     alignItems: "center",
     marginRight: 16,
+    marginBottom: 4,
   },
   mealPlanStatText: {
     fontSize: 14,
@@ -595,6 +779,7 @@ const styles = StyleSheet.create({
   mealPreviewText: {
     fontSize: 14,
     color: "#2c3e50",
+    flex: 1,
   },
   moreMealsText: {
     fontSize: 12,

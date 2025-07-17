@@ -1,311 +1,198 @@
-// Fixed PurchaseService.js
+// Simple Working PurchaseService - Back to Basics
 import Purchases from 'react-native-purchases';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
 
 class PurchaseService {
   static isConfigured = false;
+  static isAvailable = false;
 
-
-  static async configure() {
-    if (this.isConfigured) {
-      return;
-    }
-    
+  // Check if RevenueCat is available
+  static checkAvailability() {
     try {
-      // Get current Firebase user ID to link with RevenueCat
-      const currentUser = auth.currentUser;
-      const appUserId = currentUser?.uid || null;
-      
-      console.log('🔧 Configuring RevenueCat with user:', appUserId);
-      
-      await Purchases.configure({
-        apiKey: 'appl_fwRWQRdSViPvwzChtARGpDVvLEs', // Replace with your actual key
-        appUserID: appUserId, // Link RevenueCat to your Firebase user
-      });
-      
-      this.isConfigured = true;
-      console.log('✅ RevenueCat configured successfully');
-      
-    } catch (error) {
-      console.error('❌ Error configuring RevenueCat:', error);
-      throw error;
-    }
-  }
-
-  // Fixed offerings fetch
-  static async getOfferings() {
-    try {
-      await this.configure(); // Ensure configured first
-      
-      console.log('📦 Fetching offerings...');
-      const offerings = await Purchases.getOfferings();
-      
-      console.log('🛍️ Raw offerings:', offerings);
-      
-      if (offerings.current !== null && offerings.current.availablePackages.length > 0) {
-        console.log('✅ Found packages:', offerings.current.availablePackages.length);
-        return offerings.current.availablePackages;
+      if (Purchases && typeof Purchases.configure === 'function') {
+        this.isAvailable = true;
+        console.log('✅ RevenueCat SDK is available');
+        return true;
       } else {
-        console.warn('⚠️ No current offering found');
-        
-        // Check if there are any offerings at all
-        const allOfferings = Object.values(offerings.all);
-        if (allOfferings.length > 0) {
-          console.log('📋 Using first available offering');
-          return allOfferings[0].availablePackages || [];
-        }
-        
-        console.error('❌ No offerings available at all');
-        return [];
-      }
-    } catch (error) {
-      console.error('❌ Error fetching offerings:', error);
-      return [];
-    }
-  }
-
-  // Update premium status in Firestore
-  static async updatePremiumStatus(hasActivePremium, subscriptionDetails = null) {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        console.log('No authenticated user to update');
+        console.log('❌ RevenueCat SDK not properly imported');
         return false;
       }
-
-      const userRef = doc(db, 'users', currentUser.uid);
-      
-      const updateData = {
-        isPremium: hasActivePremium,
-        premiumUpdatedAt: new Date().toISOString(),
-      };
-
-      if (subscriptionDetails && hasActivePremium) {
-        updateData.subscriptionInfo = {
-          productId: subscriptionDetails.productIdentifier,
-          expirationDate: subscriptionDetails.expirationDate,
-          purchaseDate: subscriptionDetails.purchaseDate,
-          originalAppUserId: subscriptionDetails.originalAppUserId,
-          platform: 'ios',
-          provider: 'revenuecat'
-        };
-      } else if (!hasActivePremium) {
-        updateData.subscriptionInfo = null;
-      }
-
-      await updateDoc(userRef, updateData);
-      console.log('✅ Firestore premium status updated:', hasActivePremium);
-      return true;
-      
     } catch (error) {
-      console.error('❌ Error updating Firestore premium status:', error);
+      console.log('❌ RevenueCat SDK not installed:', error.message);
       return false;
     }
   }
 
-  // Purchase a subscription package
-  static async purchasePackage(packageToPurchase) {
-    try {
-      console.log('🛒 Starting purchase for package:', packageToPurchase.identifier);
-      
-      const { customerInfo, productIdentifier } = await Purchases.purchasePackage(packageToPurchase);
-      
-      console.log('💰 Purchase response:', { productIdentifier });
-      console.log('👤 Customer info:', customerInfo);
-      
-      if (customerInfo.entitlements.active['premium']) {
-        const premiumEntitlement = customerInfo.entitlements.active['premium'];
-        const subscriptionDetails = {
-          productIdentifier,
-          expirationDate: premiumEntitlement.expirationDate,
-          purchaseDate: premiumEntitlement.latestPurchaseDate,
-          originalAppUserId: customerInfo.originalAppUserId,
-        };
+  // Configure RevenueCat - call this ONCE when app starts
+  static async configure(apiKey, appUserID = null) {
+    if (this.isConfigured) {
+      console.log('✅ RevenueCat already configured');
+      return true;
+    }
 
-        const updateSuccess = await this.updatePremiumStatus(true, subscriptionDetails);
-        
-        console.log('✅ Purchase successful!', productIdentifier);
-        return {
-          success: true,
-          customerInfo,
-          productIdentifier,
-          firestoreUpdated: updateSuccess
-        };
+    if (!this.checkAvailability()) {
+      return false;
+    }
+
+    try {
+      console.log('🔧 Configuring RevenueCat...');
+      
+      await Purchases.configure({
+        apiKey: 'appl_fwRWQRdSViPvwzChtARGpDVvLEs',
+        appUserID: appUserID, // Use Firebase UID
+      });
+
+      this.isConfigured = true;
+      console.log('✅ RevenueCat configured successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ RevenueCat configuration failed:', error);
+      return false;
+    }
+  }
+
+  // Get available packages/products
+  static async getOfferings() {
+    if (!this.isConfigured) {
+      console.log('❌ RevenueCat not configured');
+      return [];
+    }
+
+    try {
+      console.log('📦 Fetching offerings...');
+      const offerings = await Purchases.getOfferings();
+      
+      if (offerings.current && offerings.current.availablePackages.length > 0) {
+        console.log('✅ Found', offerings.current.availablePackages.length, 'packages');
+        return offerings.current.availablePackages;
       } else {
-        console.error('❌ Purchase completed but no premium entitlement found');
-        return {
-          success: false,
-          error: 'Purchase completed but premium access not granted'
-        };
+        console.log('⚠️ No current offering, checking all offerings...');
+        const allOfferings = Object.values(offerings.all);
+        if (allOfferings.length > 0) {
+          return allOfferings[0].availablePackages || [];
+        }
+        return [];
       }
     } catch (error) {
-      console.error('❌ Purchase error:', error);
+      console.error('❌ Failed to get offerings:', error);
+      return [];
+    }
+  }
+
+  // Purchase a package
+  static async purchasePackage(packageToPurchase) {
+    if (!this.isConfigured) {
+      return {
+        success: false,
+        error: 'RevenueCat not configured'
+      };
+    }
+
+    try {
+      console.log('💳 Starting purchase:', packageToPurchase.identifier);
       
-      if (error.code === 'PURCHASE_CANCELLED') {
+      const purchaseResult = await Purchases.purchasePackage(packageToPurchase);
+      
+      console.log('💳 Purchase completed:', {
+        productIdentifier: purchaseResult.productIdentifier,
+        activeEntitlements: Object.keys(purchaseResult.customerInfo.entitlements.active)
+      });
+
+      // Check if user now has premium access
+      const hasPremium = purchaseResult.customerInfo.entitlements.active['premium'] !== undefined;
+      
+      return {
+        success: true,
+        hasPremium: hasPremium,
+        customerInfo: purchaseResult.customerInfo,
+        productIdentifier: purchaseResult.productIdentifier
+      };
+    } catch (error) {
+      console.error('❌ Purchase failed:', error);
+      
+      // Handle user cancellation
+      if (error.code === 'PURCHASE_CANCELLED' || error.message.includes('cancelled')) {
         return {
           success: false,
           cancelled: true,
           error: 'Purchase cancelled by user'
         };
-      } else {
-        return {
-          success: false,
-          error: error.message
-        };
       }
-    }
-  }
-
-  // Check current subscription status
-  static async checkSubscriptionStatus() {
-    try {
-      await this.configure();
-      
-      console.log('🔍 Checking subscription status...');
-      const customerInfo = await Purchases.getCustomerInfo();
-      
-      console.log('👤 Customer entitlements:', customerInfo.entitlements);
-      
-      const hasActivePremium = customerInfo.entitlements.active['premium'] !== undefined;
-      
-      let subscriptionDetails = null;
-      if (hasActivePremium) {
-        const premiumEntitlement = customerInfo.entitlements.active['premium'];
-        subscriptionDetails = {
-          productIdentifier: premiumEntitlement.productIdentifier,
-          expirationDate: premiumEntitlement.expirationDate,
-          purchaseDate: premiumEntitlement.latestPurchaseDate,
-          originalAppUserId: customerInfo.originalAppUserId,
-        };
-      }
-
-      // Update Firestore with current status
-      await this.updatePremiumStatus(hasActivePremium, subscriptionDetails);
-      
-      console.log('✅ Subscription status:', hasActivePremium);
       
       return {
-        hasActivePremium,
-        customerInfo,
-        activeSubscriptions: Object.keys(customerInfo.entitlements.active)
+        success: false,
+        error: error.message || 'Purchase failed'
       };
-    } catch (error) {
-      console.error('❌ Error checking subscription status:', error);
-      
-      // Fallback to Firestore
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          return { hasActivePremium: false, error: 'No user' };
-        }
-        
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        const firestorePremium = userDoc.exists() ? userDoc.data().isPremium || false : false;
-        
-        console.log('📋 Using Firestore fallback:', firestorePremium);
-        
-        return {
-          hasActivePremium: firestorePremium,
-          fallbackUsed: true,
-          error: error.message
-        };
-      } catch (fallbackError) {
-        console.error('❌ Firestore fallback also failed:', fallbackError);
-        return {
-          hasActivePremium: false,
-          error: fallbackError.message
-        };
-      }
     }
   }
 
   // Restore purchases
   static async restorePurchases() {
-    try {
-      await this.configure();
-      
-      console.log('🔄 Restoring purchases...');
-      const customerInfo = await Purchases.restorePurchases();
-      
-      const hasActivePremium = customerInfo.entitlements.active['premium'] !== undefined;
-      
-      let subscriptionDetails = null;
-      if (hasActivePremium) {
-        const premiumEntitlement = customerInfo.entitlements.active['premium'];
-        subscriptionDetails = {
-          productIdentifier: premiumEntitlement.productIdentifier,
-          expirationDate: premiumEntitlement.expirationDate,
-          purchaseDate: premiumEntitlement.latestPurchaseDate,
-          originalAppUserId: customerInfo.originalAppUserId,
-        };
-      }
+    if (!this.isConfigured) {
+      return {
+        success: false,
+        error: 'RevenueCat not configured'
+      };
+    }
 
-      const updateSuccess = await this.updatePremiumStatus(hasActivePremium, subscriptionDetails);
+    try {
+      console.log('🔄 Restoring purchases...');
       
-      console.log('✅ Purchases restored:', hasActivePremium);
+      const customerInfo = await Purchases.restorePurchases();
+      const hasPremium = customerInfo.entitlements.active['premium'] !== undefined;
+      
+      console.log('🔄 Restore completed:', {
+        hasPremium: hasPremium,
+        activeEntitlements: Object.keys(customerInfo.entitlements.active)
+      });
       
       return {
         success: true,
-        hasActivePremium,
-        customerInfo,
-        firestoreUpdated: updateSuccess
+        hasPremium: hasPremium,
+        customerInfo: customerInfo
       };
     } catch (error) {
-      console.error('❌ Error restoring purchases:', error);
+      console.error('❌ Restore failed:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message || 'Restore failed'
       };
     }
   }
 
   // Get customer info
   static async getCustomerInfo() {
+    if (!this.isConfigured) {
+      return null;
+    }
+
     try {
-      await this.configure();
       const customerInfo = await Purchases.getCustomerInfo();
-      console.log('👤 Customer info retrieved successfully');
       return customerInfo;
     } catch (error) {
-      console.error('❌ Error getting customer info:', error);
+      console.error('❌ Failed to get customer info:', error);
       return null;
     }
   }
 
-  // Debug method to check everything
-  static async debugStatus() {
+  // Check if user has premium
+  static async checkPremiumStatus() {
     try {
-      console.log('🐛 Starting debug...');
-      
-      // Check configuration
-      console.log('Config status:', this.isConfigured);
-      
-      // Try to configure
-      await this.configure();
-      
-      // Check offerings
-      const offerings = await this.getOfferings();
-      console.log('Available packages:', offerings.length);
-      
-      // Check customer info
       const customerInfo = await this.getCustomerInfo();
-      console.log('Customer ID:', customerInfo?.originalAppUserId);
+      if (!customerInfo) return false;
       
-      // Check subscription status
-      const status = await this.checkSubscriptionStatus();
-      
-      return {
-        configured: this.isConfigured,
-        packagesAvailable: offerings.length,
-        customerInfo: customerInfo?.originalAppUserId,
-        premiumStatus: status.hasActivePremium,
-        activeEntitlements: status.activeSubscriptions
-      };
+      const hasPremium = customerInfo.entitlements.active['premium'] !== undefined;
+      console.log('💎 Premium status check:', hasPremium);
+      return hasPremium;
     } catch (error) {
-      console.error('❌ Debug failed:', error);
-      return { error: error.message };
+      console.error('❌ Premium status check failed:', error);
+      return false;
     }
+  }
+
+  // Reset configuration (for logout)
+  static reset() {
+    this.isConfigured = false;
+    console.log('🔄 RevenueCat configuration reset');
   }
 }
 

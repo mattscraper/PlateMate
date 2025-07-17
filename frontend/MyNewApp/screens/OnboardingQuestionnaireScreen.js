@@ -20,7 +20,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authService } from "../services/auth";
+import PremiumService from "../services/PremiumService";
 import PurchaseService from "../services/PurchaseService";
+import { doc, updateDoc } from "firebase/firestore";
+import { auth, db } from "../firebaseConfig";
 
 const { width, height } = Dimensions.get("window");
 
@@ -204,7 +207,7 @@ const AccountModal = ({
   );
 };
 
-// Premium Modal Component
+// Premium Modal Component with Enhanced Logic
 const PremiumModal = ({
   visible,
   onClose,
@@ -212,36 +215,53 @@ const PremiumModal = ({
   onContinueFree,
   userCreatedAccount,
   isLoading,
-  packages
+  packages,
+  revenueCatAvailable
 }) => {
   const [selectedPlan, setSelectedPlan] = useState('yearly');
   const [purchasing, setPurchasing] = useState(false);
 
   const getPackageInfo = (pkg) => {
-    const productId = pkg?.product?.identifier;
+    const identifier = pkg.identifier.toLowerCase();
+    const product = pkg.product;
     
-    if (productId === '1206856') {
+    const isMonthly = identifier.includes('monthly') ||
+                     identifier.includes('month') ||
+                     identifier.includes('1_month') ||
+                     product.identifier === '1206856';
+                     
+    const isAnnual = identifier.includes('annual') ||
+                    identifier.includes('year') ||
+                    identifier.includes('12_month') ||
+                    product.identifier === '1206857';
+    
+    if (isMonthly) {
       return {
         id: 'monthly',
         title: 'Monthly Premium',
-        price: pkg.product.priceString,
+        price: product.priceString,
         period: '/month',
-        productId: '1206856',
+        productId: product.identifier,
         features: [
           "Smart Ingredient Search",
           "Personalized Meal Plans",
           "Food Scanner & Health Scores",
-          "AI Macro Tracking"
-        ]
+          "AI Macro Tracking",
+          "Grocery List Generator",
+          "Unlimited Recipe Saves",
+          "Ad-Free Experience",
+          "Cancel Anytime",
+        ],
+        isRecommended: false
       };
-    } else if (productId === '1206857') {
+    } else if (isAnnual) {
       return {
         id: 'yearly',
         title: 'Annual Premium',
-        price: pkg.product.priceString,
+        price: product.priceString,
         period: '/year',
-        productId: '1206857',
-        savings: 'Save 17%',
+        productId: product.identifier,
+        savings: 'Save 33%',
         popular: true,
         features: [
           "Smart Ingredient Search",
@@ -249,15 +269,41 @@ const PremiumModal = ({
           "Food Scanner & Health Scores",
           "Additive Detection",
           "AI Macro Tracking",
-          "Priority Support"
-        ]
+          "Grocery List Generator",
+          "Unlimited Recipe Saves",
+          "Ad-Free Experience",
+          "Priority Support",
+          "Advanced Recipe Filters",
+          "Cancel Anytime",
+        ],
+        isRecommended: true
       };
     }
     
-    return null;
+    return {
+      id: pkg.identifier,
+      title: product.title || 'Premium',
+      price: product.priceString,
+      period: '',
+      productId: product.identifier,
+      features: ["All Premium Features", "Cancel Anytime"],
+      isRecommended: false
+    };
   };
 
   const plans = packages.map(pkg => getPackageInfo(pkg)).filter(Boolean);
+
+  // Set default to yearly if available
+  useEffect(() => {
+    if (plans.length > 0) {
+      const yearlyPlan = plans.find(p => p.id === 'yearly');
+      if (yearlyPlan) {
+        setSelectedPlan('yearly');
+      } else {
+        setSelectedPlan(plans[0].id);
+      }
+    }
+  }, [plans]);
 
   const handlePurchase = async () => {
     const selectedPackage = packages.find(pkg => {
@@ -275,6 +321,70 @@ const PremiumModal = ({
     setPurchasing(false);
   };
 
+  const PlanCard = ({ plan, onPress }) => {
+    const isSelected = selectedPlan === plan.id;
+    const isFallbackPackage = plan.productId?.includes('fallback');
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.planCard,
+          isSelected && styles.planCardSelected,
+          plan.popular && styles.planCardPopular
+        ]}
+        onPress={() => setSelectedPlan(plan.id)}
+        activeOpacity={0.8}
+      >
+        {plan.popular && (
+          <View style={styles.popularBadge}>
+            <Ionicons name="diamond" size={12} color="white" />
+            <Text style={styles.popularBadgeText}>BEST VALUE</Text>
+          </View>
+        )}
+        
+        {isFallbackPackage && (
+          <View style={styles.fallbackBadge}>
+            <Ionicons name="warning" size={12} color="#f39c12" />
+            <Text style={styles.fallbackBadgeText}>ESTIMATED PRICING</Text>
+          </View>
+        )}
+        
+        <View style={styles.planCardHeader}>
+          <View style={styles.planCardLeft}>
+            <Text style={styles.planCardTitle}>{plan.title}</Text>
+            <View style={styles.planCardPricing}>
+              <Text style={styles.planCardPrice}>{plan.price}</Text>
+              <Text style={styles.planCardPeriod}>{plan.period}</Text>
+              {plan.savings && (
+                <View style={styles.savingsBadge}>
+                  <Text style={styles.savingsText}>{plan.savings}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          
+          <View style={[
+            styles.planCardRadio,
+            isSelected && styles.planCardRadioSelected
+          ]}>
+            {isSelected && (
+              <Ionicons name="checkmark" size={16} color="white" />
+            )}
+          </View>
+        </View>
+
+        <View style={styles.planCardFeatures}>
+          {plan.features.map((feature, index) => (
+            <View key={index} style={styles.planCardFeature}>
+              <Ionicons name="checkmark-circle" size={14} color="#008b8b" />
+              <Text style={styles.planCardFeatureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={styles.premiumModalContainer}>
@@ -290,6 +400,16 @@ const PremiumModal = ({
             contentContainerStyle={styles.premiumModalContent}
             showsVerticalScrollIndicator={false}
           >
+            {/* Status Indicator */}
+            {!revenueCatAvailable && (
+              <View style={styles.statusBanner}>
+                <Ionicons name="warning" size={16} color="#f39c12" />
+                <Text style={styles.statusBannerText}>
+                  In-app purchases temporarily unavailable
+                </Text>
+              </View>
+            )}
+
             <View style={styles.premiumWelcomeSection}>
               <View style={styles.premiumIconContainer}>
                 <Ionicons name="diamond" size={40} color="#008b8b" />
@@ -315,55 +435,7 @@ const PremiumModal = ({
                 <Text style={styles.planSelectionTitle}>Choose Your Plan</Text>
                 
                 {plans.map((plan) => (
-                  <TouchableOpacity
-                    key={plan.id}
-                    style={[
-                      styles.planCard,
-                      selectedPlan === plan.id && styles.planCardSelected,
-                      plan.popular && styles.planCardPopular
-                    ]}
-                    onPress={() => setSelectedPlan(plan.id)}
-                    activeOpacity={0.8}
-                  >
-                    {plan.popular && (
-                      <View style={styles.popularBadge}>
-                        <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
-                      </View>
-                    )}
-                    
-                    <View style={styles.planCardHeader}>
-                      <View style={styles.planCardLeft}>
-                        <Text style={styles.planCardTitle}>{plan.title}</Text>
-                        <View style={styles.planCardPricing}>
-                          <Text style={styles.planCardPrice}>{plan.price}</Text>
-                          <Text style={styles.planCardPeriod}>{plan.period}</Text>
-                          {plan.savings && (
-                            <View style={styles.savingsBadge}>
-                              <Text style={styles.savingsText}>{plan.savings}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                      
-                      <View style={[
-                        styles.planCardRadio,
-                        selectedPlan === plan.id && styles.planCardRadioSelected
-                      ]}>
-                        {selectedPlan === plan.id && (
-                          <Ionicons name="checkmark" size={16} color="white" />
-                        )}
-                      </View>
-                    </View>
-
-                    <View style={styles.planCardFeatures}>
-                      {plan.features.map((feature, index) => (
-                        <View key={index} style={styles.planCardFeature}>
-                          <Ionicons name="checkmark-circle" size={14} color="#008b8b" />
-                          <Text style={styles.planCardFeatureText}>{feature}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </TouchableOpacity>
+                  <PlanCard key={plan.id} plan={plan} />
                 ))}
               </View>
             )}
@@ -385,7 +457,11 @@ const PremiumModal = ({
                   <Text style={styles.premiumUpgradeButtonText}>Processing...</Text>
                 </View>
               ) : (
-                <Text style={styles.premiumUpgradeButtonText}>Get Premium Now</Text>
+                <View style={styles.buttonContent}>
+                  <Ionicons name="diamond" size={16} color="white" />
+                  <Text style={styles.premiumUpgradeButtonText}>Get Premium Now</Text>
+                  <Ionicons name="arrow-forward" size={16} color="white" />
+                </View>
               )}
             </TouchableOpacity>
 
@@ -419,6 +495,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
   const [userCreatedAccount, setUserCreatedAccount] = useState(false);
   const [premiumPackages, setPremiumPackages] = useState([]);
   const [premiumLoading, setPremiumLoading] = useState(false);
+  const [revenueCatAvailable, setRevenueCatAvailable] = useState(false);
   
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -527,23 +604,83 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     }
   }, [showPremiumModal]);
 
-  const initializePremiumPackages = async () => {
-    setPremiumLoading(true);
-    try {
-      await PurchaseService.configure();
-      console.log('🔧 RevenueCat configured for onboarding');
-      
-      const availablePackages = await PurchaseService.getOfferings();
-      console.log('📦 Available packages for onboarding:', availablePackages);
-      
-      if (availablePackages.length === 0) {
-        console.error('❌ No packages found! Check RevenueCat dashboard configuration');
+  const getFallbackPackages = () => {
+    return [
+      {
+        identifier: 'monthly_premium_fallback',
+        product: {
+          identifier: 'monthly_premium_fallback',
+          title: 'Monthly Premium',
+          priceString: '$4.99',
+          price: 4.99,
+          currencyCode: 'USD'
+        }
+      },
+      {
+        identifier: 'annual_premium_fallback',
+        product: {
+          identifier: 'annual_premium_fallback',
+          title: 'Annual Premium',
+          priceString: '$39.99',
+          price: 39.99,
+          currencyCode: 'USD'
+        }
       }
-      
-      setPremiumPackages(availablePackages);
+    ];
+  };
+
+  const initializePremiumPackages = async () => {
+    try {
+      setPremiumLoading(true);
+      console.log('🚀 Onboarding: Loading premium packages...');
+
+      // Check if user is authenticated
+      const user = authService.getCurrentUser();
+      if (!user) {
+        console.log('⚠️ Onboarding: No authenticated user, using fallback packages');
+        setPremiumPackages(getFallbackPackages());
+        setRevenueCatAvailable(false);
+        return;
+      }
+
+      console.log('👤 Onboarding: User authenticated:', user.uid);
+
+      // Check if RevenueCat is available
+      const isAvailable = PurchaseService.checkAvailability();
+      setRevenueCatAvailable(isAvailable);
+
+      if (isAvailable) {
+        // Configure RevenueCat if not already done
+        console.log('🔧 Onboarding: Configuring RevenueCat...');
+        const configured = await PurchaseService.configure(
+          'appl_fwRWQRdSViPvwzChtARGpDVvLEs',
+          user.uid
+        );
+
+        if (configured) {
+          console.log('✅ Onboarding: RevenueCat configured, loading packages...');
+          const availablePackages = await PurchaseService.getOfferings();
+          
+          if (availablePackages && availablePackages.length > 0) {
+            console.log('📦 Onboarding: Loaded', availablePackages.length, 'packages from RevenueCat');
+            setPremiumPackages(availablePackages);
+          } else {
+            console.log('⚠️ Onboarding: No packages from RevenueCat, using fallback');
+            setPremiumPackages(getFallbackPackages());
+          }
+        } else {
+          console.log('⚠️ Onboarding: RevenueCat configuration failed, using fallback packages');
+          setPremiumPackages(getFallbackPackages());
+        }
+      } else {
+        console.log('⚠️ Onboarding: RevenueCat not available, using fallback packages');
+        setPremiumPackages(getFallbackPackages());
+      }
+
     } catch (error) {
-      console.error('💥 Error initializing premium packages:', error);
-      Alert.alert('Error', 'Failed to load premium options');
+      console.error('❌ Onboarding: Error loading premium packages:', error);
+      setPremiumPackages(getFallbackPackages());
+      setRevenueCatAvailable(false);
     } finally {
       setPremiumLoading(false);
     }
@@ -666,9 +803,126 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
 
   const handleSelectPremium = async (packageToPurchase) => {
     try {
+      console.log('💳 Onboarding: Starting purchase:', packageToPurchase.identifier);
+
+      // Check if this is a fallback package
+      if (packageToPurchase.identifier.includes('fallback')) {
+        console.log('⚠️ Onboarding: Fallback package selected');
+        
+        Alert.alert(
+          "Upgrade to Premium",
+          "The in-app purchase system is currently unavailable. Please visit our website to complete your premium upgrade, or contact support for assistance.",
+          [
+            {
+              text: "Contact Support",
+              onPress: () => {
+                Alert.alert("Support", "Please email support@kitchly.app for assistance with premium upgrades.");
+              }
+            },
+            {
+              text: "Try Again",
+              onPress: () => initializePremiumPackages()
+            },
+            {
+              text: "Simulate Premium (DEV)",
+              onPress: async () => {
+                // DEV ONLY: Simulate premium activation for testing
+                console.log('🧪 DEV: Simulating premium activation...');
+                try {
+                  const user = authService.getCurrentUser();
+                  if (user) {
+                    // Directly update Firestore for testing
+                    const userRef = doc(db, "users", user.uid);
+                    await updateDoc(userRef, {
+                      isPremium: true,
+                      premiumStatusUpdated: new Date().toISOString(),
+                      'usage.lastActive': new Date().toISOString()
+                    });
+                    
+                    // Force refresh both services
+                    await PremiumService.forceRefresh();
+                    await authService.forceRefreshPremiumStatus();
+                    
+                    Alert.alert(
+                      "🎉 Welcome to Premium!",
+                      "Premium status activated for testing!",
+                      [
+                        {
+                          text: "Get Started",
+                          onPress: () => {
+                            setShowPremiumModal(false);
+                            if (onComplete) {
+                              onComplete(answers);
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }
+                } catch (error) {
+                  console.error('❌ DEV: Premium simulation failed:', error);
+                  Alert.alert("Error", "Failed to simulate premium activation");
+                }
+              }
+            },
+            {
+              text: "Cancel",
+              style: "cancel"
+            }
+          ]
+        );
+        return;
+      }
+
+      // Use PurchaseService for actual purchase
+      console.log('🔄 Onboarding: Attempting RevenueCat purchase...');
       const result = await PurchaseService.purchasePackage(packageToPurchase);
       
+      console.log('💳 Onboarding: Purchase result:', result);
+
       if (result.success) {
+        console.log('✅ Onboarding: Purchase successful!');
+        
+        // 1. Update Firestore immediately (optimistic update)
+        try {
+          const user = authService.getCurrentUser();
+          if (user) {
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+              isPremium: true,
+              premiumStatusUpdated: new Date().toISOString(),
+              'usage.lastActive': new Date().toISOString()
+            });
+            console.log('✅ Firestore premium status updated immediately');
+          }
+        } catch (firestoreError) {
+          console.warn('⚠️ Immediate Firestore update failed:', firestoreError);
+        }
+        
+        // 2. Notify services about successful purchase
+        try {
+          await PremiumService.handlePurchaseSuccess(result);
+        } catch (premiumServiceError) {
+          console.warn('⚠️ PremiumService handlePurchaseSuccess failed:', premiumServiceError);
+        }
+        
+        try {
+          await authService.handlePurchaseSuccess(result);
+        } catch (authServiceError) {
+          console.warn('⚠️ AuthService handlePurchaseSuccess failed:', authServiceError);
+        }
+        
+        // 3. Force refresh both services
+        setTimeout(async () => {
+          try {
+            await PremiumService.forceRefresh();
+            await authService.forceRefreshPremiumStatus();
+            console.log('✅ Services force refreshed after purchase');
+          } catch (refreshError) {
+            console.warn('⚠️ Service refresh failed:', refreshError);
+          }
+        }, 1000);
+        
         Alert.alert(
           "🎉 Welcome to Premium!",
           "Congratulations! You now have access to all premium features.",
@@ -684,14 +938,37 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
             },
           ]
         );
+        
       } else if (result.cancelled) {
-        console.log('Purchase cancelled');
+        console.log('🚫 Onboarding: Purchase cancelled by user');
+        
       } else {
-        Alert.alert('Purchase Failed', result.error || 'Something went wrong');
+        console.log('❌ Onboarding: Purchase failed:', result.error);
+        Alert.alert(
+          "Purchase Error",
+          result.error || "Unable to process purchase. Please try again later.",
+          [
+            {
+              text: "Contact Support",
+              onPress: () => {
+                Alert.alert("Support", "Please email support@kitchly.app for assistance.");
+              }
+            },
+            {
+              text: "Try Again",
+              onPress: () => handleSelectPremium(packageToPurchase)
+            },
+            {
+              text: "Cancel",
+              style: "cancel"
+            }
+          ]
+        );
       }
+      
     } catch (error) {
-      Alert.alert("Error", "Failed to upgrade. Please try again later.");
-      console.error("Upgrade error:", error);
+      console.error('❌ Onboarding: Purchase error:', error);
+      Alert.alert("Purchase Error", "Something went wrong. Please try again later.");
     }
   };
 
@@ -810,6 +1087,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
        </TouchableOpacity>
      </View>
     );
+
   // Multiple Choice Step
   const MultipleChoiceStep = () => (
     <View style={styles.questionContainer}>
@@ -995,6 +1273,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         userCreatedAccount={userCreatedAccount}
         isLoading={premiumLoading}
         packages={premiumPackages}
+        revenueCatAvailable={revenueCatAvailable}
       />
     </SafeAreaView>
   );
@@ -1386,6 +1665,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  // Status Banner
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff3cd',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginHorizontal: -24,
+    marginTop: -20,
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffeaa7',
+  },
+  statusBannerText: {
+    fontSize: 14,
+    color: '#856404',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+
   // Account Modal Styles
   modalContainer: {
     flex: 1,
@@ -1675,11 +1975,32 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
   },
   popularBadgeText: {
     color: "white",
     fontSize: 12,
     fontWeight: "700",
+    marginLeft: 4,
+  },
+  fallbackBadge: {
+    position: "absolute",
+    top: -8,
+    left: 20,
+    backgroundColor: "#f39c12",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  fallbackBadgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "700",
+    marginLeft: 4,
   },
   planCardHeader: {
     flexDirection: "row",

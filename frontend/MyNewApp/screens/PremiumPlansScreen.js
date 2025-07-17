@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -13,69 +12,241 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { authService } from "../services/auth";
+import PremiumService from "../services/PremiumService";
 import PurchaseService from "../services/PurchaseService";
 
 const { width } = Dimensions.get('window');
 
 export default function PremiumPlansScreen({ navigation, route }) {
   const [isLoading, setIsLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
+  const [purchasingPackageId, setPurchasingPackageId] = useState(null);
   const [packages, setPackages] = useState([]);
   const [hasActivePremium, setHasActivePremium] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [revenueCatAvailable, setRevenueCatAvailable] = useState(false);
   
   // Get callback function from navigation params
   const { onPremiumStatusUpdate, isPremium } = route.params || {};
 
   useEffect(() => {
     initializeSubscriptions();
+    
+    // Subscribe to premium status changes
+    const unsubscribe = authService.subscribeToPremiumStatus((premiumStatus) => {
+      console.log('💎 PremiumPlansScreen: Premium status updated:', premiumStatus);
+      setHasActivePremium(premiumStatus);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const initializeSubscriptions = async () => {
     try {
-      // Configure RevenueCat
-      await PurchaseService.configure();
-      console.log('🔧 RevenueCat configured');
-      
-      // Debug: Check customer info
-      const customerInfo = await PurchaseService.getCustomerInfo();
-      console.log('👤 Customer Info:', customerInfo);
-      
-      // Debug: Try to get offerings
-      console.log('🛍️ Fetching offerings...');
-      const availablePackages = await PurchaseService.getOfferings();
-      console.log('📦 Available packages:', availablePackages);
-      
-      if (availablePackages.length === 0) {
-        console.error('❌ No packages found! Check RevenueCat dashboard configuration');
+      setIsLoading(true);
+      console.log('🚀 PremiumPlansScreen: Loading...');
+
+      // Check if user is authenticated
+      const user = authService.getCurrentUser();
+      if (!user) {
+        throw new Error('User not authenticated');
       }
-      
-      // Check current subscription status
-      const status = await PurchaseService.checkSubscriptionStatus();
-      setHasActivePremium(status.hasActivePremium);
-      
-      setPackages(availablePackages);
-      
+
+      console.log('👤 PremiumPlansScreen: User authenticated:', user.uid);
+
+      // Check current premium status
+      const currentPremiumStatus = authService.getCurrentPremiumStatus();
+      console.log('💎 PremiumPlansScreen: Current premium status:', currentPremiumStatus);
+      setHasActivePremium(currentPremiumStatus);
+
+      // If already premium, no need to load packages
+      if (currentPremiumStatus) {
+        console.log('✅ PremiumPlansScreen: User already has premium');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if RevenueCat is available
+      const isAvailable = PurchaseService.checkAvailability();
+      setRevenueCatAvailable(isAvailable);
+
+      if (isAvailable) {
+        // Configure RevenueCat if not already done
+        console.log('🔧 PremiumPlansScreen: Configuring RevenueCat...');
+        const configured = await PurchaseService.configure(
+          'appl_fwRWQRdSViPvwzChtARGpDVvLEs',
+          user.uid
+        );
+
+        if (configured) {
+          console.log('✅ PremiumPlansScreen: RevenueCat configured, loading packages...');
+          const availablePackages = await PurchaseService.getOfferings();
+          
+          if (availablePackages && availablePackages.length > 0) {
+            console.log('📦 PremiumPlansScreen: Loaded', availablePackages.length, 'packages from RevenueCat');
+            setPackages(availablePackages);
+          } else {
+            console.log('⚠️ PremiumPlansScreen: No packages from RevenueCat, using fallback');
+            setPackages(getFallbackPackages());
+          }
+        } else {
+          console.log('⚠️ PremiumPlansScreen: RevenueCat configuration failed, using fallback packages');
+          setPackages(getFallbackPackages());
+        }
+      } else {
+        console.log('⚠️ PremiumPlansScreen: RevenueCat not available, using fallback packages');
+        setPackages(getFallbackPackages());
+      }
+
     } catch (error) {
-      console.error('💥 Error initializing subscriptions:', error);
-      Alert.alert('Error', 'Failed to load subscription options');
+      console.error('❌ PremiumPlansScreen: Error loading premium plans:', error);
+      setPackages(getFallbackPackages());
     } finally {
       setIsLoading(false);
     }
   };
 
+  const getFallbackPackages = () => {
+    return [
+      {
+        identifier: 'monthly_premium_fallback',
+        product: {
+          identifier: 'monthly_premium',
+          title: 'Monthly Premium',
+          priceString: '$4.99',
+          price: 4.99,
+          currencyCode: 'USD'
+        }
+      },
+      {
+        identifier: 'annual_premium_fallback',
+        product: {
+          identifier: 'annual_premium',
+          title: 'Annual Premium',
+          priceString: '$39.99',
+          price: 39.99,
+          currencyCode: 'USD'
+        }
+      }
+    ];
+  };
+
   const handleUpgradeToPremium = async (packageToPurchase) => {
-    setPurchasing(true);
+    setPurchasingPackageId(packageToPurchase.identifier);
     
     try {
+      console.log('💳 PremiumPlansScreen: Starting purchase:', packageToPurchase.identifier);
+
+      // Check if this is a fallback package
+      if (packageToPurchase.identifier.includes('fallback')) {
+        console.log('⚠️ PremiumPlansScreen: Fallback package selected');
+        
+        Alert.alert(
+          "Upgrade to Premium",
+          "The in-app purchase system is currently unavailable. Please visit our website to complete your premium upgrade, or contact support for assistance.",
+          [
+            {
+              text: "Contact Support",
+              onPress: () => {
+                Alert.alert("Support", "Please email support@kitchly.app for assistance with premium upgrades.");
+              }
+            },
+            {
+              text: "Try Again",
+              onPress: () => initializeSubscriptions()
+            },
+            {
+              text: "Simulate Premium (DEV)",
+              onPress: async () => {
+                // DEV ONLY: Simulate premium activation for testing
+                console.log('🧪 DEV: Simulating premium activation...');
+                try {
+                  const user = authService.getCurrentUser();
+                  if (user) {
+                    // Directly update Firestore for testing
+                    const userRef = doc(db, "users", user.uid);
+                    await updateDoc(userRef, {
+                      isPremium: true,
+                      premiumStatusUpdated: new Date().toISOString(),
+                      'usage.lastActive': new Date().toISOString()
+                    });
+                    
+                    // Force refresh both services
+                    await PremiumService.forceRefresh();
+                    await authService.forceRefreshPremiumStatus();
+                    
+                    Alert.alert("✅ Premium Activated", "Premium status activated for testing!");
+                    
+                    if (onPremiumStatusUpdate) {
+                      onPremiumStatusUpdate();
+                    }
+                    navigation.goBack();
+                  }
+                } catch (error) {
+                  console.error('❌ DEV: Premium simulation failed:', error);
+                  Alert.alert("Error", "Failed to simulate premium activation");
+                }
+              }
+            },
+            {
+              text: "Cancel",
+              style: "cancel"
+            }
+          ]
+        );
+        return;
+      }
+
+      // Use PurchaseService for actual purchase
+      console.log('🔄 PremiumPlansScreen: Attempting RevenueCat purchase...');
       const result = await PurchaseService.purchasePackage(packageToPurchase);
       
+      console.log('💳 PremiumPlansScreen: Purchase result:', result);
+
       if (result.success) {
-        setHasActivePremium(true);
+        console.log('✅ PremiumPlansScreen: Purchase successful!');
         
-        // Call the callback to update premium status in App.js
-        if (onPremiumStatusUpdate) {
-          await onPremiumStatusUpdate();
+        // 1. Update Firestore immediately (optimistic update)
+        try {
+          const user = authService.getCurrentUser();
+          if (user) {
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+              isPremium: true,
+              premiumStatusUpdated: new Date().toISOString(),
+              'usage.lastActive': new Date().toISOString()
+            });
+            console.log('✅ Firestore premium status updated immediately');
+          }
+        } catch (firestoreError) {
+          console.warn('⚠️ Immediate Firestore update failed:', firestoreError);
         }
+        
+        // 2. Notify services about successful purchase
+        try {
+          await PremiumService.handlePurchaseSuccess(result);
+        } catch (premiumServiceError) {
+          console.warn('⚠️ PremiumService handlePurchaseSuccess failed:', premiumServiceError);
+        }
+        
+        try {
+          await authService.handlePurchaseSuccess(result);
+        } catch (authServiceError) {
+          console.warn('⚠️ AuthService handlePurchaseSuccess failed:', authServiceError);
+        }
+        
+        // 3. Force refresh both services
+        setTimeout(async () => {
+          try {
+            await PremiumService.forceRefresh();
+            await authService.forceRefreshPremiumStatus();
+            console.log('✅ Services force refreshed after purchase');
+          } catch (refreshError) {
+            console.warn('⚠️ Service refresh failed:', refreshError);
+          }
+        }, 1000);
         
         Alert.alert(
           "🎉 Welcome to Premium!",
@@ -83,59 +254,122 @@ export default function PremiumPlansScreen({ navigation, route }) {
           [
             {
               text: "Get Started",
-              onPress: () => navigation.goBack(),
+              onPress: () => {
+                if (onPremiumStatusUpdate) {
+                  onPremiumStatusUpdate();
+                }
+                navigation.goBack();
+              },
             },
           ]
         );
+        
       } else if (result.cancelled) {
-        console.log('Purchase cancelled');
+        console.log('🚫 PremiumPlansScreen: Purchase cancelled by user');
+        
       } else {
-        Alert.alert('Purchase Failed', result.error || 'Something went wrong');
+        console.log('❌ PremiumPlansScreen: Purchase failed:', result.error);
+        Alert.alert(
+          "Purchase Error",
+          result.error || "Unable to process purchase. Please try again later.",
+          [
+            {
+              text: "Contact Support",
+              onPress: () => {
+                Alert.alert("Support", "Please email support@kitchly.app for assistance.");
+              }
+            },
+            {
+              text: "Try Again",
+              onPress: () => handleUpgradeToPremium(packageToPurchase)
+            },
+            {
+              text: "Cancel",
+              style: "cancel"
+            }
+          ]
+        );
       }
+      
     } catch (error) {
-      Alert.alert("Error", "Failed to upgrade. Please try again later.");
-      console.error("Upgrade error:", error);
+      console.error('❌ PremiumPlansScreen: Purchase error:', error);
+      Alert.alert("Purchase Error", "Something went wrong. Please try again later.");
     } finally {
-      setPurchasing(false);
+      setPurchasingPackageId(null);
     }
   };
 
   const handleRestorePurchases = async () => {
-    setIsLoading(true);
+    setIsRestoring(true);
     
     try {
-      const result = await PurchaseService.restorePurchases();
+      console.log('🔄 PremiumPlansScreen: Restoring purchases...');
       
+      if (!revenueCatAvailable) {
+        Alert.alert(
+          'Restore Unavailable',
+          'Purchase restoration is currently unavailable. Please contact support for assistance.',
+          [
+            {
+              text: "Contact Support",
+              onPress: () => {
+                Alert.alert("Support", "Please email support@kitchly.app for assistance.");
+              }
+            },
+            { text: "OK" }
+          ]
+        );
+        return;
+      }
+      
+      const result = await PurchaseService.restorePurchases();
+      console.log('🔄 PremiumPlansScreen: Restore result:', result);
+
       if (result.success) {
-        setHasActivePremium(result.hasActivePremium);
-        
-        if (onPremiumStatusUpdate) {
-          await onPremiumStatusUpdate();
-        }
-        
-        if (result.hasActivePremium) {
-          Alert.alert('Success', 'Your purchases have been restored!');
+        if (result.hasPremium) {
+          // Force refresh PremiumService status
+          await PremiumService.forceRefresh();
+          
+          // Also refresh authService premium status
+          await authService.forceRefreshPremiumStatus();
+          
+          Alert.alert('✅ Success', 'Your purchases have been restored!');
+          
+          if (onPremiumStatusUpdate) {
+            await onPremiumStatusUpdate();
+          }
         } else {
-          Alert.alert('No Purchases', 'No previous purchases found to restore.');
+          Alert.alert('ℹ️ No Purchases', 'No previous purchases found to restore.');
         }
       } else {
-        Alert.alert('Error', 'Failed to restore purchases');
+        Alert.alert('Error', result.error || 'Failed to restore purchases');
       }
+      
     } catch (error) {
-      Alert.alert('Error', 'Failed to restore purchases');
+      console.error('❌ PremiumPlansScreen: Restore error:', error);
+      Alert.alert('Error', 'Failed to restore purchases. Please try again later.');
     } finally {
-      setIsLoading(false);
+      setIsRestoring(false);
     }
   };
 
   const getPackageInfo = (pkg) => {
-    const productId = pkg.product.identifier;
+    const identifier = pkg.identifier.toLowerCase();
+    const product = pkg.product;
     
-    if (productId === '1206856') {
+    const isMonthly = identifier.includes('monthly') ||
+                     identifier.includes('month') ||
+                     identifier.includes('1_month');
+                     
+    const isAnnual = identifier.includes('annual') ||
+                    identifier.includes('year') ||
+                    identifier.includes('12_month');
+    
+    if (isMonthly) {
       return {
         title: 'Monthly Premium',
         subtitle: 'Perfect for trying premium',
-        price: pkg.product.priceString,
+        price: product.priceString,
         period: '/month',
         features: [
           "Smart Ingredient Search",
@@ -149,11 +383,11 @@ export default function PremiumPlansScreen({ navigation, route }) {
         ],
         isRecommended: false
       };
-    } else if (productId === '1206857') {
+    } else if (isAnnual) {
       return {
         title: 'Annual Premium',
-        subtitle: 'For those serious about nutrition',
-        price: pkg.product.priceString,
+        subtitle: 'Best value for serious users',
+        price: product.priceString,
         period: '/year',
         savings: 'Save 33%',
         features: [
@@ -174,9 +408,9 @@ export default function PremiumPlansScreen({ navigation, route }) {
     }
     
     return {
-      title: pkg.product.title || 'Premium',
+      title: product.title || 'Premium',
       subtitle: 'Premium features',
-      price: pkg.product.priceString,
+      price: product.priceString,
       period: '',
       features: ["All Premium Features", "Cancel Anytime"],
       isRecommended: false
@@ -185,6 +419,8 @@ export default function PremiumPlansScreen({ navigation, route }) {
 
   const PlanCard = ({ packageData, isRecommended, onPress }) => {
     const packageInfo = getPackageInfo(packageData);
+    const isThisPackagePurchasing = purchasingPackageId === packageData.identifier;
+    const isFallbackPackage = packageData.identifier.includes('fallback');
     
     return (
       <View style={[styles.planCard, isRecommended && styles.recommendedPlanCard]}>
@@ -192,6 +428,13 @@ export default function PremiumPlansScreen({ navigation, route }) {
           <View style={styles.recommendedBadge}>
             <Ionicons name="diamond" size={12} color="white" />
             <Text style={styles.recommendedBadgeText}>BEST VALUE</Text>
+          </View>
+        )}
+        
+        {isFallbackPackage && (
+          <View style={styles.fallbackBadge}>
+            <Ionicons name="warning" size={12} color="#f39c12" />
+            <Text style={styles.fallbackBadgeText}>ESTIMATED PRICING</Text>
           </View>
         )}
         
@@ -233,11 +476,12 @@ export default function PremiumPlansScreen({ navigation, route }) {
           style={[
             styles.upgradeButton,
             isRecommended && styles.recommendedUpgradeButton,
+            isFallbackPackage && styles.fallbackUpgradeButton,
           ]}
           onPress={() => onPress(packageData)}
-          disabled={purchasing}
+          disabled={purchasingPackageId !== null}
         >
-          {purchasing ? (
+          {isThisPackagePurchasing ? (
             <View style={styles.purchasingContainer}>
               <ActivityIndicator color="white" size="small" />
               <Text style={styles.upgradeButtonText}>Processing...</Text>
@@ -245,7 +489,9 @@ export default function PremiumPlansScreen({ navigation, route }) {
           ) : (
             <View style={styles.buttonContent}>
               <Ionicons name="diamond" size={16} color="white" />
-              <Text style={styles.upgradeButtonText}>Get Premium</Text>
+              <Text style={styles.upgradeButtonText}>
+                {isFallbackPackage ? "Contact for Upgrade" : "Get Premium"}
+              </Text>
               <Ionicons name="arrow-forward" size={16} color="white" />
             </View>
           )}
@@ -254,7 +500,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
     );
   };
 
-  // Show loading state
+  // Loading state
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -266,7 +512,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
             <Ionicons name="arrow-back" size={24} color="#2c3e50" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Premium Plans</Text>
-          <View style={{ width: 24 }} />
+          <View style={styles.headerSpacer} />
         </View>
         <View style={styles.loadingContainer}>
           <View style={styles.loadingSpinner}>
@@ -278,7 +524,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
     );
   }
 
-  // Show already premium state
+  // Already premium state
   if (hasActivePremium || isPremium) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -290,7 +536,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
             <Ionicons name="arrow-back" size={24} color="#2c3e50" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Premium Status</Text>
-          <View style={{ width: 24 }} />
+          <View style={styles.headerSpacer} />
         </View>
         
         <View style={styles.premiumContainer}>
@@ -308,9 +554,30 @@ export default function PremiumPlansScreen({ navigation, route }) {
           <TouchableOpacity
             style={styles.refreshButton}
             onPress={handleRestorePurchases}
+            disabled={isRestoring}
           >
-            <Ionicons name="refresh" size={18} color="#008b8b" />
-            <Text style={styles.refreshButtonText}>Refresh Status</Text>
+            {isRestoring ? (
+              <ActivityIndicator size="small" color="#008b8b" />
+            ) : (
+              <Ionicons name="refresh" size={18} color="#008b8b" />
+            )}
+            <Text style={styles.refreshButtonText}>
+              {isRestoring ? "Refreshing..." : "Refresh Status"}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.debugButton}
+            onPress={async () => {
+              const debugInfo = await authService.debugUserState();
+              console.log('🐛 Debug Info:', debugInfo);
+              Alert.alert(
+                'Debug Info',
+                `Premium Status: ${debugInfo.currentStatus}\nInitialized: ${debugInfo.isInitialized}\nListeners: ${debugInfo.listenerCount}`
+              );
+            }}
+          >
+            <Text style={styles.debugButtonText}>Debug Status</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -327,11 +594,21 @@ export default function PremiumPlansScreen({ navigation, route }) {
           <Ionicons name="arrow-back" size={24} color="#2c3e50" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Premium Plans</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.contentContainer}>
+          {/* Status Indicator */}
+          {!revenueCatAvailable && (
+            <View style={styles.statusBanner}>
+              <Ionicons name="warning" size={16} color="#f39c12" />
+              <Text style={styles.statusBannerText}>
+                In-app purchases temporarily unavailable
+              </Text>
+            </View>
+          )}
+
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.heroIconContainer}>
@@ -426,7 +703,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
               const packageInfo = getPackageInfo(pkg);
               return (
                 <PlanCard
-                  key={index}
+                  key={pkg.identifier || index}
                   packageData={pkg}
                   isRecommended={packageInfo.isRecommended}
                   onPress={handleUpgradeToPremium}
@@ -440,10 +717,16 @@ export default function PremiumPlansScreen({ navigation, route }) {
             <TouchableOpacity
               style={styles.restoreButton}
               onPress={handleRestorePurchases}
-              disabled={isLoading}
+              disabled={isRestoring}
             >
-              <Ionicons name="refresh-outline" size={16} color="#008b8b" />
-              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+              {isRestoring ? (
+                <ActivityIndicator size="small" color="#008b8b" />
+              ) : (
+                <Ionicons name="refresh-outline" size={16} color="#008b8b" />
+              )}
+              <Text style={styles.restoreButtonText}>
+                {isRestoring ? "Restoring..." : "Restore Purchases"}
+              </Text>
             </TouchableOpacity>
             
             <Text style={styles.disclaimer}>
@@ -459,113 +742,86 @@ export default function PremiumPlansScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: '#f8f9fa',
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-    backgroundColor: "#f8f9fa",
+    borderBottomColor: '#e1e8ed',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    padding: 8,
+    marginRight: 8,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#2c3e50",
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40,
   },
   container: {
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
-  
-  // Loading
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff3cd',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffeaa7',
+  },
+  statusBannerText: {
+    fontSize: 14,
+    color: '#856404',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingVertical: 60,
   },
   loadingSpinner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
   },
   loadingText: {
     fontSize: 16,
     color: '#7f8c8d',
-    fontWeight: '500',
+    textAlign: 'center',
   },
-  
-  // Premium State
   premiumContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 32,
   },
   premiumIconContainer: {
     marginBottom: 24,
   },
   premiumIconBg: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'white',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#e8f5f5',
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
   },
   premiumTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 16,
@@ -581,99 +837,79 @@ const styles = StyleSheet.create({
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: '#008b8b',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    paddingHorizontal: 24,
+    backgroundColor: '#e8f5f5',
+    borderRadius: 12,
+    marginBottom: 16,
   },
   refreshButtonText: {
-    color: '#008b8b',
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 6,
+    color: '#008b8b',
+    fontWeight: '500',
+    marginLeft: 8,
   },
-  
-  // Hero Section
+  debugButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#ecf0f1',
+    borderRadius: 8,
+  },
+  debugButtonText: {
+    fontSize: 14,
+    color: '#7f8c8d',
+  },
   heroSection: {
     alignItems: 'center',
-    paddingHorizontal: 30,
-    paddingTop: 30,
-    paddingBottom: 40,
-    position: 'relative',
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    backgroundColor: 'white',
   },
   heroIconContainer: {
-    marginBottom: 20,
     position: 'relative',
+    marginBottom: 24,
   },
   heroIconBg: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'white',
+    backgroundColor: '#e8f5f5',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#008b8b',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#008b8b',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
   },
   sparkle1: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: -8,
+    right: -8,
   },
   sparkle2: {
     position: 'absolute',
-    bottom: 5,
-    left: -5,
+    bottom: 0,
+    left: -8,
   },
   heroTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#2c3e50',
     textAlign: 'center',
     marginBottom: 12,
   },
   heroSubtitle: {
-    fontSize: 17,
+    fontSize: 16,
     color: '#7f8c8d',
     textAlign: 'center',
-    lineHeight: 26,
-    fontWeight: '500',
+    lineHeight: 24,
   },
-  
-  // Features Section
   featuresSection: {
-    paddingHorizontal: 20,
-    marginBottom: 40,
+    padding: 24,
+    backgroundColor: 'white',
+    marginTop: 12,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 24,
+    marginBottom: 20,
     textAlign: 'center',
   },
   featuresGrid: {
@@ -682,187 +918,181 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   featureCard: {
-    width: (width - 60) / 2,
-    backgroundColor: "white",
+    width: (width - 72) / 2,
+    backgroundColor: '#f8f9fa',
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
   },
   featureIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#e6f3f3",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#e8f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 12,
   },
   featureTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#2c3e50",
-    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
     textAlign: 'center',
+    marginBottom: 8,
   },
   featureDescription: {
-    fontSize: 13,
-    color: "#7f8c8d",
-    lineHeight: 18,
+    fontSize: 12,
+    color: '#7f8c8d',
     textAlign: 'center',
+    lineHeight: 18,
   },
-  
-  // Plans Section
   plansSection: {
-    paddingHorizontal: 20,
-    marginBottom: 40,
+    padding: 24,
+    backgroundColor: 'white',
+    marginTop: 12,
   },
   planCard: {
-    backgroundColor: "white",
+    backgroundColor: '#f8f9fa',
     borderRadius: 20,
-    marginBottom: 16,
     padding: 24,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#e1e8ed',
     position: 'relative',
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.12,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-    overflow: 'hidden',
   },
   recommendedPlanCard: {
-    borderWidth: 2,
-    borderColor: "#008b8b",
-    transform: [{ scale: 1.02 }],
+    borderColor: '#008b8b',
+    backgroundColor: '#ffffff',
+    shadowColor: '#008b8b',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
   recommendedBadge: {
-    position: "absolute",
-    top: 20,
-    right: -35,
-    backgroundColor: "#008b8b",
+    position: 'absolute',
+    top: -1,
+    left: 20,
+    right: 20,
+    backgroundColor: '#008b8b',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     paddingVertical: 8,
-    paddingHorizontal: 40,
-    transform: [{ rotate: "45deg" }],
-    zIndex: 10,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   recommendedBadgeText: {
-    color: "white",
-    fontSize: 11,
-    fontWeight: "bold",
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  fallbackBadge: {
+    position: 'absolute',
+    top: -1,
+    left: 20,
+    right: 20,
+    backgroundColor: '#f39c12',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fallbackBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
     marginLeft: 4,
   },
   planHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
   },
   planIconContainer: {
-    marginRight: 12,
-    marginTop: 2,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#e8f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
   planTitleContainer: {
     flex: 1,
   },
   planTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
   },
   recommendedPlanTitle: {
-    color: "#008b8b",
+    color: '#008b8b',
   },
   planSubtitle: {
     fontSize: 14,
-    color: "#95a5a6",
-    fontWeight: '500',
+    color: '#7f8c8d',
+    marginTop: 2,
   },
   savingsBadge: {
-    backgroundColor: '#e8f5e8',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#27ae60',
-    marginLeft: 8,
   },
   savingsText: {
+    color: 'white',
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#27ae60',
   },
   priceContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'baseline',
     marginBottom: 20,
   },
   planPrice: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#2c3e50",
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#2c3e50',
   },
   planPeriod: {
     fontSize: 16,
-    color: "#95a5a6",
+    color: '#7f8c8d',
     marginLeft: 4,
-    marginBottom: 6,
   },
   featuresList: {
     marginBottom: 24,
   },
   featureItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   checkIconContainer: {
-    marginRight: 10,
+    marginRight: 12,
   },
   featureText: {
-    fontSize: 15,
-    color: "#2c3e50",
-    fontWeight: '500',
+    fontSize: 14,
+    color: '#2c3e50',
     flex: 1,
   },
   upgradeButton: {
-    backgroundColor: "#008b8b",
+    backgroundColor: '#008b8b',
     paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: 'center',
+    borderRadius: 16,
+    alignItems: 'center',
   },
   recommendedUpgradeButton: {
-    backgroundColor: "#008b8b",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    backgroundColor: '#008b8b',
+  },
+  fallbackUpgradeButton: {
+    backgroundColor: '#008b8b',
   },
   purchasingContainer: {
     flexDirection: 'row',
@@ -871,38 +1101,37 @@ const styles = StyleSheet.create({
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   upgradeButtonText: {
-    color: "white",
-    fontSize: 17,
-    fontWeight: "700",
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
     marginHorizontal: 8,
   },
-  
-  // Footer
   footerSection: {
-    paddingHorizontal: 30,
+    padding: 24,
     alignItems: 'center',
   },
   restoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
+    backgroundColor: '#e8f5f5',
+    borderRadius: 12,
     marginBottom: 20,
   },
   restoreButtonText: {
-    color: '#008b8b',
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 6,
+    color: '#008b8b',
+    fontWeight: '500',
+    marginLeft: 8,
   },
   disclaimer: {
-    fontSize: 13,
-    color: "#95a5a6",
-    textAlign: "center",
-    lineHeight: 20,
-    paddingHorizontal: 10,
+    fontSize: 12,
+    color: '#7f8c8d',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 20,
   },
 });

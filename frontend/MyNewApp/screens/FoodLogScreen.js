@@ -1,4 +1,4 @@
-// fixed this july 9, 2025 need to implement ML ai scanner
+// Enhanced FoodLogScreen with BMI Calculator and Smart Goal Setting
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -29,20 +29,35 @@ const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 export default function FoodLogScreen({ navigation }) {
   // Core State
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true); // Add this state
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [foodDescription, setFoodDescription] = useState("");
   const [selectedMealType, setSelectedMealType] = useState("other");
   const [userGoals, setUserGoals] = useState(null);
   const [dailyProgress, setDailyProgress] = useState(null);
   const [isGoalsModalVisible, setIsGoalsModalVisible] = useState(false);
+  const [isOnboardingModalVisible, setIsOnboardingModalVisible] = useState(false);
+  const [isProfileEditModalVisible, setIsProfileEditModalVisible] = useState(false);
+  const [showBMICalculator, setShowBMICalculator] = useState(false);
+  const [showTDEEExplanation, setShowTDEEExplanation] = useState(false);
   
-    
   // Goal Form State
   const [dailyCalories, setDailyCalories] = useState("");
   const [dailyProtein, setDailyProtein] = useState("");
   const [dailyCarbs, setDailyCarbs] = useState("");
   const [dailyFat, setDailyFat] = useState("");
+  
+  // Onboarding Form State
+  const [height, setHeight] = useState("");
+  const [heightFeet, setHeightFeet] = useState("");
+  const [heightInches, setHeightInches] = useState("");
+  const [weight, setWeight] = useState("");
+  const [age, setAge] = useState("");
+  const [activityLevel, setActivityLevel] = useState("moderate");
+  const [healthGoals, setHealthGoals] = useState([]);
+  const [heightUnit, setHeightUnit] = useState("ft"); // cm or ft - default to ft for US
+  const [weightUnit, setWeightUnit] = useState("lbs"); // kg or lbs - default to lbs for US
   
   // Voice Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -92,6 +107,24 @@ export default function FoodLogScreen({ navigation }) {
     overlay: "rgba(37,99,235,0.1)",
     shadow: "rgba(0,0,0,0.1)",
   };
+
+  // Activity Level Options
+  const activityLevels = [
+    { id: 'sedentary', label: 'Sedentary', description: 'Little to no exercise', multiplier: 1.2 },
+    { id: 'light', label: 'Light', description: 'Light exercise 1-3 days/week', multiplier: 1.375 },
+    { id: 'moderate', label: 'Moderate', description: 'Moderate exercise 3-5 days/week', multiplier: 1.55 },
+    { id: 'very', label: 'Very Active', description: 'Hard exercise 6-7 days/week', multiplier: 1.725 }
+  ];
+
+  // Health Goals Options
+  const healthGoalOptions = [
+    { id: 'lose_weight', label: 'Lose Weight', icon: 'trending-down' },
+    { id: 'maintain_weight', label: 'Maintain Weight', icon: 'remove' },
+    { id: 'gain_weight', label: 'Gain Weight', icon: 'trending-up' },
+    { id: 'build_muscle', label: 'Build Muscle', icon: 'fitness' },
+    { id: 'improve_health', label: 'Improve Health', icon: 'heart' },
+    { id: 'increase_energy', label: 'Increase Energy', icon: 'flash' }
+  ];
 
   // Enhanced Meal Types
   const mealTypes = [
@@ -200,12 +233,54 @@ export default function FoodLogScreen({ navigation }) {
     const currentUser = authService.getCurrentUser();
     if (currentUser) {
       setUser(currentUser);
+      await loadUserProfile(currentUser.uid);
       await refreshData(currentUser.uid);
     } else {
       navigation.navigate("Landing");
     }
-    // Set initial loading to false after everything is loaded
     setIsInitialLoading(false);
+  };
+
+  const loadUserProfile = async (userId) => {
+    try {
+      const profile = await authService.getUserProfile();
+      console.log('👤 User profile loaded:', profile);
+      setUserProfile(profile);
+      
+      // Populate form fields if profile exists
+      if (profile) {
+        // Convert height from cm to appropriate units
+        if (profile.height) {
+          if (heightUnit === 'cm') {
+            setHeight(Math.round(profile.height).toString());
+          } else {
+            // Convert cm to feet/inches
+            const totalInches = profile.height / 2.54;
+            const feet = Math.floor(totalInches / 12);
+            const inches = Math.round(totalInches % 12);
+            setHeightFeet(feet.toString());
+            setHeightInches(inches.toString());
+          }
+        }
+        
+        // Convert weight from kg to appropriate units
+        if (profile.weight) {
+          if (weightUnit === 'kg') {
+            setWeight(Math.round(profile.weight).toString());
+          } else {
+            // Convert kg to lbs
+            const weightLbs = Math.round(profile.weight * 2.20462);
+            setWeight(weightLbs.toString());
+          }
+        }
+        
+        if (profile.age) setAge(profile.age.toString());
+        if (profile.activityLevel) setActivityLevel(profile.activityLevel);
+        if (profile.healthGoals) setHealthGoals(profile.healthGoals);
+      }
+    } catch (error) {
+      console.error("Error loading user profile:", error);
+    }
   };
 
   const refreshData = async (userId) => {
@@ -232,9 +307,21 @@ export default function FoodLogScreen({ navigation }) {
         setDailyProtein(response.goals.daily_protein?.toString() || "");
         setDailyCarbs(response.goals.daily_carbs?.toString() || "");
         setDailyFat(response.goals.daily_fat?.toString() || "");
+      } else {
+        // No goals set yet - check if we need onboarding
+        checkOnboardingStatus();
       }
     } catch (error) {
       console.error("Error loading user goals:", error);
+      checkOnboardingStatus();
+    }
+  };
+
+  const checkOnboardingStatus = () => {
+    // Check if user has completed basic profile info
+    if (!userProfile || !userProfile.height || !userProfile.weight || !userProfile.age) {
+      console.log('🔄 User needs to complete profile info');
+      // Don't auto-show modal on first load, let them see the interface first
     }
   };
 
@@ -305,6 +392,269 @@ export default function FoodLogScreen({ navigation }) {
     setTimeout(() => setShowToast(false), 3500);
   }, [triggerHaptic]);
 
+  // BMI and TDEE Calculations
+  const calculateBMI = (weightVal = null, heightVal = null) => {
+    let w = weightVal || parseFloat(weight);
+    let h = heightVal;
+    
+    // Handle height calculation based on unit
+    if (!h) {
+      if (heightUnit === 'ft') {
+        const feet = parseFloat(heightFeet) || 0;
+        const inches = parseFloat(heightInches) || 0;
+        h = (feet * 12 + inches) * 2.54; // Convert to cm
+      } else {
+        h = parseFloat(height);
+      }
+    }
+    
+    if (!w || !h) return null;
+    
+    // Convert to metric if needed
+    let weightKg = w;
+    let heightCm = h;
+    
+    if (weightUnit === 'lbs') {
+      weightKg = w * 0.453592;
+    }
+    
+    const heightM = heightCm / 100;
+    const bmi = weightKg / (heightM * heightM);
+    
+    return {
+      bmi: Math.round(bmi * 10) / 10,
+      category: getBMICategory(bmi),
+      weightKg: Math.round(weightKg * 10) / 10,
+      heightCm: Math.round(heightCm)
+    };
+  };
+
+  const getBMICategory = (bmi) => {
+    if (bmi < 18.5) return { label: 'Underweight', color: colors.warning };
+    if (bmi < 25) return { label: 'Normal', color: colors.secondary };
+    if (bmi < 30) return { label: 'Overweight', color: colors.accent };
+    return { label: 'Obese', color: colors.error };
+  };
+
+  const calculateTDEE = () => {
+    const bmiData = calculateBMI();
+    if (!bmiData || !age) return null;
+    
+    const ageNum = parseFloat(age);
+    const activity = activityLevels.find(a => a.id === activityLevel);
+    
+    // Mifflin-St Jeor Equation (assuming male for simplicity - could add gender selection)
+    const bmr = (10 * bmiData.weightKg) + (6.25 * bmiData.heightCm) - (5 * ageNum) + 5;
+    const tdee = bmr * (activity?.multiplier || 1.55);
+    
+    return {
+      bmr: Math.round(bmr),
+      tdee: Math.round(tdee),
+      activity: activity?.label || 'Moderate'
+    };
+  };
+
+  const getSmartGoalRecommendations = () => {
+    const tdeeData = calculateTDEE();
+    const bmiData = calculateBMI();
+    
+    if (!tdeeData || !bmiData) return null;
+    
+    let calorieAdjustment = 0;
+    let proteinMultiplier = 1.2; // Base protein per kg
+    
+    // Adjust based on health goals
+    if (healthGoals.includes('lose_weight')) {
+      calorieAdjustment = -300; // 300 calorie deficit
+      proteinMultiplier = 1.6; // Higher protein for weight loss
+    } else if (healthGoals.includes('gain_weight')) {
+      calorieAdjustment = 300; // 300 calorie surplus
+      proteinMultiplier = 1.4;
+    } else if (healthGoals.includes('build_muscle')) {
+      calorieAdjustment = 200; // Slight surplus for muscle building
+      proteinMultiplier = 1.8; // High protein for muscle building
+    }
+    
+    // Adjust based on BMI
+    if (bmiData.bmi > 25 && !healthGoals.includes('gain_weight')) {
+      calorieAdjustment = Math.min(calorieAdjustment, -200); // Encourage deficit if overweight
+    }
+    
+    const targetCalories = Math.max(1200, tdeeData.tdee + calorieAdjustment); // Minimum 1200 calories
+    const targetProtein = Math.round(bmiData.weightKg * proteinMultiplier);
+    const targetCarbs = Math.round((targetCalories * 0.45) / 4); // 45% carbs
+    const targetFat = Math.round((targetCalories * 0.25) / 9); // 25% fat
+    
+    return {
+      calories: targetCalories,
+      protein: targetProtein,
+      carbs: targetCarbs,
+      fat: targetFat,
+      reasoning: {
+        bmr: tdeeData.bmr,
+        tdee: tdeeData.tdee,
+        adjustment: calorieAdjustment,
+        goals: healthGoals
+      }
+    };
+  };
+
+  const saveProfileAndGenerateGoals = async () => {
+    // Validate required fields
+    if (heightUnit === 'cm' && !height) {
+      showCustomToast("Please enter your height", "error");
+      return;
+    }
+    if (heightUnit === 'ft' && (!heightFeet || !heightInches)) {
+      showCustomToast("Please enter your height in feet and inches", "error");
+      return;
+    }
+    if (!weight || !age) {
+      showCustomToast("Please fill in all required fields", "error");
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // Convert height to cm
+      let heightCm;
+      if (heightUnit === 'ft') {
+        const feet = parseFloat(heightFeet);
+        const inches = parseFloat(heightInches);
+        heightCm = (feet * 12 + inches) * 2.54;
+      } else {
+        heightCm = parseFloat(height);
+      }
+      
+      // Convert weight to kg
+      let weightKg = parseFloat(weight);
+      if (weightUnit === 'lbs') {
+        weightKg = weightKg * 0.453592;
+      }
+      
+      const profileData = {
+        height: Math.round(heightCm),
+        weight: Math.round(weightKg * 10) / 10,
+        age: parseInt(age),
+        activityLevel: activityLevel,
+        healthGoals: healthGoals
+      };
+      
+      await authService.updateUserProfile(profileData);
+      setUserProfile(profileData);
+      
+      // Generate smart recommendations
+      const recommendations = getSmartGoalRecommendations();
+      
+      if (recommendations) {
+        setDailyCalories(recommendations.calories.toString());
+        setDailyProtein(recommendations.protein.toString());
+        setDailyCarbs(recommendations.carbs.toString());
+        setDailyFat(recommendations.fat.toString());
+        
+        showCustomToast("Profile saved! Smart goals generated based on your info.", "success");
+        setIsOnboardingModalVisible(false);
+        setIsProfileEditModalVisible(false);
+        setIsGoalsModalVisible(true);
+      }
+      
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      showCustomToast("Failed to save profile", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openProfileEditor = () => {
+    // Populate current values from userProfile
+    if (userProfile) {
+      // Convert and populate height based on current unit setting
+      if (userProfile.height) {
+        if (heightUnit === 'cm') {
+          setHeight(Math.round(userProfile.height).toString());
+          setHeightFeet(""); // Clear ft/in values
+          setHeightInches("");
+        } else {
+          // Convert cm to feet/inches
+          const totalInches = userProfile.height / 2.54;
+          const feet = Math.floor(totalInches / 12);
+          const inches = Math.round(totalInches % 12);
+          setHeightFeet(feet.toString());
+          setHeightInches(inches.toString());
+          setHeight(""); // Clear cm value
+        }
+      }
+      
+      // Convert and populate weight based on current unit setting
+      if (userProfile.weight) {
+        if (weightUnit === 'kg') {
+          setWeight(Math.round(userProfile.weight).toString());
+        } else {
+          // Convert kg to lbs
+          const weightLbs = Math.round(userProfile.weight * 2.20462);
+          setWeight(weightLbs.toString());
+        }
+      }
+      
+      if (userProfile.age) setAge(userProfile.age.toString());
+      if (userProfile.activityLevel) setActivityLevel(userProfile.activityLevel);
+      if (userProfile.healthGoals) setHealthGoals(userProfile.healthGoals);
+    }
+    setIsProfileEditModalVisible(true);
+  };
+
+  // Enhanced goal saving with validation
+  const saveGoals = async () => {
+    if (!dailyCalories || !dailyProtein) {
+      showCustomToast("Please enter calories and protein goals", "error");
+      return;
+    }
+
+    if (!user) {
+      showCustomToast("Please log in to continue", "error");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      let finalCarbs = dailyCarbs ? parseInt(dailyCarbs) : null;
+      let finalFat = dailyFat ? parseInt(dailyFat) : null;
+      
+      if (!finalCarbs || !finalFat) {
+        const recommended = getRecommendedIntake(parseInt(dailyCalories));
+        if (!finalCarbs) finalCarbs = recommended.carbs;
+        if (!finalFat) finalFat = recommended.fat;
+        
+        showCustomToast("Missing macros filled with recommended values", "info");
+      }
+
+      const response = await foodLogService.setNutritionGoals(
+        user.uid,
+        parseInt(dailyCalories),
+        parseInt(dailyProtein),
+        finalCarbs,
+        finalFat
+      );
+
+      if (response.success) {
+        setUserGoals(response.goals);
+        setIsGoalsModalVisible(false);
+        showCustomToast("Goals updated successfully!", "success");
+        await refreshData(user.uid);
+      } else {
+        showCustomToast("Failed to save goals", "error");
+      }
+    } catch (error) {
+      console.error("Error saving goals:", error);
+      showCustomToast("Network error. Please try again.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logFood = async () => {
     if (!foodDescription.trim()) {
       showCustomToast("Please describe what you ate", "error");
@@ -350,55 +700,6 @@ export default function FoodLogScreen({ navigation }) {
     } catch (error) {
       console.error("Error logging food:", error);
       showCustomToast("Network error. Please check your connection.", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const saveGoals = async () => {
-    if (!dailyCalories || !dailyProtein) {
-      showCustomToast("Please enter calories and protein goals", "error");
-      return;
-    }
-
-    if (!user) {
-      showCustomToast("Please log in to continue", "error");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      let finalCarbs = dailyCarbs ? parseInt(dailyCarbs) : null;
-      let finalFat = dailyFat ? parseInt(dailyFat) : null;
-      
-      if (!finalCarbs || !finalFat) {
-        const recommended = getRecommendedIntake(parseInt(dailyCalories));
-        if (!finalCarbs) finalCarbs = recommended.carbs;
-        if (!finalFat) finalFat = recommended.fat;
-        
-        showCustomToast("Missing macros filled with recommended values", "info");
-      }
-
-      const response = await foodLogService.setNutritionGoals(
-        user.uid,
-        parseInt(dailyCalories),
-        parseInt(dailyProtein),
-        finalCarbs,
-        finalFat
-      );
-
-      if (response.success) {
-        setUserGoals(response.goals);
-        setIsGoalsModalVisible(false);
-        showCustomToast("Goals updated successfully!", "success");
-        await refreshData(user.uid);
-      } else {
-        showCustomToast("Failed to save goals", "error");
-      }
-    } catch (error) {
-      console.error("Error saving goals:", error);
-      showCustomToast("Network error. Please try again.", "error");
     } finally {
       setIsLoading(false);
     }
@@ -561,7 +862,217 @@ export default function FoodLogScreen({ navigation }) {
     );
   };
 
-  // Enhanced Components with better sizing
+  // Component Definitions
+  
+  // TDEE Explanation Component
+  const TDEEExplanation = () => (
+    <View style={[styles.explanationCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+      <View style={styles.explanationHeader}>
+        <View style={[styles.explanationIcon, { backgroundColor: colors.primary + '20' }]}>
+          <Ionicons name="school" size={16} color={colors.primary} />
+        </View>
+        <Text style={[styles.explanationTitle, { color: colors.text }]}>What is TDEE?</Text>
+        <TouchableOpacity
+          onPress={() => setShowTDEEExplanation(!showTDEEExplanation)}
+          style={styles.explanationToggle}
+        >
+          <Ionicons
+            name={showTDEEExplanation ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+      </View>
+      
+      {showTDEEExplanation && (
+        <View style={styles.explanationContent}>
+          <Text style={[styles.explanationText, { color: colors.textSecondary }]}>
+            <Text style={styles.explanationBold}>TDEE (Total Daily Energy Expenditure)</Text> is the total number of calories your body burns in a day, including:
+          </Text>
+          <View style={styles.explanationList}>
+            <View style={styles.explanationItem}>
+              <Text style={[styles.explanationBullet, { color: colors.primary }]}>•</Text>
+              <Text style={[styles.explanationItemText, { color: colors.textSecondary }]}>
+                <Text style={styles.explanationBold}>BMR:</Text> Calories burned at rest (breathing, circulation, cell repair)
+              </Text>
+            </View>
+            <View style={styles.explanationItem}>
+              <Text style={[styles.explanationBullet, { color: colors.primary }]}>•</Text>
+              <Text style={[styles.explanationItemText, { color: colors.textSecondary }]}>
+                <Text style={styles.explanationBold}>Exercise:</Text> Planned physical activities and workouts
+              </Text>
+            </View>
+            <View style={styles.explanationItem}>
+              <Text style={[styles.explanationBullet, { color: colors.primary }]}>•</Text>
+              <Text style={[styles.explanationItemText, { color: colors.textSecondary }]}>
+                <Text style={styles.explanationBold}>Daily activities:</Text> Walking, fidgeting, maintaining posture
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.explanationFooter, { color: colors.textMuted }]}>
+            Your TDEE helps determine how many calories you need to maintain, lose, or gain weight.
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  // BMI Calculator Component
+  const BMICalculator = () => {
+    const bmiData = calculateBMI();
+    const tdeeData = calculateTDEE();
+    
+    return (
+      <View style={[styles.bmiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.bmiHeader}>
+          <View style={[styles.bmiIcon, { backgroundColor: colors.primary + '15' }]}>
+            <Ionicons name="analytics" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.bmiHeaderText}>
+            <Text style={[styles.bmiTitle, { color: colors.text }]}>Health Metrics</Text>
+            <Text style={[styles.bmiSubtitle, { color: colors.textSecondary }]}>
+              Based on your profile
+            </Text>
+          </View>
+          <View style={styles.bmiHeaderActions}>
+            <TouchableOpacity
+              onPress={openProfileEditor}
+              style={[styles.editProfileButton, { backgroundColor: colors.muted }]}
+            >
+              <Ionicons name="pencil" size={16} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowBMICalculator(!showBMICalculator)}
+              style={styles.bmiToggle}
+            >
+              <Ionicons
+                name={showBMICalculator ? "chevron-up" : "chevron-down"}
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {showBMICalculator && (
+          <View style={styles.bmiContent}>
+            <View style={styles.bmiGrid}>
+              {bmiData && (
+                <>
+                  <View style={styles.bmiMetric}>
+                    <Text style={[styles.bmiValue, { color: bmiData.category.color }]}>
+                      {bmiData.bmi}
+                    </Text>
+                    <Text style={[styles.bmiLabel, { color: colors.textSecondary }]}>BMI</Text>
+                    <Text style={[styles.bmiCategory, { color: bmiData.category.color }]}>
+                      {bmiData.category.label}
+                    </Text>
+                  </View>
+                </>
+              )}
+              
+              {tdeeData && (
+                <>
+                  <View style={styles.bmiMetric}>
+                    <Text style={[styles.bmiValue, { color: colors.secondary }]}>
+                      {tdeeData.bmr}
+                    </Text>
+                    <Text style={[styles.bmiLabel, { color: colors.textSecondary }]}>BMR</Text>
+                    <Text style={[styles.bmiCategory, { color: colors.textSecondary }]}>
+                      cal/day
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.bmiMetric}>
+                    <Text style={[styles.bmiValue, { color: colors.accent }]}>
+                      {tdeeData.tdee}
+                    </Text>
+                    <Text style={[styles.bmiLabel, { color: colors.textSecondary }]}>TDEE</Text>
+                    <Text style={[styles.bmiCategory, { color: colors.textSecondary }]}>
+                      cal/day
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+            
+            <TDEEExplanation />
+            
+            <TouchableOpacity
+              style={[styles.smartGoalsButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                const recommendations = getSmartGoalRecommendations();
+                if (recommendations) {
+                  setDailyCalories(recommendations.calories.toString());
+                  setDailyProtein(recommendations.protein.toString());
+                  setDailyCarbs(recommendations.carbs.toString());
+                  setDailyFat(recommendations.fat.toString());
+                  setIsGoalsModalVisible(true);
+                  showCustomToast("Smart goals generated!", "success");
+                } else {
+                  showCustomToast("Complete your profile first", "error");
+                }
+              }}
+            >
+              <Ionicons name="bulb" size={16} color={colors.surface} />
+              <Text style={[styles.smartGoalsText, { color: colors.surface }]}>
+                Generate Smart Goals
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // Height Input Component for Feet/Inches
+  const HeightInput = () => {
+    if (heightUnit === 'cm') {
+      return (
+        <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
+          <TextInput
+            style={[styles.goalInput, { color: colors.text }]}
+            placeholder="170"
+            placeholderTextColor={colors.textSecondary}
+            value={height}
+            onChangeText={setHeight}
+            keyboardType="numeric"
+          />
+        </View>
+      );
+    } else {
+      return (
+        <View style={styles.feetInchesContainer}>
+          <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1, marginRight: 8 }]}>
+            <TextInput
+              style={[styles.goalInput, { color: colors.text }]}
+              placeholder="5"
+              placeholderTextColor={colors.textSecondary}
+              value={heightFeet}
+              onChangeText={setHeightFeet}
+              keyboardType="numeric"
+              maxLength={1}
+            />
+            <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>ft</Text>
+          </View>
+          <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
+            <TextInput
+              style={[styles.goalInput, { color: colors.text }]}
+              placeholder="9"
+              placeholderTextColor={colors.textSecondary}
+              value={heightInches}
+              onChangeText={setHeightInches}
+              keyboardType="numeric"
+              maxLength={2}
+            />
+            <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>in</Text>
+          </View>
+        </View>
+      );
+    }
+  };
+
+  // Keep all existing components (ProgressRing, MealTypeCard, etc.) - they remain the same
   const ProgressRing = ({ macro, consumed, goal, color, icon }) => {
     const animatedPercentage = progressAnimations[macro];
     const percentage = consumed / (goal || 1);
@@ -787,6 +1298,29 @@ export default function FoodLogScreen({ navigation }) {
     );
   };
 
+  // Enhanced Setup Card with Profile Check
+  const ProfileSetupCard = () => (
+    <View style={[styles.setupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.setupIcon, { backgroundColor: colors.primary + '15' }]}>
+        <Ionicons name="person-outline" size={32} color={colors.primary} />
+      </View>
+      <Text style={[styles.setupTitle, { color: colors.text }]}>Complete Your Profile</Text>
+      <Text style={[styles.setupDescription, { color: colors.textSecondary }]}>
+        Add your height, weight, and goals to get personalized nutrition recommendations
+      </Text>
+      <TouchableOpacity
+        style={[styles.setupButton, { backgroundColor: colors.primary }]}
+        onPress={() => {
+          triggerHaptic('light');
+          setIsOnboardingModalVisible(true);
+        }}
+      >
+        <Ionicons name="add-circle-outline" size={18} color={colors.surface} />
+        <Text style={[styles.setupButtonText, { color: colors.surface }]}>Complete Profile</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const Toast = ({ visible, message, type }) => {
     if (!visible) return null;
 
@@ -814,6 +1348,7 @@ export default function FoodLogScreen({ navigation }) {
   };
 
   const isSaveEnabled = dailyCalories.trim() && dailyProtein.trim() && !isLoading;
+  const isProfileComplete = userProfile && userProfile.height && userProfile.weight && userProfile.age;
 
   // Add initial loading screen
   if (isInitialLoading) {
@@ -831,7 +1366,7 @@ export default function FoodLogScreen({ navigation }) {
     <>
       <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        {/* Enhanced Header with better history button */}
+        {/* Enhanced Header */}
         <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <TouchableOpacity
             onPress={() => {
@@ -866,7 +1401,11 @@ export default function FoodLogScreen({ navigation }) {
             <TouchableOpacity
               onPress={() => {
                 triggerHaptic('light');
-                setIsGoalsModalVisible(true);
+                if (isProfileComplete) {
+                  setIsGoalsModalVisible(true);
+                } else {
+                  setIsOnboardingModalVisible(true);
+                }
               }}
               style={[styles.headerActionButton, { backgroundColor: colors.muted }]}
             >
@@ -887,6 +1426,12 @@ export default function FoodLogScreen({ navigation }) {
             refreshing={refreshing}
             onRefresh={() => user && refreshData(user.uid)}
           >
+            {/* BMI Calculator - Show if profile is complete */}
+            {isProfileComplete && <BMICalculator />}
+
+            {/* Profile Setup - Show if profile is incomplete */}
+            {!isProfileComplete && <ProfileSetupCard />}
+
             {/* Progress Section */}
             {dailyProgress && dailyProgress.goals && (
               <View style={styles.progressSection}>
@@ -955,8 +1500,8 @@ export default function FoodLogScreen({ navigation }) {
               </View>
             )}
 
-            {/* No Goals Setup - Only show if not loading and no goals exist */}
-            {!userGoals && !isInitialLoading && (
+            {/* No Goals Setup - Only show if profile complete but no goals */}
+            {!userGoals && isProfileComplete && (
               <View style={[styles.setupCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={[styles.setupIcon, { backgroundColor: colors.primary + '15' }]}>
                   <Ionicons name="target-outline" size={32} color={colors.primary} />
@@ -969,11 +1514,19 @@ export default function FoodLogScreen({ navigation }) {
                   style={[styles.setupButton, { backgroundColor: colors.primary }]}
                   onPress={() => {
                     triggerHaptic('light');
+                    // Auto-generate smart goals if profile is complete
+                    const recommendations = getSmartGoalRecommendations();
+                    if (recommendations) {
+                      setDailyCalories(recommendations.calories.toString());
+                      setDailyProtein(recommendations.protein.toString());
+                      setDailyCarbs(recommendations.carbs.toString());
+                      setDailyFat(recommendations.fat.toString());
+                    }
                     setIsGoalsModalVisible(true);
                   }}
                 >
-                  <Ionicons name="add-circle-outline" size={18} color={colors.surface} />
-                  <Text style={[styles.setupButtonText, { color: colors.surface }]}>Set Goals</Text>
+                  <Ionicons name="bulb" size={18} color={colors.surface} />
+                  <Text style={[styles.setupButtonText, { color: colors.surface }]}>Generate Smart Goals</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -997,7 +1550,6 @@ export default function FoodLogScreen({ navigation }) {
             <View style={styles.inputSection}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Log Your Food</Text>
               
-              {/* Accuracy Notice */}
               <View style={[styles.accuracyNotice, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
                 <View style={[styles.accuracyIcon, { backgroundColor: colors.primary + '20' }]}>
                   <Ionicons name="bulb" size={16} color={colors.primary} />
@@ -1067,6 +1619,522 @@ export default function FoodLogScreen({ navigation }) {
           </ScrollView>
         </KeyboardAvoidingView>
 
+        {/* Profile/Onboarding Modal */}
+        <Modal
+          visible={isOnboardingModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setIsOnboardingModalVisible(false)}
+        >
+          <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={() => setIsOnboardingModalVisible(false)}>
+                <Text style={[styles.modalCancelText, { color: colors.primary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Complete Profile</Text>
+              <TouchableOpacity
+                onPress={saveProfileAndGenerateGoals}
+                disabled={isLoading}
+                style={[
+                  styles.modalSaveButton,
+                  { backgroundColor: isLoading ? colors.muted : colors.primary }
+                ]}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.surface} />
+                ) : (
+                  <Text style={[
+                    styles.modalSaveText,
+                    { color: isLoading ? colors.textSecondary : colors.surface }
+                  ]}>
+                    Save
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.modalKeyboardView}
+            >
+              <ScrollView
+                style={styles.modalContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Height Input */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Height *</Text>
+                  <View style={styles.inputRow}>
+                    <HeightInput />
+                    <View style={styles.unitSelector}>
+                      <TouchableOpacity
+                        style={[styles.unitButton, heightUnit === 'cm' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert height when switching units
+                          if (heightUnit === 'ft' && heightFeet && heightInches) {
+                            // Convert ft/in to cm
+                            const feet = parseFloat(heightFeet) || 0;
+                            const inches = parseFloat(heightInches) || 0;
+                            const heightCm = Math.round((feet * 12 + inches) * 2.54);
+                            setHeight(heightCm.toString());
+                            setHeightFeet("");
+                            setHeightInches("");
+                          }
+                          setHeightUnit('cm');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, heightUnit === 'cm' && styles.unitButtonTextActive]}>cm</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.unitButton, heightUnit === 'ft' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert height when switching units
+                          if (heightUnit === 'cm' && height) {
+                            // Convert cm to ft/in
+                            const totalInches = parseFloat(height) / 2.54;
+                            const feet = Math.floor(totalInches / 12);
+                            const inches = Math.round(totalInches % 12);
+                            setHeightFeet(feet.toString());
+                            setHeightInches(inches.toString());
+                            setHeight("");
+                          }
+                          setHeightUnit('ft');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, heightUnit === 'ft' && styles.unitButtonTextActive]}>ft</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Weight Input */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Weight *</Text>
+                  <View style={styles.inputRow}>
+                    <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
+                      <TextInput
+                        style={[styles.goalInput, { color: colors.text }]}
+                        placeholder={weightUnit === 'kg' ? "70" : "155"}
+                        placeholderTextColor={colors.textSecondary}
+                        value={weight}
+                        onChangeText={setWeight}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={styles.unitSelector}>
+                      <TouchableOpacity
+                        style={[styles.unitButton, weightUnit === 'kg' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert weight when switching units
+                          if (weightUnit === 'lbs' && weight) {
+                            // Convert lbs to kg
+                            const weightKg = Math.round(parseFloat(weight) * 0.453592);
+                            setWeight(weightKg.toString());
+                          }
+                          setWeightUnit('kg');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, weightUnit === 'kg' && styles.unitButtonTextActive]}>kg</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.unitButton, weightUnit === 'lbs' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert weight when switching units
+                          if (weightUnit === 'kg' && weight) {
+                            // Convert kg to lbs
+                            const weightLbs = Math.round(parseFloat(weight) * 2.20462);
+                            setWeight(weightLbs.toString());
+                          }
+                          setWeightUnit('lbs');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, weightUnit === 'lbs' && styles.unitButtonTextActive]}>lbs</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Age Input */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Age *</Text>
+                  <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <TextInput
+                      style={[styles.goalInput, { color: colors.text }]}
+                      placeholder="25"
+                      placeholderTextColor={colors.textSecondary}
+                      value={age}
+                      onChangeText={setAge}
+                      keyboardType="numeric"
+                      maxLength={3}
+                    />
+                    <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>years</Text>
+                  </View>
+                </View>
+
+                {/* Activity Level */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Activity Level</Text>
+                  <View style={styles.activityGrid}>
+                    {activityLevels.map((activity) => (
+                      <TouchableOpacity
+                        key={activity.id}
+                        style={[
+                          styles.activityCard,
+                          activityLevel === activity.id && styles.activityCardActive,
+                          { borderColor: activityLevel === activity.id ? colors.primary : colors.border }
+                        ]}
+                        onPress={() => {
+                          setActivityLevel(activity.id);
+                          triggerHaptic('selection');
+                        }}
+                      >
+                        <Text style={[
+                          styles.activityTitle,
+                          { color: activityLevel === activity.id ? colors.primary : colors.text }
+                        ]}>
+                          {activity.label}
+                        </Text>
+                        <Text style={[styles.activityDescription, { color: colors.textSecondary }]}>
+                          {activity.description}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Health Goals */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Health Goals</Text>
+                  <Text style={[styles.goalSubLabel, { color: colors.textSecondary }]}>
+                    Select all that apply
+                  </Text>
+                  <View style={styles.healthGoalsGrid}>
+                    {healthGoalOptions.map((goal) => (
+                      <TouchableOpacity
+                        key={goal.id}
+                        style={[
+                          styles.healthGoalCard,
+                          healthGoals.includes(goal.id) && styles.healthGoalCardActive,
+                          {
+                            borderColor: healthGoals.includes(goal.id) ? colors.primary : colors.border,
+                            backgroundColor: healthGoals.includes(goal.id) ? colors.primary + '10' : colors.surface
+                          }
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          if (healthGoals.includes(goal.id)) {
+                            setHealthGoals(healthGoals.filter(g => g !== goal.id));
+                          } else {
+                            setHealthGoals([...healthGoals, goal.id]);
+                          }
+                        }}
+                      >
+                        <Ionicons
+                          name={goal.icon}
+                          size={20}
+                          color={healthGoals.includes(goal.id) ? colors.primary : colors.textSecondary}
+                        />
+                        <Text style={[
+                          styles.healthGoalText,
+                          { color: healthGoals.includes(goal.id) ? colors.primary : colors.text }
+                        ]}>
+                          {goal.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Preview BMI if data is available */}
+                {((heightUnit === 'cm' && height) || (heightUnit === 'ft' && heightFeet && heightInches)) && weight && age && (
+                  <View style={[styles.previewCard, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                    <View style={styles.previewHeader}>
+                      <Ionicons name="analytics" size={20} color={colors.primary} />
+                      <Text style={[styles.previewTitle, { color: colors.text }]}>Health Preview</Text>
+                    </View>
+                    {(() => {
+                      const bmiData = calculateBMI();
+                      const tdeeData = calculateTDEE();
+                      return (
+                        <View style={styles.previewGrid}>
+                          {bmiData && (
+                            <View style={styles.previewItem}>
+                              <Text style={[styles.previewValue, { color: bmiData.category.color }]}>
+                                {bmiData.bmi}
+                              </Text>
+                              <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>BMI</Text>
+                              <Text style={[styles.previewCategory, { color: bmiData.category.color }]}>
+                                {bmiData.category.label}
+                              </Text>
+                            </View>
+                          )}
+                          {tdeeData && (
+                            <View style={styles.previewItem}>
+                              <Text style={[styles.previewValue, { color: colors.secondary }]}>
+                                {tdeeData.tdee}
+                              </Text>
+                              <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>TDEE</Text>
+                              <Text style={[styles.previewCategory, { color: colors.textSecondary }]}>
+                                cal/day
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })()}
+                  </View>
+                )}
+
+                <View style={[styles.goalNote, { backgroundColor: colors.muted }]}>
+                  <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+                  <Text style={[styles.goalNoteText, { color: colors.textSecondary }]}>
+                    This information will be used to calculate your BMI, TDEE, and generate personalized nutrition goals.
+                  </Text>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Profile Edit Modal */}
+        <Modal
+          visible={isProfileEditModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setIsProfileEditModalVisible(false)}
+        >
+          <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+            <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={() => setIsProfileEditModalVisible(false)}>
+                <Text style={[styles.modalCancelText, { color: colors.primary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Profile</Text>
+              <TouchableOpacity
+                onPress={saveProfileAndGenerateGoals}
+                disabled={isLoading}
+                style={[
+                  styles.modalSaveButton,
+                  { backgroundColor: isLoading ? colors.muted : colors.primary }
+                ]}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.surface} />
+                ) : (
+                  <Text style={[
+                    styles.modalSaveText,
+                    { color: isLoading ? colors.textSecondary : colors.surface }
+                  ]}>
+                    Save
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.modalKeyboardView}
+            >
+              <ScrollView
+                style={styles.modalContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Height Input */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Height *</Text>
+                  <View style={styles.inputRow}>
+                    <HeightInput />
+                    <View style={styles.unitSelector}>
+                      <TouchableOpacity
+                        style={[styles.unitButton, heightUnit === 'cm' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert height when switching units
+                          if (heightUnit === 'ft' && heightFeet && heightInches) {
+                            // Convert ft/in to cm
+                            const feet = parseFloat(heightFeet) || 0;
+                            const inches = parseFloat(heightInches) || 0;
+                            const heightCm = Math.round((feet * 12 + inches) * 2.54);
+                            setHeight(heightCm.toString());
+                            setHeightFeet("");
+                            setHeightInches("");
+                          }
+                          setHeightUnit('cm');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, heightUnit === 'cm' && styles.unitButtonTextActive]}>cm</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.unitButton, heightUnit === 'ft' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert height when switching units
+                          if (heightUnit === 'cm' && height) {
+                            // Convert cm to ft/in
+                            const totalInches = parseFloat(height) / 2.54;
+                            const feet = Math.floor(totalInches / 12);
+                            const inches = Math.round(totalInches % 12);
+                            setHeightFeet(feet.toString());
+                            setHeightInches(inches.toString());
+                            setHeight("");
+                          }
+                          setHeightUnit('ft');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, heightUnit === 'ft' && styles.unitButtonTextActive]}>ft</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Weight Input */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Weight *</Text>
+                  <View style={styles.inputRow}>
+                    <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
+                      <TextInput
+                        style={[styles.goalInput, { color: colors.text }]}
+                        placeholder={weightUnit === 'kg' ? "70" : "155"}
+                        placeholderTextColor={colors.textSecondary}
+                        value={weight}
+                        onChangeText={setWeight}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={styles.unitSelector}>
+                      <TouchableOpacity
+                        style={[styles.unitButton, weightUnit === 'kg' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert weight when switching units
+                          if (weightUnit === 'lbs' && weight) {
+                            // Convert lbs to kg
+                            const weightKg = Math.round(parseFloat(weight) * 0.453592);
+                            setWeight(weightKg.toString());
+                          }
+                          setWeightUnit('kg');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, weightUnit === 'kg' && styles.unitButtonTextActive]}>kg</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.unitButton, weightUnit === 'lbs' && styles.unitButtonActive]}
+                        onPress={() => {
+                          // Convert weight when switching units
+                          if (weightUnit === 'kg' && weight) {
+                            // Convert kg to lbs
+                            const weightLbs = Math.round(parseFloat(weight) * 2.20462);
+                            setWeight(weightLbs.toString());
+                          }
+                          setWeightUnit('lbs');
+                        }}
+                      >
+                        <Text style={[styles.unitButtonText, weightUnit === 'lbs' && styles.unitButtonTextActive]}>lbs</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Age Input */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Age *</Text>
+                  <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <TextInput
+                      style={[styles.goalInput, { color: colors.text }]}
+                      placeholder="25"
+                      placeholderTextColor={colors.textSecondary}
+                      value={age}
+                      onChangeText={setAge}
+                      keyboardType="numeric"
+                      maxLength={3}
+                    />
+                    <Text style={[styles.goalUnit, { color: colors.textSecondary }]}>years</Text>
+                  </View>
+                </View>
+
+                {/* Activity Level */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Activity Level</Text>
+                  <View style={styles.activityGrid}>
+                    {activityLevels.map((activity) => (
+                      <TouchableOpacity
+                        key={activity.id}
+                        style={[
+                          styles.activityCard,
+                          activityLevel === activity.id && styles.activityCardActive,
+                          { borderColor: activityLevel === activity.id ? colors.primary : colors.border }
+                        ]}
+                        onPress={() => {
+                          setActivityLevel(activity.id);
+                          triggerHaptic('selection');
+                        }}
+                      >
+                        <Text style={[
+                          styles.activityTitle,
+                          { color: activityLevel === activity.id ? colors.primary : colors.text }
+                        ]}>
+                          {activity.label}
+                        </Text>
+                        <Text style={[styles.activityDescription, { color: colors.textSecondary }]}>
+                          {activity.description}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Health Goals */}
+                <View style={styles.goalInputContainer}>
+                  <Text style={[styles.goalLabel, { color: colors.text }]}>Health Goals</Text>
+                  <Text style={[styles.goalSubLabel, { color: colors.textSecondary }]}>
+                    Select all that apply
+                  </Text>
+                  <View style={styles.healthGoalsGrid}>
+                    {healthGoalOptions.map((goal) => (
+                      <TouchableOpacity
+                        key={goal.id}
+                        style={[
+                          styles.healthGoalCard,
+                          healthGoals.includes(goal.id) && styles.healthGoalCardActive,
+                          {
+                            borderColor: healthGoals.includes(goal.id) ? colors.primary : colors.border,
+                            backgroundColor: healthGoals.includes(goal.id) ? colors.primary + '10' : colors.surface
+                          }
+                        ]}
+                        onPress={() => {
+                          triggerHaptic('selection');
+                          if (healthGoals.includes(goal.id)) {
+                            setHealthGoals(healthGoals.filter(g => g !== goal.id));
+                          } else {
+                            setHealthGoals([...healthGoals, goal.id]);
+                          }
+                        }}
+                      >
+                        <Ionicons
+                          name={goal.icon}
+                          size={20}
+                          color={healthGoals.includes(goal.id) ? colors.primary : colors.textSecondary}
+                        />
+                        <Text style={[
+                          styles.healthGoalText,
+                          { color: healthGoals.includes(goal.id) ? colors.primary : colors.text }
+                        ]}>
+                          {goal.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={[styles.goalNote, { backgroundColor: colors.muted }]}>
+                  <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+                  <Text style={[styles.goalNoteText, { color: colors.textSecondary }]}>
+                    Changes will update your BMI, TDEE, and affect future smart goal recommendations.
+                  </Text>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Modal>
+
         {/* Goals Modal */}
         <Modal
           visible={isGoalsModalVisible}
@@ -1088,12 +2156,16 @@ export default function FoodLogScreen({ navigation }) {
                   { backgroundColor: isSaveEnabled ? colors.primary : colors.muted }
                 ]}
               >
-                <Text style={[
-                  styles.modalSaveText,
-                  { color: isSaveEnabled ? colors.surface : colors.textSecondary }
-                ]}>
-                  Save
-                </Text>
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.surface} />
+                ) : (
+                  <Text style={[
+                    styles.modalSaveText,
+                    { color: isSaveEnabled ? colors.surface : colors.textSecondary }
+                  ]}>
+                    Save
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -1106,6 +2178,38 @@ export default function FoodLogScreen({ navigation }) {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
+                {/* Smart Goals Info */}
+                {isProfileComplete && (
+                  <View style={[styles.smartGoalsInfo, { backgroundColor: colors.secondary + '10', borderColor: colors.secondary + '30' }]}>
+                    <View style={[styles.smartGoalsIcon, { backgroundColor: colors.secondary + '20' }]}>
+                      <Ionicons name="bulb" size={20} color={colors.secondary} />
+                    </View>
+                    <View style={styles.smartGoalsText}>
+                      <Text style={[styles.smartGoalsTitle, { color: colors.secondary }]}>
+                        Smart Goals Generated
+                      </Text>
+                      <Text style={[styles.smartGoalsDescription, { color: colors.secondary }]}>
+                        Based on your profile: BMI {calculateBMI()?.bmi}, TDEE {calculateTDEE()?.tdee} cal/day
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const recommendations = getSmartGoalRecommendations();
+                        if (recommendations) {
+                          setDailyCalories(recommendations.calories.toString());
+                          setDailyProtein(recommendations.protein.toString());
+                          setDailyCarbs(recommendations.carbs.toString());
+                          setDailyFat(recommendations.fat.toString());
+                          showCustomToast("Goals updated with smart recommendations", "success");
+                        }
+                      }}
+                      style={[styles.regenerateButton, { backgroundColor: colors.secondary }]}
+                    >
+                      <Ionicons name="refresh" size={16} color={colors.surface} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 <View style={styles.goalInputContainer}>
                   <Text style={[styles.goalLabel, { color: colors.text }]}>Daily Calories *</Text>
                   <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -1313,6 +2417,185 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 16,
     letterSpacing: -0.2,
+  },
+
+  // BMI Calculator Styles
+  bmiCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  bmiHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  bmiIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  bmiHeaderText: {
+    flex: 1,
+  },
+  bmiTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  bmiSubtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  bmiHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  editProfileButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  bmiToggle: {
+    padding: 4,
+  },
+  bmiContent: {
+    paddingTop: 8,
+  },
+  bmiGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  bmiMetric: {
+    alignItems: "center",
+    flex: 1,
+  },
+  bmiValue: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  bmiLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  bmiCategory: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  smartGoalsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  smartGoalsText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+
+  // TDEE Explanation Styles
+  explanationCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  explanationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  explanationIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  explanationTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  explanationToggle: {
+    padding: 4,
+  },
+  explanationContent: {
+    marginTop: 12,
+    paddingLeft: 38,
+  },
+  explanationText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  explanationBold: {
+    fontWeight: "700",
+  },
+  explanationList: {
+    marginBottom: 12,
+  },
+  explanationItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  explanationBullet: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginRight: 8,
+    marginTop: 1,
+  },
+  explanationItemText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  explanationFooter: {
+    fontSize: 12,
+    fontStyle: "italic",
+    lineHeight: 16,
+  },
+
+  // Height Input Styles
+  feetInchesContainer: {
+    flexDirection: "row",
+    flex: 1,
   },
 
   // Progress Section - Enhanced with bigger rings and better content fitting
@@ -1596,7 +2879,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Input Section - Smaller input box
+  // Input Section
   inputSection: {
     marginBottom: 32,
   },
@@ -1932,6 +3215,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+    minWidth: 60,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalSaveText: {
     fontSize: 16,
@@ -1948,6 +3234,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     marginBottom: 8,
+  },
+  goalSubLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 12,
   },
   goalInputWrapper: {
     flexDirection: "row",
@@ -1996,6 +3287,181 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginLeft: 8,
     flex: 1,
+  },
+
+  // Unit Selector Styles
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  unitSelector: {
+    flexDirection: "row",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 8,
+    padding: 2,
+  },
+  unitButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  unitButtonActive: {
+    backgroundColor: "#2563EB",
+  },
+  unitButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  unitButtonTextActive: {
+    color: "#FFFFFF",
+  },
+
+  // Activity Level Styles
+  activityGrid: {
+    gap: 12,
+  },
+  activityCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: "#FFFFFF",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  activityCardActive: {
+    backgroundColor: "#F0F9FF",
+  },
+  activityTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  activityDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  // Health Goals Styles
+  healthGoalsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  healthGoalCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    minWidth: "45%",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  healthGoalCardActive: {
+    // Styles handled inline
+  },
+  healthGoalText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+
+  // Preview Card Styles
+  previewCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  previewTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  previewGrid: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  previewItem: {
+    alignItems: "center",
+  },
+  previewValue: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  previewLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  previewCategory: {
+    fontSize: 10,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+
+  // Smart Goals Info Styles
+  smartGoalsInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 24,
+  },
+  smartGoalsIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  smartGoalsText: {
+    flex: 1,
+  },
+  smartGoalsTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  smartGoalsDescription: {
+    fontSize: 12,
+    marginTop: 2,
+    opacity: 0.8,
+  },
+  regenerateButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Toast

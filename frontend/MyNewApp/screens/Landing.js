@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { authService } from "../services/auth";
+import PremiumService from "../services/PremiumService";
 import { useFocusEffect } from "@react-navigation/native";
 import PersistentFooter from "../components/PersistentFooter";
 
@@ -31,185 +32,135 @@ export default function LandingScreen({ navigation }) {
   const [isForgotVisible, setIsForgotVisible] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [premiumCheckInProgress, setPremiumCheckInProgress] = useState(false);
 
-  // Create animated value for scroll position
+  // Refs
   const scrollY = useRef(new Animated.Value(0)).current;
-
-  // Refs for inputs
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
-
-  // Ref to track if component is mounted
   const isMounted = useRef(true);
+  const premiumUnsubscribe = useRef(null);
+
+  // Toast state
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState("success");
+  const toastTimeoutRef = useRef(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMounted.current = false;
+      if (premiumUnsubscribe.current) {
+        premiumUnsubscribe.current();
+      }
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
     };
   }, []);
 
-  // Check login status whenever screen is focused
+  // Initialize auth and premium status
+  useEffect(() => {
+    initializeAuthAndPremium();
+  }, []);
+
+  // Check auth status when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       if (isInitialized) {
-        checkLoginStatus();
+        checkAuthStatus();
       }
     }, [isInitialized])
   );
 
-  // Initialize auth service and set up listener
-  useEffect(() => {
-    let unsubscribe = null;
-    
-    const initializeAuth = async () => {
-      try {
-        console.log('Initializing auth service...');
-        
-        // Set up auth state listener first
-        unsubscribe = authService.onAuthStateChange(async (user) => {
-          console.log('Auth state changed:', !!user);
-          
-          if (!isMounted.current) return;
-          
-          setIsLoggedIn(!!user);
-          
-          if (user) {
-            // Check premium status with a delay to ensure document exists
-            console.log('User logged in, checking premium status...');
-            setPremiumCheckInProgress(true);
-            
-            // Wait a bit longer for new registrations
-            setTimeout(async () => {
-              if (isMounted.current) {
-                await checkPremiumStatusSafely(user);
-                setPremiumCheckInProgress(false);
-              }
-            }, 2000);
-          } else {
-            setIsPremium(false);
-            setPremiumCheckInProgress(false);
-          }
-        });
-
-        // Initialize auth service
-        const isAuthenticated = await authService.initialize();
+  const initializeAuthAndPremium = async () => {
+    try {
+      console.log('🚀 LandingScreen: Initializing auth and premium...');
+      
+      // Set up auth state listener
+      const unsubscribeAuth = authService.onAuthStateChange(async (user) => {
+        console.log('🔥 LandingScreen: Auth state changed:', !!user);
         
         if (!isMounted.current) return;
         
-        console.log('Auth initialized:', isAuthenticated);
-        setIsLoggedIn(isAuthenticated);
-        setIsInitialized(true);
+        setIsLoggedIn(!!user);
         
-        if (isAuthenticated) {
-          setPremiumCheckInProgress(true);
-          await checkPremiumStatusSafely();
-          setPremiumCheckInProgress(false);
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        if (isMounted.current) {
-          setIsLoggedIn(false);
-          setIsPremium(false);
-          setIsInitialized(true);
-          setPremiumCheckInProgress(false);
-        }
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, []);
-
-  const checkLoginStatus = async () => {
-    try {
-      const user = authService.getCurrentUser();
-      setIsLoggedIn(!!user);
-      if (user) {
-        setPremiumCheckInProgress(true);
-        await checkPremiumStatusSafely(user);
-        setPremiumCheckInProgress(false);
-      }
-    } catch (error) {
-      console.error("Error checking login status:", error);
-      setIsLoggedIn(false);
-      setIsPremium(false);
-      setPremiumCheckInProgress(false);
-    }
-  };
-
-  const checkPremiumStatusSafely = async (user = null) => {
-    try {
-      console.log('Checking premium status...');
-      const currentUser = user || authService.getCurrentUser();
-      
-      if (!currentUser) {
-        setIsPremium(false);
-        return;
-      }
-
-      // Force a fresh check without cache for accuracy
-      let retries = 5; // Increased retries for better reliability
-      let isPremiumUser = false;
-      
-      while (retries > 0) {
-        try {
-          // Force fresh check to ensure we get latest data
-          isPremiumUser = await authService.checkPremiumStatus(false);
-          console.log('Premium status check result:', isPremiumUser);
-          break;
-        } catch (error) {
-          console.log(`Premium status check failed, retries left: ${retries - 1}`, error.message);
-          retries--;
+        if (user) {
+          // Subscribe to premium status updates
+          if (premiumUnsubscribe.current) {
+            premiumUnsubscribe.current();
+          }
           
-          if (retries > 0) {
-            // Exponential backoff
-            const delay = 1000 * (6 - retries);
-            await new Promise(resolve => setTimeout(resolve, delay));
-          } else {
-            console.error('Final premium status check failed:', error);
-            isPremiumUser = false;
+          premiumUnsubscribe.current = authService.subscribeToPremiumStatus((premiumStatus) => {
+            console.log('💎 LandingScreen: Premium status updated:', premiumStatus);
+            if (isMounted.current) {
+              setIsPremium(premiumStatus);
+            }
+          });
+          
+        } else {
+          console.log('❌ LandingScreen: User logged out');
+          if (isMounted.current) {
+            setIsPremium(false);
+          }
+          
+          // Clean up premium subscription
+          if (premiumUnsubscribe.current) {
+            premiumUnsubscribe.current();
+            premiumUnsubscribe.current = null;
           }
         }
+      });
+
+      // Initialize auth service
+      const isAuthenticated = await authService.initialize();
+      console.log('✅ LandingScreen: Auth initialized:', isAuthenticated);
+      
+      if (!isMounted.current) return;
+      
+      setIsLoggedIn(isAuthenticated);
+      setIsInitialized(true);
+
+      // Set up premium subscription if user is already logged in
+      if (isAuthenticated) {
+        premiumUnsubscribe.current = authService.subscribeToPremiumStatus((premiumStatus) => {
+          console.log('💎 LandingScreen: Initial premium status:', premiumStatus);
+          if (isMounted.current) {
+            setIsPremium(premiumStatus);
+          }
+        });
       }
       
-      if (isMounted.current) {
-        console.log('Setting premium status:', isPremiumUser);
-        setIsPremium(isPremiumUser);
-      }
+      return () => {
+        unsubscribeAuth();
+      };
+      
     } catch (error) {
-      console.error("Error checking premium status:", error);
+      console.error('❌ LandingScreen: Initialization error:', error);
       if (isMounted.current) {
+        setIsLoggedIn(false);
         setIsPremium(false);
+        setIsInitialized(true);
       }
     }
   };
 
-  // Handler for when login is required by footer navigation
-  const handleLoginRequired = () => {
-    setIsLoginVisible(true);
+  const checkAuthStatus = async () => {
+    try {
+      const user = authService.getCurrentUser();
+      if (isMounted.current) {
+        setIsLoggedIn(!!user);
+        
+        if (user) {
+          // Get current premium status
+          const currentPremiumStatus = authService.getCurrentPremiumStatus();
+          setIsPremium(currentPremiumStatus);
+        }
+      }
+    } catch (error) {
+      console.error('❌ LandingScreen: Auth status check error:', error);
+    }
   };
-
-  // Memoized input handlers to prevent re-renders
-  const handleEmailChange = useCallback((text) => {
-    setEmail(text);
-  }, []);
-
-  const handlePasswordChange = useCallback((text) => {
-    setPassword(text);
-  }, []);
-
-  // State for custom toast messages
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState("success");
-  const toastTimeoutRef = useRef(null);
 
   const showCustomToast = (message, type = "success") => {
     if (toastTimeoutRef.current) {
@@ -225,10 +176,17 @@ export default function LandingScreen({ navigation }) {
     }, 4000);
   };
 
+  const handleEmailChange = useCallback((text) => {
+    setEmail(text);
+  }, []);
+
+  const handlePasswordChange = useCallback((text) => {
+    setPassword(text);
+  }, []);
+
   const handleLogin = async () => {
-    console.log('Login attempt started');
+    console.log('🔐 LandingScreen: Login attempt started');
     
-    // Enhanced validation
     if (!email || !email.trim()) {
       showCustomToast("Please enter your email address", "error");
       return;
@@ -252,65 +210,40 @@ export default function LandingScreen({ navigation }) {
     setIsLoading(true);
     
     try {
-      console.log('Attempting auth operation:', isNewUser ? 'register' : 'login');
+      console.log('🔄 LandingScreen: Attempting auth operation:', isNewUser ? 'register' : 'login');
       
       let user = null;
       
       if (isNewUser) {
-        // Register new user
         user = await authService.register(email.trim().toLowerCase(), password);
-        console.log('Registration successful:', !!user);
+        console.log('✅ LandingScreen: Registration successful:', !!user);
         
         if (user) {
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
           showCustomToast("Welcome to Kitchly! Account created successfully.", "success");
-          
-          // Force premium status check after successful registration
-          setPremiumCheckInProgress(true);
-          setTimeout(async () => {
-            if (isMounted.current) {
-              await checkPremiumStatusSafely(user);
-              setPremiumCheckInProgress(false);
-            }
-          }, 2000);
         } else {
           throw new Error("Registration failed - no user returned");
         }
       } else {
-        // Login existing user
         user = await authService.login(email.trim().toLowerCase(), password);
-        console.log('Login successful:', !!user);
+        console.log('✅ LandingScreen: Login successful:', !!user);
         
         if (user) {
           setIsLoginVisible(false);
           setEmail("");
           setPassword("");
           showCustomToast("Welcome back to Kitchly!", "success");
-          
-          // Force premium status check after successful login
-          setPremiumCheckInProgress(true);
-          setTimeout(async () => {
-            if (isMounted.current) {
-              await checkPremiumStatusSafely(user);
-              setPremiumCheckInProgress(false);
-            }
-          }, 1000);
         } else {
           throw new Error("Login failed - no user returned");
         }
       }
     } catch (error) {
-      console.error("Authentication error details:", {
-        code: error.code,
-        message: error.message,
-        stack: error.stack
-      });
+      console.error("❌ LandingScreen: Authentication error:", error);
 
       let errorMessage = "An unexpected error occurred. Please try again.";
 
-      // Handle Firebase Auth errors
       if (error.code) {
         switch (error.code) {
           case "auth/email-already-in-use":
@@ -357,12 +290,12 @@ export default function LandingScreen({ navigation }) {
       showCustomToast(errorMessage, "error");
     } finally {
       setIsLoading(false);
-      console.log('Login attempt completed');
+      console.log('🏁 LandingScreen: Login attempt completed');
     }
   };
 
   const handleForgotPassword = async () => {
-    console.log('Forgot password attempt started');
+    console.log('🔑 LandingScreen: Forgot password attempt started');
     
     if (!email || !email.trim()) {
       showCustomToast("Please enter your email address", "error");
@@ -381,12 +314,9 @@ export default function LandingScreen({ navigation }) {
       showCustomToast("Password reset instructions sent to your email", "success");
       setIsForgotVisible(false);
       setEmail("");
-      console.log('Forgot password successful');
+      console.log('✅ LandingScreen: Forgot password successful');
     } catch (error) {
-      console.error("Forgot password error:", {
-        code: error.code,
-        message: error.message
-      });
+      console.error("❌ LandingScreen: Forgot password error:", error);
 
       let errorMessage = "Failed to send reset email. Please try again.";
 
@@ -414,7 +344,7 @@ export default function LandingScreen({ navigation }) {
       showCustomToast(errorMessage, "error");
     } finally {
       setIsLoading(false);
-      console.log('Forgot password attempt completed');
+      console.log('🏁 LandingScreen: Forgot password attempt completed');
     }
   };
 
@@ -435,7 +365,10 @@ export default function LandingScreen({ navigation }) {
           },
           {
             text: "Learn More",
-            onPress: () => navigation.navigate("PremiumPlans"),
+            onPress: () => navigation.navigate("PremiumPlans", {
+              onPremiumStatusUpdate: handlePremiumStatusUpdate,
+              isPremium: isPremium
+            }),
           },
         ]
       );
@@ -445,15 +378,20 @@ export default function LandingScreen({ navigation }) {
     navigation.navigate(screenName);
   };
 
-  // Enhanced debug function for testing
-  const debugAuthState = async () => {
-    console.log('=== DEBUGGING AUTH STATE ===');
-    const debug = await authService.debugUserState();
-    console.log('Auth Debug:', debug);
-    
-    const premiumStatus = await authService.checkPremiumStatus(false);
-    console.log('Fresh Premium Check:', premiumStatus);
-    console.log('=== DEBUG COMPLETE ===');
+  const handlePremiumStatusUpdate = async () => {
+    console.log('🔄 LandingScreen: Premium status update requested...');
+    try {
+      const newStatus = await authService.forceRefreshPremiumStatus();
+      console.log('💎 LandingScreen: Premium status refreshed:', newStatus);
+      return newStatus;
+    } catch (error) {
+      console.error('❌ LandingScreen: Premium status update failed:', error);
+      return false;
+    }
+  };
+
+  const handleLoginRequired = () => {
+    setIsLoginVisible(true);
   };
 
   // Hero Feature Card Component
@@ -488,7 +426,7 @@ export default function LandingScreen({ navigation }) {
       <View style={styles.featureCardContent}>
         <View style={styles.featureIconContainer}>
           <Ionicons name={icon} size={28} color="#008b8b" />
-          {isPremiumFeature && (
+          {isPremiumFeature && !isPremium && (
             <View style={styles.premiumBadge}>
               <View style={styles.premiumIcon} />
             </View>
@@ -503,7 +441,7 @@ export default function LandingScreen({ navigation }) {
     </TouchableOpacity>
   );
 
-  // Enhanced Toast component
+  // Toast component
   const Toast = ({ visible, message, type }) => {
     const [fadeAnim] = useState(new Animated.Value(0));
 
@@ -572,7 +510,7 @@ export default function LandingScreen({ navigation }) {
     );
   };
 
-  // Memoized Dashboard Header Component to prevent unnecessary re-renders
+  // Dashboard Header Component
   const DashboardHeader = React.memo(() => (
     <View style={styles.dashboardHeader}>
       <View style={styles.headerLeft}>
@@ -593,9 +531,6 @@ export default function LandingScreen({ navigation }) {
                 <Text style={styles.premiumBadgeText}>PRO</Text>
               </View>
             )}
-            {premiumCheckInProgress && isLoggedIn && (
-              <ActivityIndicator size="small" color="#008b8b" style={{ marginLeft: 8 }} />
-            )}
           </View>
           <Text style={styles.dashboardSubtitle}>AI Nutrition Assistant</Text>
         </View>
@@ -609,7 +544,7 @@ export default function LandingScreen({ navigation }) {
                 "Profile Options",
                 "What would you like to do?",
                 [
-                 
+                  
                   {
                     text: "Sign Out",
                     onPress: async () => {
@@ -642,7 +577,7 @@ export default function LandingScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     </View>
-  ), [isLoggedIn, isPremium, premiumCheckInProgress]);
+  ), [isLoggedIn, isPremium]);
 
   // Premium CTA Section
   const PremiumCTASection = () => {
@@ -651,7 +586,10 @@ export default function LandingScreen({ navigation }) {
     return (
       <TouchableOpacity
         style={styles.premiumCTA}
-        onPress={() => navigation.navigate("PremiumPlans")}
+        onPress={() => navigation.navigate("PremiumPlans", {
+          onPremiumStatusUpdate: handlePremiumStatusUpdate,
+          isPremium: isPremium
+        })}
         activeOpacity={0.9}
       >
         <View style={styles.premiumCTAContent}>
@@ -673,11 +611,6 @@ export default function LandingScreen({ navigation }) {
         </View>
       </TouchableOpacity>
     );
-  };
-
-  // Account Status Card - Removed as per original code
-  const AccountStatusCard = () => {
-    return null;
   };
 
   // Show loading screen until initialized
@@ -708,9 +641,6 @@ export default function LandingScreen({ navigation }) {
           <View style={styles.container}>
             {/* Dashboard Header */}
             <DashboardHeader />
-
-            {/* Account Status */}
-            <AccountStatusCard />
 
             {/* Premium CTA (for non-premium users) */}
             <PremiumCTASection />
@@ -821,179 +751,179 @@ export default function LandingScreen({ navigation }) {
         onLoginRequired={handleLoginRequired}
       />
 
-          {/* Login Overlay */}
-          {isLoginVisible && (
-            <View style={styles.overlay}>
-              <View style={styles.fullScreenBackground} />
-              <SafeAreaView style={styles.loginSafeArea}>
-                {/* Header with Close Button */}
-                <View style={styles.loginHeader}>
+      {/* Login Overlay */}
+      {isLoginVisible && (
+        <View style={styles.overlay}>
+          <View style={styles.fullScreenBackground} />
+          <SafeAreaView style={styles.loginSafeArea}>
+            {/* Header with Close Button */}
+            <View style={styles.loginHeader}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  setIsLoginVisible(false);
+                  setEmail("");
+                  setPassword("");
+                  setIsNewUser(false);
+                }}
+                disabled={isLoading}
+              >
+                <Ionicons name="close" size={28} color="#2c3e50" />
+              </TouchableOpacity>
+            </View>
+
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={styles.keyboardContainer}
+              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+            >
+              <ScrollView
+                contentContainerStyle={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+              >
+                {/* Logo and Welcome */}
+                <View style={styles.loginWelcomeSection}>
+                  <Image
+                    source={require("../assets/logo.png")}
+                    style={styles.loginLogo}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.loginWelcomeTitle}>Welcome to Kitchly</Text>
+                  <Text style={styles.loginWelcomeSubtitle}>
+                    Your AI nutrition assistant
+                  </Text>
+                </View>
+
+                {/* Mode Toggle */}
+                <View style={styles.modeToggleContainer}>
                   <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={() => {
-                      setIsLoginVisible(false);
-                      setEmail("");
-                      setPassword("");
-                      setIsNewUser(false);
-                    }}
+                    style={[
+                      styles.modeToggleButton,
+                      !isNewUser && styles.modeToggleButtonActive
+                    ]}
+                    onPress={() => setIsNewUser(false)}
                     disabled={isLoading}
                   >
-                    <Ionicons name="close" size={28} color="#2c3e50" />
+                    <Text style={[
+                      styles.modeToggleText,
+                      !isNewUser && styles.modeToggleTextActive
+                    ]}>
+                      Sign In
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeToggleButton,
+                      isNewUser && styles.modeToggleButtonActive
+                    ]}
+                    onPress={() => setIsNewUser(true)}
+                    disabled={isLoading}
+                  >
+                    <Text style={[
+                      styles.modeToggleText,
+                      isNewUser && styles.modeToggleTextActive
+                    ]}>
+                      Create Account
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
-                <KeyboardAvoidingView
-                  behavior={Platform.OS === "ios" ? "padding" : "height"}
-                  style={styles.keyboardContainer}
-                  keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-                >
-                  <ScrollView
-                    contentContainerStyle={styles.scrollContainer}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    bounces={false}
-                  >
-                    {/* Logo and Welcome */}
-                    <View style={styles.loginWelcomeSection}>
-                      <Image
-                        source={require("../assets/logo.png")}
-                        style={styles.loginLogo}
-                        resizeMode="contain"
+                {/* Form */}
+                <View style={styles.formContainer}>
+                  <View style={styles.inputContainer}>
+                    <Ionicons
+                      name="mail"
+                      size={20}
+                      color="#008b8b"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      ref={emailRef}
+                      style={styles.input}
+                      placeholder="Email address"
+                      placeholderTextColor="#999"
+                      value={email}
+                      onChangeText={handleEmailChange}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!isLoading}
+                      returnKeyType="next"
+                      onSubmitEditing={() => passwordRef.current?.focus()}
+                    />
+                  </View>
+
+                  <View style={styles.inputContainer}>
+                    <Ionicons
+                      name="lock-closed"
+                      size={20}
+                      color="#008b8b"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      ref={passwordRef}
+                      style={styles.input}
+                      placeholder="Password"
+                      placeholderTextColor="#999"
+                      value={password}
+                      onChangeText={handlePasswordChange}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      editable={!isLoading}
+                      returnKeyType="done"
+                      onSubmitEditing={handleLogin}
+                    />
+                    <TouchableOpacity
+                      style={styles.inputIcon}
+                      onPress={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off" : "eye"}
+                        size={20}
+                        color="#008b8b"
                       />
-                      <Text style={styles.loginWelcomeTitle}>Welcome to Kitchly</Text>
-                      <Text style={styles.loginWelcomeSubtitle}>
-                        Your AI nutrition assistant
+                    </TouchableOpacity>
+                  </View>
+
+                  {!isNewUser && (
+                    <TouchableOpacity
+                      style={styles.forgotPasswordButton}
+                      onPress={() => {
+                        setIsLoginVisible(false);
+                        setIsForgotVisible(true);
+                      }}
+                      disabled={isLoading}
+                    >
+                      <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={[
+                      styles.loginButton,
+                      ((!email || !password) || isLoading) && styles.loginButtonDisabled,
+                    ]}
+                    onPress={handleLogin}
+                    disabled={isLoading || !email || !password}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color="white" size="small" />
+                    ) : (
+                      <Text style={styles.loginButtonText}>
+                        {isNewUser ? "Create Account" : "Sign In"}
                       </Text>
-                    </View>
-
-                    {/* Mode Toggle */}
-                    <View style={styles.modeToggleContainer}>
-                      <TouchableOpacity
-                        style={[
-                          styles.modeToggleButton,
-                          !isNewUser && styles.modeToggleButtonActive
-                        ]}
-                        onPress={() => setIsNewUser(false)}
-                        disabled={isLoading}
-                      >
-                        <Text style={[
-                          styles.modeToggleText,
-                          !isNewUser && styles.modeToggleTextActive
-                        ]}>
-                          Sign In
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.modeToggleButton,
-                          isNewUser && styles.modeToggleButtonActive
-                        ]}
-                        onPress={() => setIsNewUser(true)}
-                        disabled={isLoading}
-                      >
-                        <Text style={[
-                          styles.modeToggleText,
-                          isNewUser && styles.modeToggleTextActive
-                        ]}>
-                          Create Account
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Form */}
-                    <View style={styles.formContainer}>
-                      <View style={styles.inputContainer}>
-                        <Ionicons
-                          name="mail"
-                          size={20}
-                          color="#008b8b"
-                          style={styles.inputIcon}
-                        />
-                        <TextInput
-                          ref={emailRef}
-                          style={styles.input}
-                          placeholder="Email address"
-                          placeholderTextColor="#999"
-                          value={email}
-                          onChangeText={handleEmailChange}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          editable={!isLoading}
-                          returnKeyType="next"
-                          onSubmitEditing={() => passwordRef.current?.focus()}
-                        />
-                      </View>
-
-                      <View style={styles.inputContainer}>
-                        <Ionicons
-                          name="lock-closed"
-                          size={20}
-                          color="#008b8b"
-                          style={styles.inputIcon}
-                        />
-                        <TextInput
-                          ref={passwordRef}
-                          style={styles.input}
-                          placeholder="Password"
-                          placeholderTextColor="#999"
-                          value={password}
-                          onChangeText={handlePasswordChange}
-                          secureTextEntry={!showPassword}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          editable={!isLoading}
-                          returnKeyType="done"
-                          onSubmitEditing={handleLogin}
-                        />
-                        <TouchableOpacity
-                          style={styles.inputIcon}
-                          onPress={() => setShowPassword(!showPassword)}
-                          disabled={isLoading}
-                        >
-                          <Ionicons
-                            name={showPassword ? "eye-off" : "eye"}
-                            size={20}
-                            color="#008b8b"
-                          />
-                        </TouchableOpacity>
-                      </View>
-
-                      {!isNewUser && (
-                        <TouchableOpacity
-                          style={styles.forgotPasswordButton}
-                          onPress={() => {
-                            setIsLoginVisible(false);
-                            setIsForgotVisible(true);
-                          }}
-                          disabled={isLoading}
-                        >
-                          <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
-                        </TouchableOpacity>
-                      )}
-
-                      <TouchableOpacity
-                        style={[
-                          styles.loginButton,
-                          ((!email || !password) || isLoading) && styles.loginButtonDisabled,
-                        ]}
-                        onPress={handleLogin}
-                        disabled={isLoading || !email || !password}
-                      >
-                        {isLoading ? (
-                          <ActivityIndicator color="white" size="small" />
-                        ) : (
-                          <Text style={styles.loginButtonText}>
-                            {isNewUser ? "Create Account" : "Sign In"}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </ScrollView>
-                </KeyboardAvoidingView>
-              </SafeAreaView>
-            </View>
-          )}
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </View>
+      )}
 
       {/* Forgot Password Overlay */}
       {isForgotVisible && (

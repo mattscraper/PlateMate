@@ -7,9 +7,11 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PurchaseService from "./services/PurchaseService";
 import { authService } from "./services/auth";
+import PremiumService from "./services/PremiumService";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebaseConfig";
 
+// Import all your screens
 import ResultsScreen from "./screens/ResultsScreen";
 import RecipeScreen from "./screens/RecipeScreen"
 import FindRecipes from "./screens/FindRecipes";
@@ -35,73 +37,131 @@ import FoodLogScreen from "./screens/FoodLogScreen";
 import FoodLogHistoryScreen from "./screens/FoodLogHistoryScreen"
 
 const Stack = createStackNavigator();
-
-// Create navigation ref to use for the footer
 const navigationRef = React.createRef();
 
 export default function App() {
-  // States for authentication
+  // Core authentication states
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [user, setUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [splashReady, setSplashReady] = useState(false);
   
-  // New onboarding states
+  // Premium status from PremiumService
+  const [isPremium, setIsPremium] = useState(false);
+  
+  // Onboarding states
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Track splash screen timing
   const splashStartTime = useRef(Date.now());
-  const minSplashDuration = 3000; // 3 seconds minimum
+  const minSplashDuration = 3000;
 
-  // Function to update premium status after purchase
-  const handlePremiumStatusUpdate = async () => {
+  // Initialize app
+  useEffect(() => {
+    initializeApp();
+    
+    return () => {
+      // Cleanup on unmount
+      PremiumService.cleanup();
+    };
+  }, []);
+
+  const initializeApp = async () => {
     try {
-      const status = await PurchaseService.checkSubscriptionStatus();
-      setIsPremium(status.hasActivePremium);
-      console.log('Premium status updated:', status.hasActivePremium);
-    } catch (error) {
-      console.error('Error updating premium status:', error);
+      console.log('🚀 App: Initializing...');
       
-      // Fallback to Firestore check
-      try {
-        const firestorePremium = await authService.checkPremiumStatus();
-        setIsPremium(firestorePremium);
-      } catch (fallbackError) {
-        console.error('Error with fallback premium check:', fallbackError);
-      }
+      // Initialize PurchaseService
+      await initializeRevenueCat();
+      
+      // Set up auth listener
+      const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
+      
+      // Check onboarding status
+      await checkOnboardingStatus();
+      
+      // Initialize auth service
+      await authService.initialize();
+      
+      // Ensure minimum splash duration
+      const elapsedTime = Date.now() - splashStartTime.current;
+      const remainingTime = Math.max(0, minSplashDuration - elapsedTime);
+      
+      setTimeout(() => {
+        setInitializing(false);
+        console.log('✅ App: Initialization complete');
+      }, remainingTime);
+      
+      return () => {
+        unsubscribe();
+      };
+      
+    } catch (error) {
+      console.error('❌ App: Initialization failed:', error);
+      setInitializing(false);
     }
   };
 
-  // Check if user should see onboarding
+  // Handle authentication state changes
+  const handleAuthStateChange = async (user) => {
+    console.log('🔥 App: Auth state changed:', user ? `User: ${user.uid}` : 'No user');
+    
+    setUser(user);
+    setIsLoggedIn(!!user);
+    
+    if (user) {
+      // Set up premium status subscription
+      const unsubscribePremium = authService.subscribeToPremiumStatus((premiumStatus) => {
+        console.log('💎 App: Premium status updated:', premiumStatus);
+        setIsPremium(premiumStatus);
+      });
+      
+      // Store the unsubscribe function for cleanup
+      user._premiumUnsubscribe = unsubscribePremium;
+      
+    } else {
+      // Clean up premium subscription if user logs out
+      setIsPremium(false);
+    }
+  };
+
+  // Initialize RevenueCat
+  const initializeRevenueCat = async () => {
+    try {
+      console.log('🚀 App: Initializing RevenueCat...');
+      
+      const success = await PurchaseService.configure(
+        'appl_fwRWQRdSViPvwzChtARGpDVvLEs',
+        null // Will be set when user logs in
+      );
+      
+      if (success) {
+        console.log('✅ App: RevenueCat configured successfully');
+      } else {
+        console.log('⚠️ App: RevenueCat not available');
+      }
+      
+      return success;
+    } catch (error) {
+      console.log('⚠️ App: RevenueCat initialization failed:', error);
+      return false;
+    }
+  };
+
+  // Check onboarding status
   const checkOnboardingStatus = async () => {
     try {
-      // Check if app has been opened before
       const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
       const lastOnboardingVersion = await AsyncStorage.getItem('onboardingVersion');
-      const currentOnboardingVersion = '1.0'; // Update this when you want to show onboarding again
+      const currentOnboardingVersion = '1.0';
       
-      console.log('Onboarding check:', {
-        hasSeenOnboarding,
-        lastOnboardingVersion,
-        currentOnboardingVersion
-      });
-
-      // Show onboarding if:
-      // 1. User has never seen it, OR
-      // 2. Onboarding version has been updated
       const shouldShowOnboarding = !hasSeenOnboarding || lastOnboardingVersion !== currentOnboardingVersion;
       
       setShowOnboarding(shouldShowOnboarding);
       setOnboardingChecked(true);
       
-      console.log('Should show onboarding:', shouldShowOnboarding);
+      console.log('📋 App: Onboarding check complete. Should show:', shouldShowOnboarding);
     } catch (error) {
-      console.error('Error checking onboarding status:', error);
-      // Default to showing onboarding on error
+      console.error('❌ App: Onboarding check failed:', error);
       setShowOnboarding(true);
       setOnboardingChecked(true);
     }
@@ -110,117 +170,38 @@ export default function App() {
   // Handle onboarding completion
   const handleOnboardingComplete = async (answers) => {
     try {
-      console.log('Onboarding completed with answers:', answers);
+      console.log('📋 App: Onboarding completed');
       
-      // Save user profile data if they created an account
       if (isLoggedIn && user) {
         await authService.saveOnboardingData(answers);
-        console.log('✅ Onboarding data saved to user profile');
+        console.log('✅ App: Onboarding data saved');
       }
       
-      // Mark onboarding as completed
       await AsyncStorage.setItem('hasSeenOnboarding', 'true');
       await AsyncStorage.setItem('onboardingVersion', '1.0');
       
       setShowOnboarding(false);
-      console.log('✅ Onboarding marked as completed');
     } catch (error) {
-      console.error('Error completing onboarding:', error);
-      // Still hide onboarding to prevent infinite loop
+      console.error('❌ App: Onboarding completion failed:', error);
       setShowOnboarding(false);
     }
   };
 
-  // Enhanced auth state listener
-  useEffect(() => {
-    console.log('🔥 Setting up Firebase auth listener...');
-    
-    // Listen for auth state changes with proper persistence handling
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('🔥 Auth state changed:', user ? `User: ${user.uid}` : 'No user');
-      
-      try {
-        setUser(user);
-        setIsLoggedIn(!!user);
-        
-        if (user) {
-          console.log('✅ User is authenticated, setting up services...');
-          
-          // Initialize RevenueCat and check premium status
-          try {
-            await PurchaseService.configure();
-            console.log('✅ RevenueCat configured for user:', user.uid);
-            
-            // Check subscription status
-            const status = await PurchaseService.checkSubscriptionStatus();
-            setIsPremium(status.hasActivePremium);
-            
-            console.log('Premium status:', status.hasActivePremium);
-          } catch (error) {
-            console.error('Error initializing RevenueCat:', error);
-            
-            // Fallback to checking Firestore premium status
-            try {
-              const firestorePremium = await authService.checkPremiumStatus();
-              setIsPremium(firestorePremium);
-              console.log('Used Firestore fallback, premium status:', firestorePremium);
-            } catch (fallbackError) {
-              console.error('Error checking Firestore premium status:', fallbackError);
-              setIsPremium(false);
-            }
-          }
-        } else {
-          // User is logged out
-          console.log('❌ User logged out, clearing premium status');
-          setIsPremium(false);
-        }
-      } catch (error) {
-        console.error('Error in auth state change handler:', error);
-        setIsPremium(false);
-      } finally {
-        // Calculate remaining splash time
-        const elapsedTime = Date.now() - splashStartTime.current;
-        const remainingTime = Math.max(0, minSplashDuration - elapsedTime);
-
-        // Ensure splash shows for minimum duration
-        setTimeout(() => {
-          // Mark initialization as complete
-          if (initializing) {
-            console.log('✅ Auth initialization complete');
-            setInitializing(false);
-          }
-          setAuthChecked(true);
-          setSplashReady(true);
-        }, remainingTime);
-      }
-    });
-
-    // Check onboarding status
-    checkOnboardingStatus();
-
-    // Initialize sample data (only in development)
-    if (__DEV__) {
-      // Uncomment if you want to use initializeDatabase
-      // initializeDatabase();
-    }
-
-    return () => {
-      console.log('🧹 Cleaning up auth listener');
-      unsubscribe();
-    };
-  }, []); // Remove initializing dependency to prevent re-running
-
-  // Function to handle login requirement from footer
-  const handleLoginRequired = () => {
-    setShowLoginModal(true);
-    // Navigate to login screen or show login modal
-    if (navigationRef.current) {
-      navigationRef.current.navigate("LandingPage");
+  // Handle premium status updates (called from PremiumPlansScreen)
+  const handlePremiumStatusUpdate = async () => {
+    console.log('🔄 App: Premium status update requested');
+    try {
+      const newStatus = await authService.forceRefreshPremiumStatus();
+      console.log('💎 App: Premium status refreshed:', newStatus);
+      return newStatus;
+    } catch (error) {
+      console.error('❌ App: Premium status update failed:', error);
+      return false;
     }
   };
 
-  // Show professional loading screen while initializing
-  if (initializing || !authChecked || !splashReady || !onboardingChecked) {
+  // Show loading screen
+  if (initializing || !onboardingChecked) {
     return (
       <SafeAreaProvider>
         <View style={styles.splashContainer}>
@@ -244,7 +225,7 @@ export default function App() {
     );
   }
 
-  // Show onboarding if needed
+  // Show onboarding
   if (showOnboarding) {
     return (
       <SafeAreaProvider>
@@ -256,6 +237,7 @@ export default function App() {
     );
   }
 
+  // Main app
   return (
     <SafeAreaProvider>
       <View style={styles.container}>
@@ -270,21 +252,11 @@ export default function App() {
             <Stack.Screen name="LandingPage" component={LandingScreen} />
             <Stack.Screen name="FindRecipes" component={FindRecipes} />
             <Stack.Screen name="Results" component={ResultsScreen} />
-            <Stack.Screen
-              name="ResultsIngredients"
-              component={ResultsIngredientsScreen}
-            />
-            <Stack.Screen
-              name="FoodLog"
-              component={FoodLogScreen}
-              options={{ title: "Food Log" }}
-            />
+            <Stack.Screen name="ResultsIngredients" component={ResultsIngredientsScreen} />
+            <Stack.Screen name="FoodLog" component={FoodLogScreen} options={{ title: "Food Log" }} />
             <Stack.Screen name="FoodLogHistory" component={FoodLogHistoryScreen} />
             <Stack.Screen name="MyRecipes" component={MyRecipes} />
-            <Stack.Screen
-              name="FindByIngredients"
-              component={RecipeIngredients}
-            />
+            <Stack.Screen name="FindByIngredients" component={RecipeIngredients} />
             <Stack.Screen name="MealPlans" component={MealPlans} />
             <Stack.Screen name="MealPlanResults" component={MealPlanResults} />
             <Stack.Screen
@@ -297,14 +269,8 @@ export default function App() {
             />
             <Stack.Screen name="RecipeDetail" component={RecipeDetailScreen} />
             <Stack.Screen name="MealPlanDetail" component={MealPlanDetail} />
-            <Stack.Screen
-              name="SavedMealPlansScreen"
-              component={SavedMealPlansScreen}
-            />
-            <Stack.Screen
-              name="RecipeScreen"
-              component={RecipeScreen}
-            />
+            <Stack.Screen name="SavedMealPlansScreen" component={SavedMealPlansScreen} />
+            <Stack.Screen name="RecipeScreen" component={RecipeScreen} />
             
             {/* Food Scanner Screens */}
             <Stack.Screen
@@ -313,13 +279,9 @@ export default function App() {
               options={{
                 title: 'Food Scanner',
                 headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#007AFF',
-                },
+                headerStyle: { backgroundColor: '#007AFF' },
                 headerTintColor: '#fff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
+                headerTitleStyle: { fontWeight: 'bold' },
               }}
             />
             <Stack.Screen
@@ -328,13 +290,9 @@ export default function App() {
               options={{
                 title: 'Scan Barcode',
                 headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#007AFF',
-                },
+                headerStyle: { backgroundColor: '#007AFF' },
                 headerTintColor: '#fff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
+                headerTitleStyle: { fontWeight: 'bold' },
               }}
             />
             <Stack.Screen
@@ -343,13 +301,9 @@ export default function App() {
               options={{
                 title: 'Product Details',
                 headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#007AFF',
-                },
+                headerStyle: { backgroundColor: '#007AFF' },
                 headerTintColor: '#fff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
+                headerTitleStyle: { fontWeight: 'bold' },
               }}
             />
             <Stack.Screen
@@ -358,17 +312,12 @@ export default function App() {
               options={{
                 title: 'Search Products',
                 headerShown: true,
-                headerStyle: {
-                  backgroundColor: '#007AFF',
-                },
+                headerStyle: { backgroundColor: '#007AFF' },
                 headerTintColor: '#fff',
-                headerTitleStyle: {
-                  fontWeight: 'bold',
-                },
+                headerTitleStyle: { fontWeight: 'bold' },
               }}
             />
             
-            {/* Onboarding Screen (for manual access if needed) */}
             <Stack.Screen
               name="Onboarding"
               component={OnboardingQuestionnaireScreen}
@@ -392,10 +341,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   
-  // Professional Splash Screen Styles
+  // Splash Screen Styles
   splashContainer: {
     flex: 1,
-    backgroundColor: "#008b8b", // Your brand color
+    backgroundColor: "#008b8b",
     justifyContent: "center",
     alignItems: "center",
   },
