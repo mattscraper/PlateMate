@@ -136,4 +136,4 @@ def get_enhanced_grocery_categories():
 def init_enhanced_grocery_routes(app):
     """Initialize enhanced grocery routes"""
     app.register_blueprint(grocery_routes)
-    return apps
+    
