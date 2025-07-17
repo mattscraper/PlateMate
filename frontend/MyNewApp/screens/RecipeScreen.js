@@ -49,43 +49,57 @@ const RecipeScreen = ({ navigation }) => {
     "Gathering cooking ideas...",
   ];
 
-  // Conversion functions for US standards
+  // Improved conversion functions for US standards with whole number rounding
   const convertToUSMeasurements = (measure) => {
     if (!measure || typeof measure !== 'string') return measure;
     
     let converted = measure.toLowerCase();
     
-    // Temperature conversions
-    converted = converted.replace(/(\d+)\s*°?c\b/g, (match, celsius) => {
-      const fahrenheit = Math.round((parseInt(celsius) * 9/5) + 32);
+    // Temperature conversions - round to whole numbers
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*°?c\b/g, (match, celsius) => {
+      const fahrenheit = Math.round((parseFloat(celsius) * 9/5) + 32);
       return `${fahrenheit}°F`;
     });
     
-    // Weight conversions
+    // Weight conversions - round to whole numbers
     converted = converted.replace(/(\d+(?:\.\d+)?)\s*g\b/g, (match, grams) => {
-      const oz = (parseFloat(grams) * 0.035274).toFixed(1);
-      return `${oz} oz`;
+      const oz = Math.round(parseFloat(grams) * 0.035274);
+      return oz > 0 ? `${oz} oz` : `${Math.round(parseFloat(grams))} g`;
     });
     
     converted = converted.replace(/(\d+(?:\.\d+)?)\s*kg\b/g, (match, kg) => {
-      const lbs = (parseFloat(kg) * 2.20462).toFixed(1);
+      const lbs = Math.round(parseFloat(kg) * 2.20462 * 10) / 10; // Round to 1 decimal for pounds
       return `${lbs} lbs`;
     });
     
-    // Volume conversions
+    // Volume conversions - round to appropriate whole numbers or common fractions
     converted = converted.replace(/(\d+(?:\.\d+)?)\s*ml\b/g, (match, ml) => {
-      const flOz = (parseFloat(ml) * 0.033814).toFixed(1);
-      return `${flOz} fl oz`;
+      const mlValue = parseFloat(ml);
+      if (mlValue >= 240) { // Convert larger amounts to cups
+        const cups = Math.round(mlValue / 240 * 4) / 4; // Round to nearest quarter cup
+        return cups >= 1 ? `${cups} cup${cups !== 1 ? 's' : ''}` : `${Math.round(mlValue * 0.033814)} fl oz`;
+      } else {
+        const flOz = Math.round(mlValue * 0.033814);
+        return flOz > 0 ? `${flOz} fl oz` : `${Math.round(mlValue)} ml`;
+      }
     });
     
     converted = converted.replace(/(\d+(?:\.\d+)?)\s*l\b/g, (match, liters) => {
-      const cups = (parseFloat(liters) * 4.22675).toFixed(1);
-      return `${cups} cups`;
+      const literValue = parseFloat(liters);
+      const cups = Math.round(literValue * 4.22675 * 4) / 4; // Round to nearest quarter cup
+      return `${cups} cup${cups !== 1 ? 's' : ''}`;
     });
     
-    // Common UK to US conversions
+    // Common measurement standardizations
     converted = converted.replace(/\btsp\b/g, 'tsp');
     converted = converted.replace(/\btbsp\b/g, 'tbsp');
+    
+    // Convert decimal measurements to common fractions
+    converted = converted.replace(/0\.5/g, '1/2');
+    converted = converted.replace(/0\.25/g, '1/4');
+    converted = converted.replace(/0\.75/g, '3/4');
+    converted = converted.replace(/0\.33/g, '1/3');
+    converted = converted.replace(/0\.67/g, '2/3');
     
     return converted.charAt(0).toUpperCase() + converted.slice(1);
   };
@@ -95,9 +109,9 @@ const RecipeScreen = ({ navigation }) => {
     
     let converted = instructions;
     
-    // Temperature conversions in instructions
-    converted = converted.replace(/(\d+)\s*°?c\b/gi, (match, celsius) => {
-      const fahrenheit = Math.round((parseInt(celsius) * 9/5) + 32);
+    // Temperature conversions in instructions - round to whole numbers
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*°?c\b/gi, (match, celsius) => {
+      const fahrenheit = Math.round((parseFloat(celsius) * 9/5) + 32);
       return `${fahrenheit}°F`;
     });
     
@@ -105,6 +119,24 @@ const RecipeScreen = ({ navigation }) => {
     converted = converted.replace(/gas mark (\d+)/gi, (match, gasMark) => {
       const gasToF = { 1: 275, 2: 300, 3: 325, 4: 350, 5: 375, 6: 400, 7: 425, 8: 450, 9: 475 };
       return gasToF[gasMark] ? `${gasToF[gasMark]}°F` : match;
+    });
+    
+    // Weight conversions in instructions
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*g\b/gi, (match, grams) => {
+      const oz = Math.round(parseFloat(grams) * 0.035274);
+      return oz > 0 ? `${oz} oz` : `${Math.round(parseFloat(grams))} g`;
+    });
+    
+    // Volume conversions in instructions
+    converted = converted.replace(/(\d+(?:\.\d+)?)\s*ml\b/gi, (match, ml) => {
+      const mlValue = parseFloat(ml);
+      if (mlValue >= 240) {
+        const cups = Math.round(mlValue / 240 * 4) / 4;
+        return `${cups} cup${cups !== 1 ? 's' : ''}`;
+      } else {
+        const flOz = Math.round(mlValue * 0.033814);
+        return flOz > 0 ? `${flOz} fl oz` : `${Math.round(mlValue)} ml`;
+      }
     });
     
     return converted;
@@ -336,6 +368,7 @@ const RecipeScreen = ({ navigation }) => {
     }
   };
 
+  // Improved search with longer debounce delay
   const [searchTimeout, setSearchTimeout] = useState(null);
 
   const handleSearch = (query) => {
@@ -345,13 +378,14 @@ const RecipeScreen = ({ navigation }) => {
       clearTimeout(searchTimeout);
     }
     
+    // Increased timeout to 1000ms (1 second) to prevent premature searches
     const timeout = setTimeout(() => {
       if (query.length > 2) {
         loadRecipes(false, query);
       } else if (query.length === 0) {
         loadRecipes(false, '');
       }
-    }, 500);
+    }, 1000);
     
     setSearchTimeout(timeout);
   };
@@ -678,6 +712,18 @@ const RecipeScreen = ({ navigation }) => {
             <Text style={styles.headerTitle}>Recipe Explorer</Text>
             <Text style={styles.headerSubtitle}>Discover Amazing Dishes</Text>
           </View>
+          {/* Added refresh button */}
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+            disabled={refreshing}
+          >
+            <Ionicons
+              name="refresh"
+              size={20}
+              color={refreshing ? "#ccc" : "#008b8b"}
+            />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.searchContainer}>
@@ -800,6 +846,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7f8c8d',
     marginTop: 2,
+  },
+  // New refresh button styles
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e6f3f3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   searchContainer: {
     marginBottom: 8,
@@ -943,7 +999,7 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     position: 'relative',
-    height: height * 0.25, // Reduced from 0.3 to give more room below
+    height: height * 0.25,
     marginHorizontal: 20,
     marginTop: 10,
     borderRadius: 20,
@@ -1021,7 +1077,7 @@ const styles = StyleSheet.create({
   actionButtonsContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingVertical: 12, // Reduced from 16 to 12
+    paddingVertical: 12,
     gap: 12,
   },
   saveButton: {
@@ -1094,7 +1150,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 16,
     padding: 4,
-    marginBottom: 12, // Reduced from 16 to 12
+    marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1137,13 +1193,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ingredientsGrid: {
-    gap: 16, // Increased from 12 to 16 for more spacing
+    gap: 16,
   },
   ingredientCard: {
     backgroundColor: 'white',
-    padding: 20, // Increased from 16 to 20 for more room
-    borderRadius: 16, // Increased from 12 to 16 for better visual
-    borderLeftWidth: 4, // Increased from 3 to 4
+    padding: 20,
+    borderRadius: 16,
+    borderLeftWidth: 4,
     borderLeftColor: '#008b8b',
     ...Platform.select({
       ios: {
@@ -1165,28 +1221,28 @@ const styles = StyleSheet.create({
   },
   ingredientName: {
     flex: 1,
-    fontSize: 16, // Increased from 15 to 16
+    fontSize: 16,
     fontWeight: '600',
     color: '#2c3e50',
-    lineHeight: 22, // Added line height for better readability
+    lineHeight: 22,
   },
   ingredientMeasure: {
-    fontSize: 14, // Increased from 13 to 14
+    fontSize: 14,
     color: '#008b8b',
-    fontWeight: '600', // Increased from 500 to 600
+    fontWeight: '600',
     textAlign: 'right',
-    minWidth: 60, // Added minimum width to prevent cramping
+    minWidth: 60,
   },
   instructionsGrid: {
-    gap: 20, // Increased from 16 to 20 for more spacing
+    gap: 20,
   },
   instructionCard: {
     backgroundColor: 'white',
-    padding: 20, // Increased from 16 to 20
-    borderRadius: 16, // Increased from 12 to 16
+    padding: 20,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 16, // Increased from 12 to 16
+    gap: 16,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -1200,26 +1256,29 @@ const styles = StyleSheet.create({
     }),
   },
   stepIndicator: {
-    width: 32, // Increased from 28 to 32
-    height: 32, // Increased from 28 to 32
-    borderRadius: 16, // Increased from 14 to 16
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#008b8b',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
-    flexShrink: 0, // Prevent shrinking
+    flexShrink: 0,
   },
   stepNumber: {
     color: 'white',
-    fontSize: 14, // Increased from 13 to 14
+    fontSize: 14,
     fontWeight: 'bold',
   },
   instructionText: {
     flex: 1,
-    fontSize: 16, // Increased from 15 to 16
-    lineHeight: 24, // Increased from 22 to 24 for better readability
+    fontSize: 16,
+    lineHeight: 24,
     color: '#2c3e50',
     fontWeight: '400',
+  },
+  modalBottomSpacing: {
+    height: 20,
   },
 });
 

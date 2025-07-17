@@ -17,8 +17,8 @@ init_recipe_routes(app)
 from backend.food_scanner import init_food_scanner_routes
 init_food_scanner_routes(app)
 
-from backend.grocery_routes import init_grocery_routes
-init_grocery_routes(app)
+from backend.grocery_routes import init_enhanced_grocery_routes
+init_enhanced_grocery_routes(app)
 
 from backend.food_log import init_food_log_routes
 init_food_log_routes(app)

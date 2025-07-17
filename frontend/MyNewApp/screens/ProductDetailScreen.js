@@ -27,7 +27,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const [error, setError] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     positives: true,
-    negatives: false,
+    negatives: true,
     additives: false,
     ingredients: false,
   });
@@ -159,6 +159,15 @@ const ProductDetailScreen = ({ route, navigation }) => {
         colors: ['#10B981', '#84CC16', '#F59E0B', '#EF4444'],
         isPositive: false,
         maxScale: 4
+      },
+      'fat_100g': {
+        title: 'Total fat',
+        icon: 'water',
+        unit: 'g',
+        thresholds: [0, 2, 4, 6],
+        colors: ['#10B981', '#84CC16', '#F59E0B', '#EF4444'],
+        isPositive: false,
+        maxScale: 10
       }
     };
 
@@ -184,22 +193,26 @@ const ProductDetailScreen = ({ route, navigation }) => {
     const color = config.colors[colorIndex];
     const position = Math.min((servingValue / config.maxScale) * 100, 100);
 
-    let level, description;
+    let level, description, isPositiveForPositives;
     if (config.isPositive) {
       if (colorIndex <= 1) {
         level = 'low';
         description = colorIndex === 0 ? 'Very low amount' : 'Low amount';
+        isPositiveForPositives = false; // Low protein/fiber goes to negatives
       } else {
         level = 'high';
         description = colorIndex === 2 ? 'Good amount' : 'Excellent amount';
+        isPositiveForPositives = true; // Good protein/fiber goes to positives
       }
     } else {
       if (colorIndex <= 1) {
         level = 'low';
         description = 'Low impact';
+        isPositiveForPositives = true; // Low calories/sugar/sodium goes to positives
       } else {
         level = 'high';
         description = colorIndex === 2 ? 'Moderate impact' : colorIndex === 3 ? 'Too high' : 'Too fatty';
+        isPositiveForPositives = false; // High calories/sugar/sodium goes to negatives
       }
     }
 
@@ -213,6 +226,7 @@ const ProductDetailScreen = ({ route, navigation }) => {
       level,
       description,
       isPositive: config.isPositive,
+      isPositiveForPositives,
       maxScale: config.maxScale,
       thresholds: config.thresholds,
       colors: config.colors
@@ -303,11 +317,9 @@ const ProductDetailScreen = ({ route, navigation }) => {
               </Text>
               <View style={[styles.qualityDot, { backgroundColor: nutrientData.color }]} />
               <Ionicons
-                name={nutrientData.isPositive && nutrientData.level === 'high' ? "chevron-up" :
-                      !nutrientData.isPositive && nutrientData.level === 'low' ? "chevron-up" : "chevron-down"}
+                name={nutrientData.isPositiveForPositives ? "chevron-up" : "chevron-down"}
                 size={16}
-                color={nutrientData.isPositive && nutrientData.level === 'high' ? "#10B981" :
-                       !nutrientData.isPositive && nutrientData.level === 'low' ? "#10B981" : "#9CA3AF"}
+                color={nutrientData.isPositiveForPositives ? "#10B981" : "#9CA3AF"}
               />
             </View>
           </View>
@@ -456,24 +468,89 @@ const ProductDetailScreen = ({ route, navigation }) => {
   const hasAdditives = product.ingredients_analysis?.additives?.length > 0;
   const nutrients = product.nutriments || {};
   
-  const sugarData = getNutrientDisplayData('sugars_100g', nutrients.sugars_100g, servingSize);
-  const sodiumData = getNutrientDisplayData('sodium_100g', nutrients.sodium_100g, servingSize);
+  // Calculate which nutrients go where based on their actual quality
+  const nutrientKeys = ['proteins_100g', 'fiber_100g', 'sugars_100g', 'sodium_100g', 'energy_kcal_100g', 'saturated_fat_100g', 'fat_100g'];
+  const positiveNutrients = [];
+  const negativeNutrients = [];
   
-  const showSugarInPositives = sugarData && sugarData.level === 'low';
-  const showSodiumInPositives = sodiumData && sodiumData.level === 'low';
+  nutrientKeys.forEach(key => {
+    if (nutrients[key]) {
+      const nutrientData = getNutrientDisplayData(key, nutrients[key], servingSize);
+      if (nutrientData) {
+        if (nutrientData.isPositiveForPositives) {
+          positiveNutrients.push(key);
+        } else {
+          negativeNutrients.push(key);
+        }
+      }
+    }
+  });
 
-  const positivesCount = (!hasAdditives ? 1 : 0) +
-                        (nutrients.proteins_100g ? 1 : 0) +
-                        (nutrients.fiber_100g ? 1 : 0) +
-                        (showSugarInPositives ? 1 : 0) +
-                        (showSodiumInPositives ? 1 : 0);
+  const positivesCount = (!hasAdditives ? 1 : 0) + positiveNutrients.length;
+  const negativesCount = (hasAdditives ? 1 : 0) + negativeNutrients.length;
 
-  const negativesCount = (nutrients.energy_kcal_100g ? 1 : 0) +
-                        (nutrients.saturated_fat_100g ? 1 : 0) +
-                        (!showSugarInPositives && nutrients.sugars_100g ? 1 : 0) +
-                        (!showSodiumInPositives && nutrients.sodium_100g ? 1 : 0) +
-                        (nutrients.fat_100g && nutrients.fat_100g > 3 ? 1 : 0) +
-                        (hasAdditives ? 1 : 0);
+  // If health score is below 50, show negatives first
+  const showNegativesFirst = product.health_score < 50;
+
+  const positivesSection = (
+    <CollapsibleSection
+      title="Positives"
+      subtitle={`per serving (${servingSize}g)`}
+      icon="checkmark-circle"
+      isExpanded={expandedSections.positives}
+      onToggle={() => toggleSection('positives')}
+      count={positivesCount}
+    >
+      {!hasAdditives && (
+        <SimpleIndicator
+          icon="hand-right"
+          title="No additives"
+          subtitle="No hazardous substances"
+          value=""
+          quality={{ color: '#10B981' }}
+          isPositive={true}
+        />
+      )}
+
+      {positiveNutrients.map(nutrientKey => (
+        <NutrientIndicator
+          key={nutrientKey}
+          nutrientKey={nutrientKey}
+          servingSize={servingSize}
+        />
+      ))}
+    </CollapsibleSection>
+  );
+
+  const negativesSection = (
+    <CollapsibleSection
+      title="Negatives"
+      subtitle={`per serving (${servingSize}g)`}
+      icon="close-circle"
+      isExpanded={expandedSections.negatives}
+      onToggle={() => toggleSection('negatives')}
+      count={negativesCount}
+    >
+      {negativeNutrients.map(nutrientKey => (
+        <NutrientIndicator
+          key={nutrientKey}
+          nutrientKey={nutrientKey}
+          servingSize={servingSize}
+        />
+      ))}
+
+      {hasAdditives && (
+        <SimpleIndicator
+          icon="warning"
+          title="Contains additives"
+          subtitle={`${product.ingredients_analysis.additives.length} potentially harmful substances`}
+          value=""
+          quality={{ color: '#EF4444' }}
+          isPositive={false}
+        />
+      )}
+    </CollapsibleSection>
+  );
 
   return (
     <View style={styles.container}>
@@ -502,73 +579,18 @@ const ProductDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Positives Section */}
-        <CollapsibleSection
-          title="Positives"
-          subtitle={`per serving (${servingSize}g)`}
-          icon="checkmark-circle"
-          isExpanded={expandedSections.positives}
-          onToggle={() => toggleSection('positives')}
-          count={positivesCount}
-        >
-          {!hasAdditives && (
-            <SimpleIndicator
-              icon="hand-right"
-              title="No additives"
-              subtitle="No hazardous substances"
-              value=""
-              quality={{ color: '#10B981' }}
-              isPositive={true}
-            />
-          )}
-
-          <NutrientIndicator nutrientKey="proteins_100g" servingSize={servingSize} />
-          <NutrientIndicator nutrientKey="fiber_100g" servingSize={servingSize} />
-          
-          {showSugarInPositives && (
-            <NutrientIndicator nutrientKey="sugars_100g" servingSize={servingSize} />
-          )}
-
-          {showSodiumInPositives && (
-            <NutrientIndicator nutrientKey="sodium_100g" servingSize={servingSize} />
-          )}
-        </CollapsibleSection>
-
-        {/* Negatives Section */}
-        <CollapsibleSection
-          title="Negatives"
-          subtitle={`per serving (${servingSize}g)`}
-          icon="close-circle"
-          isExpanded={expandedSections.negatives}
-          onToggle={() => toggleSection('negatives')}
-          count={negativesCount}
-        >
-          <NutrientIndicator nutrientKey="energy_kcal_100g" servingSize={servingSize} />
-          <NutrientIndicator nutrientKey="saturated_fat_100g" servingSize={servingSize} />
-
-          {!showSugarInPositives && nutrients.sugars_100g && (
-            <NutrientIndicator nutrientKey="sugars_100g" servingSize={servingSize} />
-          )}
-
-          {!showSodiumInPositives && nutrients.sodium_100g && (
-            <NutrientIndicator nutrientKey="sodium_100g" servingSize={servingSize} />
-          )}
-
-          {nutrients.fat_100g && nutrients.fat_100g > 3 && (
-            <NutrientIndicator nutrientKey="fat_100g" servingSize={servingSize} />
-          )}
-
-          {hasAdditives && (
-            <SimpleIndicator
-              icon="warning"
-              title="Contains additives"
-              subtitle={`${product.ingredients_analysis.additives.length} potentially harmful substances`}
-              value=""
-              quality={{ color: '#EF4444' }}
-              isPositive={false}
-            />
-          )}
-        </CollapsibleSection>
+        {/* Show sections in order based on health score */}
+        {showNegativesFirst ? (
+          <>
+            {negativesSection}
+            {positivesSection}
+          </>
+        ) : (
+          <>
+            {positivesSection}
+            {negativesSection}
+          </>
+        )}
 
         {/* Additives Detail */}
         {hasAdditives && (

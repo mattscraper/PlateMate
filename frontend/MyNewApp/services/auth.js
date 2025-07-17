@@ -1,4 +1,4 @@
-// Enhanced authService.js with PremiumService Integration
+// Enhanced authService.js with Grocery List Persistence
 import * as SecureStore from "expo-secure-store";
 import axios from "axios";
 import {
@@ -72,18 +72,24 @@ export const authService = {
       const token = await user.getIdToken();
       await this.saveToken(token);
 
-      // Create basic user document
+      // Create enhanced user document with grocery list support
       const userData = {
         email: user.email,
         uid: user.uid,
         createdAt: new Date().toISOString(),
         isPremium: false,
         savedRecipes: [],
-        mealPlans: [],
+        mealPlans: [], // Enhanced to include grocery lists
+        groceryLists: [], // Standalone grocery lists
         preferences: {
           dietaryRestrictions: [],
           allergies: [],
-          cuisinePreferences: []
+          cuisinePreferences: [],
+          shoppingPreferences: {
+            preferredStores: [],
+            budgetLimits: {},
+            organicPreference: false
+          }
         },
         profile: {
           height: null,
@@ -98,6 +104,7 @@ export const authService = {
         usage: {
           recipesViewed: 0,
           mealPlansCreated: 0,
+          groceryListsGenerated: 0,
           lastActive: new Date().toISOString()
         }
       };
@@ -110,7 +117,7 @@ export const authService = {
         try {
           await setDoc(doc(db, "users", user.uid), userData);
           documentCreated = true;
-          console.log('✅ User document created successfully');
+          console.log('✅ Enhanced user document created successfully');
         } catch (docError) {
           retries--;
           console.log(`⚠️ Document creation failed, retries left: ${retries}`);
@@ -139,24 +146,47 @@ export const authService = {
       const token = await user.getIdToken();
       await this.saveToken(token);
 
-      // Get user document
+      // Get user document and migrate if needed
       const userRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userRef);
       
       let userData;
       if (userDoc.exists()) {
         userData = userDoc.data();
-        // Update last active
-        try {
+        
+        // Migrate existing user documents to support grocery lists
+        if (!userData.groceryLists) {
+          console.log('📝 Migrating user document for grocery list support');
           await updateDoc(userRef, {
+            groceryLists: [],
+            'preferences.shoppingPreferences': {
+              preferredStores: [],
+              budgetLimits: {},
+              organicPreference: false
+            },
+            'usage.groceryListsGenerated': 0,
             'usage.lastActive': new Date().toISOString()
           });
-        } catch (updateError) {
-          console.log('⚠️ Failed to update last active:', updateError);
+          userData.groceryLists = [];
+          userData.preferences.shoppingPreferences = {
+            preferredStores: [],
+            budgetLimits: {},
+            organicPreference: false
+          };
+          userData.usage.groceryListsGenerated = 0;
+        } else {
+          // Update last active
+          try {
+            await updateDoc(userRef, {
+              'usage.lastActive': new Date().toISOString()
+            });
+          } catch (updateError) {
+            console.log('⚠️ Failed to update last active:', updateError);
+          }
         }
       } else {
-        // Create missing document
-        console.log('📝 Creating missing user document');
+        // Create missing document with full grocery support
+        console.log('📝 Creating missing user document with grocery support');
         userData = {
           email: user.email,
           uid: user.uid,
@@ -164,12 +194,27 @@ export const authService = {
           isPremium: false,
           savedRecipes: [],
           mealPlans: [],
-          preferences: { dietaryRestrictions: [], allergies: [], cuisinePreferences: [] },
+          groceryLists: [],
+          preferences: {
+            dietaryRestrictions: [],
+            allergies: [],
+            cuisinePreferences: [],
+            shoppingPreferences: {
+              preferredStores: [],
+              budgetLimits: {},
+              organicPreference: false
+            }
+          },
           profile: {
             height: null, weight: null, targetWeight: null, age: null,
             activityLevel: null, healthGoals: [], onboardingCompleted: false, onboardingData: null
           },
-          usage: { recipesViewed: 0, mealPlansCreated: 0, lastActive: new Date().toISOString() }
+          usage: {
+            recipesViewed: 0,
+            mealPlansCreated: 0,
+            groceryListsGenerated: 0,
+            lastActive: new Date().toISOString()
+          }
         };
         await setDoc(userRef, userData);
       }
@@ -181,6 +226,244 @@ export const authService = {
     } catch (error) {
       console.error('Login error:', error);
       throw error;
+    }
+  },
+
+  // Enhanced meal plan operations with grocery list persistence
+  async saveMealPlanWithGroceryList(mealPlanData, groceryListData = null) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const isPremium = PremiumService.getCurrentStatus();
+      if (!isPremium) {
+        throw new Error("Meal plans are a premium feature. Please upgrade to access this functionality.");
+      }
+
+      // Generate IDs if not provided
+      if (!mealPlanData.id) {
+        mealPlanData.id = `mealplan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      // Prepare enhanced meal plan data
+      const enhancedMealPlanData = {
+        ...mealPlanData,
+        savedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        hasGroceryList: !!groceryListData,
+        groceryListId: groceryListData?.grocery_list_id || null
+      };
+
+      // If grocery list provided, save it
+      if (groceryListData) {
+        groceryListData.meal_plan_id = mealPlanData.id;
+        groceryListData.created_at = new Date().toISOString();
+        groceryListData.updated_at = new Date().toISOString();
+        
+        await this.saveGroceryList(groceryListData);
+      }
+
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        mealPlans: arrayUnion(enhancedMealPlanData),
+        'usage.mealPlansCreated': arrayUnion(new Date().toISOString()),
+        'usage.lastActive': new Date().toISOString()
+      });
+
+      console.log('✅ Enhanced meal plan with grocery list saved successfully');
+      return await this.getMealPlans();
+    } catch (error) {
+      console.error('Save enhanced meal plan error:', error);
+      throw error;
+    }
+  },
+
+  // Grocery list operations
+  async saveGroceryList(groceryListData) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      // Generate ID if not provided
+      if (!groceryListData.grocery_list_id) {
+        groceryListData.grocery_list_id = `grocery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      groceryListData.user_id = user.uid;
+      groceryListData.saved_at = new Date().toISOString();
+      groceryListData.updated_at = new Date().toISOString();
+
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        groceryLists: arrayUnion(groceryListData),
+        'usage.groceryListsGenerated': arrayUnion(new Date().toISOString()),
+        'usage.lastActive': new Date().toISOString()
+      });
+
+      console.log('✅ Grocery list saved successfully');
+      return groceryListData;
+    } catch (error) {
+      console.error('Save grocery list error:', error);
+      throw error;
+    }
+  },
+
+  async getGroceryLists() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        console.log('❌ No user logged in for getGroceryLists');
+        return [];
+      }
+
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (!userDoc.exists()) {
+        console.log('⚠️ User document does not exist');
+        return [];
+      }
+
+      const userData = userDoc.data();
+      return userData.groceryLists || [];
+    } catch (error) {
+      console.error('Get grocery lists error:', error);
+      return [];
+    }
+  },
+
+  async getGroceryListByMealPlanId(mealPlanId) {
+    try {
+      const groceryLists = await this.getGroceryLists();
+      return groceryLists.find(list => list.meal_plan_id === mealPlanId) || null;
+    } catch (error) {
+      console.error('Get grocery list by meal plan ID error:', error);
+      return null;
+    }
+  },
+
+  async updateGroceryListCheckStates(groceryListId, itemUpdates) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        throw new Error("User document does not exist");
+      }
+
+      const userData = userDoc.data();
+      const groceryLists = userData.groceryLists || [];
+      
+      // Find the grocery list to update
+      const listIndex = groceryLists.findIndex(list => list.grocery_list_id === groceryListId);
+      
+      if (listIndex === -1) {
+        throw new Error("Grocery list not found");
+      }
+
+      // Update check states
+      const updatedList = { ...groceryLists[listIndex] };
+      const updatesLookup = {};
+      itemUpdates.forEach(update => {
+        updatesLookup[update.name] = update;
+      });
+
+      let checkedCount = 0;
+      updatedList.grocery_list.forEach(item => {
+        if (updatesLookup[item.name]) {
+          const update = updatesLookup[item.name];
+          item.is_checked = update.is_checked;
+          item.checked_at = update.is_checked ? new Date().toISOString() : null;
+        }
+        if (item.is_checked) checkedCount++;
+      });
+
+      updatedList.updated_at = new Date().toISOString();
+      updatedList.checked_items_count = checkedCount;
+      updatedList.completion_percentage = Math.round((checkedCount / updatedList.grocery_list.length) * 100);
+
+      // Replace the grocery list in the array
+      groceryLists[listIndex] = updatedList;
+
+      // Update the document
+      await updateDoc(userRef, {
+        groceryLists: groceryLists,
+        'usage.lastActive': new Date().toISOString()
+      });
+
+      console.log('✅ Grocery list check states updated successfully');
+      return updatedList;
+    } catch (error) {
+      console.error('Update grocery list check states error:', error);
+      throw error;
+    }
+  },
+
+  async removeGroceryList(groceryListId) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        throw new Error("User document does not exist");
+      }
+
+      const userData = userDoc.data();
+      const groceryLists = userData.groceryLists || [];
+      const listToRemove = groceryLists.find(list => list.grocery_list_id === groceryListId);
+
+      if (listToRemove) {
+        await updateDoc(userRef, {
+          groceryLists: arrayRemove(listToRemove),
+          'usage.lastActive': new Date().toISOString()
+        });
+        console.log('✅ Grocery list removed successfully');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Remove grocery list error:', error);
+      throw error;
+    }
+  },
+
+  // Enhanced meal plan operations with grocery list support
+  async getMealPlanWithGroceryList(mealPlanId) {
+    try {
+      const mealPlans = await this.getMealPlans();
+      const mealPlan = mealPlans.find(plan => plan.id === mealPlanId);
+      
+      if (!mealPlan) {
+        return null;
+      }
+
+      // Get associated grocery list if it exists
+      let groceryList = null;
+      if (mealPlan.hasGroceryList && mealPlan.groceryListId) {
+        groceryList = await this.getGroceryListById(mealPlan.groceryListId);
+      }
+
+      return {
+        mealPlan,
+        groceryList
+      };
+    } catch (error) {
+      console.error('Get meal plan with grocery list error:', error);
+      return null;
+    }
+  },
+
+  async getGroceryListById(groceryListId) {
+    try {
+      const groceryLists = await this.getGroceryLists();
+      return groceryLists.find(list => list.grocery_list_id === groceryListId) || null;
+    } catch (error) {
+      console.error('Get grocery list by ID error:', error);
+      return null;
     }
   },
 
@@ -322,36 +605,10 @@ export const authService = {
     }
   },
 
-  // Meal plan operations with premium checks
+  // Legacy meal plan operations (updated to work with enhanced system)
   async saveMealPlan(mealPlanData) {
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("User not logged in");
-
-      const isPremium = PremiumService.getCurrentStatus();
-      if (!isPremium) {
-        throw new Error("Meal plans are a premium feature. Please upgrade to access this functionality.");
-      }
-
-      if (!mealPlanData.id) {
-        mealPlanData.id = `mealplan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      }
-
-      mealPlanData.savedAt = new Date().toISOString();
-
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        mealPlans: arrayUnion(mealPlanData),
-        'usage.mealPlansCreated': arrayUnion(new Date().toISOString()),
-        'usage.lastActive': new Date().toISOString()
-      });
-
-      console.log('✅ Meal plan saved successfully');
-      return await this.getMealPlans();
-    } catch (error) {
-      console.error('Save meal plan error:', error);
-      throw error;
-    }
+    // Redirect to enhanced version without grocery list
+    return await this.saveMealPlanWithGroceryList(mealPlanData, null);
   },
 
   async getMealPlans() {
@@ -393,11 +650,20 @@ export const authService = {
       const mealPlanToRemove = mealPlans.find(plan => plan.id === mealPlanId);
 
       if (mealPlanToRemove) {
+        // Also remove associated grocery list if it exists
+        if (mealPlanToRemove.hasGroceryList && mealPlanToRemove.groceryListId) {
+          try {
+            await this.removeGroceryList(mealPlanToRemove.groceryListId);
+          } catch (groceryError) {
+            console.log('⚠️ Failed to remove associated grocery list:', groceryError);
+          }
+        }
+
         await updateDoc(userRef, {
           mealPlans: arrayRemove(mealPlanToRemove),
           'usage.lastActive': new Date().toISOString()
         });
-        console.log('✅ Meal plan removed successfully');
+        console.log('✅ Meal plan and associated grocery list removed successfully');
       }
 
       return true;
@@ -407,7 +673,56 @@ export const authService = {
     }
   },
 
-  // Other methods (onboarding, profile, etc.) remain the same...
+  // Shopping preferences
+  async updateShoppingPreferences(preferences) {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        'preferences.shoppingPreferences': preferences,
+        'usage.lastActive': new Date().toISOString()
+      });
+
+      console.log('✅ Shopping preferences updated successfully');
+      return true;
+    } catch (error) {
+      console.error('Update shopping preferences error:', error);
+      throw error;
+    }
+  },
+
+  async getShoppingPreferences() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not logged in");
+
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.preferences?.shoppingPreferences || {
+          preferredStores: [],
+          budgetLimits: {},
+          organicPreference: false
+        };
+      }
+      return {
+        preferredStores: [],
+        budgetLimits: {},
+        organicPreference: false
+      };
+    } catch (error) {
+      console.error('Get shopping preferences error:', error);
+      return {
+        preferredStores: [],
+        budgetLimits: {},
+        organicPreference: false
+      };
+    }
+  },
+
+  // Other methods remain the same...
   async saveOnboardingData(answers) {
     try {
       const user = auth.currentUser;
@@ -696,7 +1011,20 @@ export const authService = {
 
   // Debug method
   async debugUserState() {
-    return await PremiumService.getDebugInfo();
+    const debugInfo = await PremiumService.getDebugInfo();
+    const user = auth.currentUser;
+    
+    if (user) {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        debugInfo.groceryListsCount = userData.groceryLists?.length || 0;
+        debugInfo.mealPlansCount = userData.mealPlans?.length || 0;
+        debugInfo.savedRecipesCount = userData.savedRecipes?.length || 0;
+      }
+    }
+    
+    return debugInfo;
   }
 };
 

@@ -403,14 +403,14 @@ export default function LandingScreen({ navigation }) {
     >
       <View style={styles.heroCardContent}>
         <View style={styles.heroIconContainer}>
-          <Ionicons name={icon} size={40} color="#008b8b" />
+          <Ionicons name={icon} size={36} color="#008b8b" />
         </View>
         <View style={styles.heroTextContainer}>
           <Text style={styles.heroTitle}>{title}</Text>
           <Text style={styles.heroDescription}>{description}</Text>
         </View>
         <View style={styles.heroArrow}>
-          <Ionicons name="chevron-forward" size={24} color="#008b8b" />
+          <Ionicons name="chevron-forward" size={22} color="#008b8b" />
         </View>
       </View>
     </TouchableOpacity>
@@ -600,7 +600,7 @@ export default function LandingScreen({ navigation }) {
             <View style={styles.premiumCTAText}>
               <Text style={styles.premiumCTATitle}>Unlock Premium Features</Text>
               <Text style={styles.premiumCTASubtitle}>
-                Advanced nutrition tracking & meal plans
+              Where the Serious Users Are
               </Text>
             </View>
           </View>
@@ -663,6 +663,16 @@ export default function LandingScreen({ navigation }) {
                 }}
               />
 
+              {/* Weight Manager - Premium Feature */}
+              <HeroFeatureCard
+                icon="scale-outline"
+                title="Weight Manager"
+                description="Smart weight tracking with AI insights, goal setting, and progress forecasting"
+                onPress={() =>
+                  handlePremiumFeaturePress("Weight Management", "WeightManager")
+                }
+              />
+
               {/* Food Log & Nutrition Tracker - Premium */}
               <HeroFeatureCard
                 icon="nutrition-outline"
@@ -685,7 +695,7 @@ export default function LandingScreen({ navigation }) {
                 <FeatureCard
                   icon="image"
                   title="Recipe Explorer"
-                  description="Browse beautiful recipes with photos and details"
+                  description="Browse delicious recipes with video tutorials"
                   onPress={() => navigation.navigate("RecipeScreen")}
                 />
 
@@ -1181,53 +1191,81 @@ const styles = StyleSheet.create({
   // Hero Feature Cards
   heroCard: {
     backgroundColor: "white",
-    borderRadius: 20,
-    marginBottom: 16,
-    borderLeftWidth: 6,
+    borderRadius: 18,
+    marginBottom: 14,
+    borderLeftWidth: 5,
     borderLeftColor: "#008b8b",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  heroCardGradient: {
+    backgroundColor: "transparent",
+    borderLeftWidth: 0,
+    // Creating a gradient effect with multiple colored borders
+    borderWidth: 2,
+    borderColor: "#8B5CF6",
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  },
+  heroCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+  },
+  heroIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 18,
+  },
+  heroIconContainerGradient: {
+    backgroundColor: "#8B5CF6",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#8B5CF6",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 16,
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
       },
       android: {
         elevation: 4,
       },
     }),
   },
-  heroCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 24,
-  },
-  heroIconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: "#f1f5f9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 20,
-  },
   heroTextContainer: {
     flex: 1,
-    marginRight: 16,
+    marginRight: 14,
   },
   heroTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     color: "#2c3e50",
-    marginBottom: 6,
+    marginBottom: 5,
+  },
+  heroTitleGradient: {
+    color: "#8B5CF6",
   },
   heroDescription: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#7f8c8d",
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+  heroDescriptionGradient: {
+    color: "#6B46C1",
   },
   heroArrow: {
-    padding: 4,
+    padding: 3,
   },
 
   // Features Section

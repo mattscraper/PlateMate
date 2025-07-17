@@ -34,7 +34,13 @@ import BarcodeScannerScreen from "./screens/BarcodeScannerScreen";
 import ProductDetailScreen from "./screens/ProductDetailScreen";
 import ProductSearchScreen from "./screens/ProductSearchScreen";
 import FoodLogScreen from "./screens/FoodLogScreen";
-import FoodLogHistoryScreen from "./screens/FoodLogHistoryScreen"
+import FoodLogHistoryScreen from "./screens/FoodLogHistoryScreen";
+
+// Weight Manager Import
+import WeightManagerScreen from "./screens/WeightManagerScreen";
+
+// More Screen Import
+import MoreScreen from "./screens/MoreScreen";
 
 const Stack = createStackNavigator();
 const navigationRef = React.createRef();
@@ -272,6 +278,16 @@ export default function App() {
             <Stack.Screen name="SavedMealPlansScreen" component={SavedMealPlansScreen} />
             <Stack.Screen name="RecipeScreen" component={RecipeScreen} />
             
+            {/* More Screen */}
+            <Stack.Screen
+              name="More"
+              component={MoreScreen}
+              options={{
+                title: 'More Features',
+                headerShown: false,
+              }}
+            />
+            
             {/* Food Scanner Screens */}
             <Stack.Screen
               name="FoodScannerHome"
@@ -315,6 +331,16 @@ export default function App() {
                 headerStyle: { backgroundColor: '#007AFF' },
                 headerTintColor: '#fff',
                 headerTitleStyle: { fontWeight: 'bold' },
+              }}
+            />
+            
+            {/* Weight Manager Screen */}
+            <Stack.Screen
+              name="WeightManager"
+              component={WeightManagerScreen}
+              options={{
+                title: 'Weight Manager',
+                headerShown: false,
               }}
             />
             

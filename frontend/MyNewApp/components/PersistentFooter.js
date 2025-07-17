@@ -152,11 +152,11 @@ const PersistentFooter = ({ navigation, onLoginRequired }) => {
       isPremiumFeature: true,
     },
     {
-      name: "MealPlans",
-      icon: "book-outline",
-      label: "Meal Plan",
-      requiresLogin: true,
-      isPremiumFeature: true,
+      name: "More",
+      icon: "ellipsis-horizontal",
+      label: "More",
+      requiresLogin: false,
+      isPremiumFeature: false,
     },
   ];
 
