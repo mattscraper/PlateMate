@@ -1,6 +1,6 @@
 from flask import request, jsonify, Blueprint
 from flask_cors import cross_origin
-from typing import Optional
+from typing import Dict,Optional
 from dataclasses import dataclass
 from backend.grocery_generator import EnhancedGroceryListGenerator
 
