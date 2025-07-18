@@ -343,14 +343,14 @@ class EnhancedGroceryListGenerator:
                 if line.startswith('•'):
                     ingredient = line[1:].strip()
                     if ingredient and len(ingredient) > 1:
-                        # Clean and normalize ingredient
-                        cleaned_ingredient = self._clean_and_normalize_ingredient(ingredient)
-                        if cleaned_ingredient:
-                            recipe_data['ingredients'].append(cleaned_ingredient)
+                        # Parse ingredient properly to separate quantity from name
+                        parsed_ingredient = self._parse_ingredient_text(ingredient)
+                        if parsed_ingredient:
+                            recipe_data['ingredients'].append(parsed_ingredient)
             
             # Estimate meal cost for validation
             if recipe_data['ingredients']:
-                estimated_cost = self._estimate_meal_cost(recipe_data['ingredients'], recipe_data['meal_type'])
+                estimated_cost = self._estimate_meal_cost([ing['name'] for ing in recipe_data['ingredients']], recipe_data['meal_type'])
                 recipe_data['estimated_cost'] = estimated_cost
             
             if recipe_data['title'] and recipe_data['ingredients']:
@@ -359,33 +359,105 @@ class EnhancedGroceryListGenerator:
         print(f"✅ Enhanced parsing found {len(parsed_recipes)} recipes with validated costs")
         return parsed_recipes
 
-    def _clean_and_normalize_ingredient(self, ingredient_text: str) -> Optional[str]:
-        """Clean and normalize ingredient text for better matching"""
+    def _parse_ingredient_text(self, ingredient_text: str) -> Optional[Dict]:
+        """Parse ingredient text to separate quantity, unit, and ingredient name"""
+        ingredient_text = ingredient_text.strip()
         if not ingredient_text:
             return None
         
-        # Remove common preparation descriptors
-        descriptors_to_remove = [
-            'fresh', 'dried', 'chopped', 'diced', 'minced', 'sliced', 'grated',
-            'organic', 'raw', 'cooked', 'frozen', 'canned', 'large', 'medium', 'small',
-            'to taste', 'optional', 'for serving', 'preferably'
+        # Common patterns for ingredient parsing
+        patterns = [
+            # Pattern 1: Number + unit + ingredient (e.g., "2 cups flour")
+            r'^(\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?)\s+(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?|pieces?|piece|cloves?|clove|slices?|slice|cans?|can|packages?|package|containers?|container|bottles?|bottle|jars?|jar|heads?|head|bunches?|bunch|stalks?|stalk)\s+(.+)$',
+            
+            # Pattern 2: Fraction + unit + ingredient (e.g., "1/2 cup sugar")
+            r'^(\d+/\d+|\d+\s+\d+/\d+)\s+(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?)\s+(.+)$',
+            
+            # Pattern 3: Number + ingredient (no unit) (e.g., "2 eggs")
+            r'^(\d+(?:\.\d+)?)\s+(.+)$',
+            
+            # Pattern 4: Just ingredient name (e.g., "salt to taste")
+            r'^(.+)$'
         ]
         
-        cleaned = ingredient_text.lower()
-        for descriptor in descriptors_to_remove:
-            cleaned = re.sub(rf'\b{re.escape(descriptor)}\b', '', cleaned)
+        quantity = "1"
+        unit = ""
+        ingredient_name = ingredient_text.lower()
+        
+        for pattern in patterns:
+            match = re.match(pattern, ingredient_text, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                if len(groups) == 3:  # quantity + unit + ingredient
+                    quantity = groups[0].strip()
+                    unit = groups[1].strip().lower()
+                    ingredient_name = groups[2].strip().lower()
+                    break
+                elif len(groups) == 2:
+                    # Check if second group contains a unit
+                    words = groups[1].strip().split()
+                    if len(words) > 1 and any(unit_word in words[0].lower() for unit_word in ['cup', 'tbsp', 'tsp', 'lb', 'oz', 'gram']):
+                        quantity = groups[0].strip()
+                        unit = words[0].lower()
+                        ingredient_name = ' '.join(words[1:]).lower()
+                    else:
+                        quantity = groups[0].strip()
+                        ingredient_name = groups[1].strip().lower()
+                    break
+                elif len(groups) == 1:
+                    ingredient_name = groups[0].strip().lower()
+                    break
+        
+        # Clean the ingredient name - remove common descriptors but keep the core ingredient
+        cleaned_name = self._clean_ingredient_name(ingredient_name)
+        if not cleaned_name:
+            return None
+        
+        return {
+            'quantity': quantity,
+            'unit': unit,
+            'name': cleaned_name
+        }
+
+    def _clean_ingredient_name(self, ingredient_name: str) -> Optional[str]:
+        """Clean ingredient name by removing descriptors but keeping core ingredient"""
+        if not ingredient_name:
+            return None
+        
+        # Remove common descriptors
+        descriptors_to_remove = [
+            r'\b(fresh|dried|chopped|diced|minced|sliced|grated|shredded)\b',
+            r'\b(organic|raw|cooked|frozen|canned)\b',
+            r'\b(large|medium|small|extra)\b',
+            r'\b(preferably|optional|to taste|for serving)\b',
+            r'\b(finely|roughly|coarsely)\b'
+        ]
+        
+        cleaned = ingredient_name.lower()
+        for pattern in descriptors_to_remove:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
         
         # Clean up extra spaces and punctuation
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip(' ,.-')
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip(' ,.-()[]')
         
-        # Extract core ingredient (first 1-2 meaningful words)
+        # Remove parenthetical information
+        cleaned = re.sub(r'\([^)]*\)', '', cleaned).strip()
+        
+        # Get the core ingredient (usually first 1-2 words)
         words = cleaned.split()
         if len(words) >= 2:
-            return ' '.join(words[:2])
+            # For compound ingredients like "bell pepper", "olive oil", keep both words
+            core_ingredient = ' '.join(words[:2])
         elif len(words) == 1:
-            return words[0]
+            core_ingredient = words[0]
+        else:
+            return None
         
-        return None
+        # Validate that we have a meaningful ingredient
+        if len(core_ingredient) < 2 or core_ingredient in ['to', 'for', 'and', 'or', 'with']:
+            return None
+        
+        return core_ingredient.strip()
 
     def _estimate_meal_cost(self, ingredients: List[str], meal_type: str) -> float:
         """Estimate the cost of a meal and validate against reasonable limits"""
@@ -413,8 +485,8 @@ class EnhancedGroceryListGenerator:
         return round(total_cost, 2)
 
     def extract_and_consolidate_ingredients(self, recipes: List[Dict]) -> List[GroceryItem]:
-        """Enhanced ingredient consolidation with cost validation"""
-        print("🔄 Enhanced ingredient consolidation with cost validation...")
+        """Enhanced ingredient consolidation with proper name extraction"""
+        print("🔄 Enhanced ingredient consolidation with proper name extraction...")
         
         consolidated = defaultdict(lambda: {
             'quantities': [],
@@ -426,30 +498,38 @@ class EnhancedGroceryListGenerator:
         })
         
         for recipe in recipes:
-            for ingredient_text in recipe['ingredients']:
-                parsed = self._parse_ingredient_enhanced(ingredient_text)
-                if parsed:
-                    base_name = parsed['base_name']
-                    
-                    consolidated[base_name]['quantities'].append(parsed['quantity'])
-                    consolidated[base_name]['units'].add(parsed['unit'])
-                    consolidated[base_name]['notes'].add(parsed['notes'])
-                    consolidated[base_name]['category'] = self._categorize_ingredient_enhanced(base_name)
-                    consolidated[base_name]['base_name'] = base_name
+            for ingredient_data in recipe['ingredients']:
+                if isinstance(ingredient_data, dict):
+                    # New format with parsed data
+                    ingredient_name = ingredient_data['name']
+                    quantity = ingredient_data['quantity']
+                    unit = ingredient_data['unit']
+                else:
+                    # Fallback for old format
+                    ingredient_name = self._clean_ingredient_name(str(ingredient_data))
+                    quantity = "1"
+                    unit = ""
+                
+                if ingredient_name:
+                    consolidated[ingredient_name]['quantities'].append(quantity)
+                    if unit:
+                        consolidated[ingredient_name]['units'].add(unit)
+                    consolidated[ingredient_name]['category'] = self._categorize_ingredient_enhanced(ingredient_name)
+                    consolidated[ingredient_name]['base_name'] = ingredient_name
         
         grocery_items = []
-        for base_name, data in consolidated.items():
+        for ingredient_name, data in consolidated.items():
             # Combine quantities intelligently
             total_quantity = self._combine_quantities_enhanced(data['quantities'], list(data['units']))
             
             # Calculate realistic cost
-            estimated_cost = self._calculate_realistic_item_cost(base_name, total_quantity, data['category'])
+            estimated_cost = self._calculate_realistic_item_cost(ingredient_name, total_quantity, data['category'])
             
             # Combine notes
             notes = ' • '.join(filter(None, data['notes']))
             
             grocery_item = GroceryItem(
-                name=base_name.title(),
+                name=ingredient_name.title(),
                 quantity=total_quantity['display'],
                 unit=total_quantity['unit'],
                 category=data['category'],
@@ -459,70 +539,8 @@ class EnhancedGroceryListGenerator:
             )
             grocery_items.append(grocery_item)
         
-        print(f"✅ Created {len(grocery_items)} consolidated grocery items with validated costs")
+        print(f"✅ Created {len(grocery_items)} consolidated grocery items with proper names")
         return grocery_items
-
-    def _parse_ingredient_enhanced(self, ingredient_text: str) -> Optional[Dict]:
-        """Enhanced ingredient parsing with better accuracy"""
-        ingredient_text = ingredient_text.strip()
-        if not ingredient_text:
-            return None
-        
-        # More comprehensive parsing patterns
-        patterns = [
-            # Pattern for number + unit + ingredient
-            r'^(\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?)\s*(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?|pieces?|piece|cloves?|clove|slices?|slice|cans?|can|packages?|package|containers?|container|bottles?|bottle|jars?|jar|heads?|head|bunches?|bunch|stalks?|stalk|medium|large|small)\s+(.+)$',
-            
-            # Pattern for fraction + unit + ingredient
-            r'^(\d+/\d+|\d+\s+\d+/\d+)\s*(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?)\s+(.+)$',
-            
-            # Pattern for number + ingredient (no unit)
-            r'^(\d+(?:\.\d+)?)\s+(.+)$',
-            
-            # Just the ingredient name
-            r'^(.+)$'
-        ]
-        
-        quantity = "1"
-        unit = "item"
-        base_name = ingredient_text.lower()
-        notes = ""
-        
-        for pattern in patterns:
-            match = re.match(pattern, ingredient_text, re.IGNORECASE)
-            if match:
-                groups = match.groups()
-                if len(groups) == 3:  # quantity + unit + ingredient
-                    quantity = groups[0]
-                    unit = groups[1] or "item"
-                    base_name = groups[2].lower()
-                elif len(groups) == 2:
-                    if any(word in groups[1].lower() for word in ['cup', 'tbsp', 'tsp', 'lb', 'oz']):
-                        quantity = groups[0]
-                        unit_ingredient = groups[1].split(' ', 1)
-                        if len(unit_ingredient) == 2:
-                            unit = unit_ingredient[0]
-                            base_name = unit_ingredient[1].lower()
-                        else:
-                            base_name = groups[1].lower()
-                    else:
-                        quantity = groups[0]
-                        base_name = groups[1].lower()
-                elif len(groups) == 1:
-                    base_name = groups[0].lower()
-                break
-        
-        # Clean and normalize the base name
-        base_name = self._clean_and_normalize_ingredient(base_name)
-        if not base_name:
-            return None
-        
-        return {
-            'quantity': quantity,
-            'unit': unit.lower(),
-            'base_name': base_name,
-            'notes': notes
-        }
 
     def _categorize_ingredient_enhanced(self, ingredient_name: str) -> str:
         """Enhanced ingredient categorization with better accuracy"""
@@ -826,7 +844,9 @@ class EnhancedGroceryListGenerator:
                     'expected_range': expected_cost_range
                 }
             },
-            'shopping_tips': shopping_tips
+            'shopping_tips': shopping_tips,
+            'recipes_found': len(recipes),
+            'ingredients_processed': len(grocery_items)
         }
 
     def get_enhanced_shopping_tips(self, grocery_list_data: List[Dict], total_cost: float) -> List[str]:
