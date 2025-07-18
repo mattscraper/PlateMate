@@ -2187,136 +2187,149 @@ export default function WeightManagerScreen({ navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Initial Setup Modal - FIXED HEADER */}
-      <Modal visible={showInitialSetup} animationType="slide" presentationStyle="fullScreen">
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalContainer}
-        >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => navigation.goBack()}>
-                <Text style={[styles.modalCancel, { color: colors.textSecondary }]}>Back</Text>
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Setup Profile</Text>
-              <TouchableOpacity onPress={completeInitialSetup}>
-                <Text style={[styles.modalSave, { color: colors.primary }]}>Continue</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-              <View style={styles.setupHeader}>
-                <Text style={[styles.setupTitle, { color: colors.text }]}>
-                  Let's Set Up Your Profile
-                </Text>
-                <Text style={[styles.setupSubtitle, { color: colors.textSecondary }]}>
-                  Just a few details to get started with weight tracking
-                </Text>
-              </View>
+          {/* Initial Setup Modal - FIXED HEADER */}
+          <Modal visible={showInitialSetup} animationType="slide" presentationStyle="fullScreen">
+            <SafeAreaView style={styles.modalFullContainer}>
+              <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
               
-              <View style={styles.setupForm}>
-                <View style={styles.setupInputGroup}>
-                  <Text style={[styles.setupLabel, { color: colors.text }]}>
-                    Current Weight (lbs)
-                  </Text>
-                  <TextInput
-                    ref={currentWeightRef}
-                    style={[styles.setupInput, { backgroundColor: colors.surface }]}
-                    placeholder="Enter your current weight"
-                    placeholderTextColor={colors.textMuted}
-                    value={initialWeight}
-                    onChangeText={setInitialWeight}
-                    keyboardType="numeric"
-                    returnKeyType="next"
-                    onSubmitEditing={() => heightFeetRef?.current?.focus()}
-                    blurOnSubmit={false}
-                  />
-                </View>
-                
-                <View style={styles.setupInputGroup}>
-                  <Text style={[styles.setupLabel, { color: colors.text }]}>Height</Text>
-                  <View style={styles.heightInputRow}>
-                    <TextInput
-                      ref={heightFeetRef}
-                      style={[styles.setupInput, styles.heightInput, { backgroundColor: colors.surface }]}
-                      placeholder="Feet"
-                      placeholderTextColor={colors.textMuted}
-                      value={heightFeet}
-                      onChangeText={setHeightFeet}
-                      keyboardType="numeric"
-                      returnKeyType="next"
-                      maxLength={1}
-                      onSubmitEditing={() => heightInchesRef?.current?.focus()}
-                      blurOnSubmit={false}
-                    />
-                    <TextInput
-                      ref={heightInchesRef}
-                      style={[styles.setupInput, styles.heightInput, { backgroundColor: colors.surface }]}
-                      placeholder="Inches"
-                      placeholderTextColor={colors.textMuted}
-                      value={heightInches}
-                      onChangeText={setHeightInches}
-                      keyboardType="numeric"
-                      returnKeyType="next"
-                      maxLength={2}
-                      onSubmitEditing={() => ageRef?.current?.focus()}
-                      blurOnSubmit={false}
-                    />
-                  </View>
-                </View>
-                
-                <View style={styles.setupInputGroup}>
-                  <Text style={[styles.setupLabel, { color: colors.text }]}>Age</Text>
-                  <TextInput
-                    ref={ageRef}
-                    style={[styles.setupInput, { backgroundColor: colors.surface }]}
-                    placeholder="Enter your age"
-                    placeholderTextColor={colors.textMuted}
-                    value={initialAge}
-                    onChangeText={setInitialAge}
-                    keyboardType="numeric"
-                    returnKeyType="done"
-                  />
-                </View>
-
-                <View style={styles.setupInputGroup}>
-                  <Text style={[styles.setupLabel, { color: colors.text }]}>Gender</Text>
-                  <View style={styles.genderSelector}>
-                    <TouchableOpacity
-                      style={[
-                        styles.genderOption,
-                        gender === 'male' && { backgroundColor: colors.primary }
-                      ]}
-                      onPress={() => setGender('male')}
-                    >
-                      <Text style={[
-                        styles.genderText,
-                        { color: gender === 'male' ? colors.white : colors.text }
-                      ]}>
-                        Male
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.genderOption,
-                        gender === 'female' && { backgroundColor: colors.primary }
-                      ]}
-                      onPress={() => setGender('female')}
-                    >
-                      <Text style={[
-                        styles.genderText,
-                        { color: gender === 'female' ? colors.white : colors.text }
-                      ]}>
-                        Female
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+              {/* Fixed Header */}
+              <View style={styles.modalHeaderFixed}>
+                <TouchableOpacity
+                  onPress={() => navigation.goBack()}
+                  style={styles.modalHeaderButton}
+                >
+                  <Text style={[styles.modalCancel, { color: colors.textSecondary }]}>Back</Text>
+                </TouchableOpacity>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Setup Profile</Text>
+                <TouchableOpacity
+                  onPress={completeInitialSetup}
+                  style={styles.modalHeaderButton}
+                >
+                  <Text style={[styles.modalSave, { color: colors.primary }]}>Continue</Text>
+                </TouchableOpacity>
               </View>
-            </ScrollView>
-          </SafeAreaView>
-        </KeyboardAvoidingView>
-      </Modal>
+
+              <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={styles.modalContentFlex}
+              >
+                <ScrollView
+                  style={styles.modalBodyFlex}
+                  contentContainerStyle={styles.modalBodyContent}
+                  keyboardShouldPersistTaps="handled"
+                >
+                    <View style={styles.setupHeader}>
+                      <Text style={[styles.setupTitle, { color: colors.text }]}>
+                        Let's Set Up Your Profile
+                      </Text>
+                      <Text style={[styles.setupSubtitle, { color: colors.textSecondary }]}>
+                        Just a few details to get started with weight tracking
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.setupForm}>
+                      <View style={styles.setupInputGroup}>
+                        <Text style={[styles.setupLabel, { color: colors.text }]}>
+                          Current Weight (lbs)
+                        </Text>
+                        <TextInput
+                          ref={currentWeightRef}
+                          style={[styles.setupInput, { backgroundColor: colors.surface }]}
+                          placeholder="Enter your current weight"
+                          placeholderTextColor={colors.textMuted}
+                          value={initialWeight}
+                          onChangeText={setInitialWeight}
+                          keyboardType="numeric"
+                          returnKeyType="next"
+                          onSubmitEditing={() => heightFeetRef?.current?.focus()}
+                          blurOnSubmit={false}
+                        />
+                      </View>
+                      
+                      <View style={styles.setupInputGroup}>
+                        <Text style={[styles.setupLabel, { color: colors.text }]}>Height</Text>
+                        <View style={styles.heightInputRow}>
+                          <TextInput
+                            ref={heightFeetRef}
+                            style={[styles.setupInput, styles.heightInput, { backgroundColor: colors.surface }]}
+                            placeholder="Feet"
+                            placeholderTextColor={colors.textMuted}
+                            value={heightFeet}
+                            onChangeText={setHeightFeet}
+                            keyboardType="numeric"
+                            returnKeyType="next"
+                            maxLength={1}
+                            onSubmitEditing={() => heightInchesRef?.current?.focus()}
+                            blurOnSubmit={false}
+                          />
+                          <TextInput
+                            ref={heightInchesRef}
+                            style={[styles.setupInput, styles.heightInput, { backgroundColor: colors.surface }]}
+                            placeholder="Inches"
+                            placeholderTextColor={colors.textMuted}
+                            value={heightInches}
+                            onChangeText={setHeightInches}
+                            keyboardType="numeric"
+                            returnKeyType="next"
+                            maxLength={2}
+                            onSubmitEditing={() => ageRef?.current?.focus()}
+                            blurOnSubmit={false}
+                          />
+                        </View>
+                      </View>
+                      
+                      <View style={styles.setupInputGroup}>
+                        <Text style={[styles.setupLabel, { color: colors.text }]}>Age</Text>
+                        <TextInput
+                          ref={ageRef}
+                          style={[styles.setupInput, { backgroundColor: colors.surface }]}
+                          placeholder="Enter your age"
+                          placeholderTextColor={colors.textMuted}
+                          value={initialAge}
+                          onChangeText={setInitialAge}
+                          keyboardType="numeric"
+                          returnKeyType="done"
+                        />
+                      </View>
+
+                      <View style={styles.setupInputGroup}>
+                        <Text style={[styles.setupLabel, { color: colors.text }]}>Gender</Text>
+                        <View style={styles.genderSelector}>
+                          <TouchableOpacity
+                            style={[
+                              styles.genderOption,
+                              gender === 'male' && { backgroundColor: colors.primary }
+                            ]}
+                            onPress={() => setGender('male')}
+                          >
+                            <Text style={[
+                              styles.genderText,
+                              { color: gender === 'male' ? colors.white : colors.text }
+                            ]}>
+                              Male
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.genderOption,
+                              gender === 'female' && { backgroundColor: colors.primary }
+                            ]}
+                            onPress={() => setGender('female')}
+                          >
+                            <Text style={[
+                              styles.genderText,
+                              { color: gender === 'female' ? colors.white : colors.text }
+                            ]}>
+                              Female
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </ScrollView>
+              </KeyboardAvoidingView>
+            </SafeAreaView>
+          </Modal>
 
       {/* Enhanced Goal Setup Modal - FIXED HEADER AND KEYBOARD */}
       <Modal visible={showGoalSetup} animationType="slide" presentationStyle="pageSheet">
@@ -4435,4 +4448,73 @@ const styles = StyleSheet.create({
   historyDate: {
     fontSize: 12,
   },
-});
+    modalFullContainer: {
+      flex: 1,
+      backgroundColor: '#FFFFFF', // colors.surface
+    },
+    modalHeaderFixed: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+        marginTop: 33,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E7EB', // colors.border
+      backgroundColor: '#FFFFFF', // colors.surface
+      minHeight: 60,
+      zIndex: 1,
+    },
+    modalHeaderButton: {
+      minWidth: 60,
+      minHeight: 44,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContentFlex: {
+      flex: 1,
+      backgroundColor: '#F9FAFB', // colors.background
+    },
+    modalBodyFlex: {
+      flex: 1,
+    },
+    modalBodyContent: {
+      padding: 20,
+      paddingBottom: 40,
+    },
+
+    // Keep your existing modal styles but update modalContainer:
+    modalContainer: {
+      flex: 1,
+      backgroundColor: '#F9FAFB',
+        marginTop:14,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+        marginTop: 9,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E7EB',
+      backgroundColor: '#FFFFFF',
+    },
+    modalTitle: {
+      fontSize: 17,
+      fontWeight: '600',
+    },
+    modalCancel: {
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    modalSave: {
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    modalBody: {
+      flex: 1,
+      padding: 20,
+    },
+  });
+

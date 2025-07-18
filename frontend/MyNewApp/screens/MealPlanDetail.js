@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import GroceryListModal from "../components/GroceryListModal";
+import EnhancedGroceryListModal from "../components/EnhancedGroceryListModal";
 
 const { width } = Dimensions.get('window');
 
@@ -32,6 +32,7 @@ export default function MealPlanDetail() {
     allergies = [],
     dietType = "",
     caloriesPerDay = 2000,
+    id = null, // Meal plan ID for saved plans
   } = mealPlanData;
 
   const [parsedDays, setParsedDays] = useState([]);
@@ -757,13 +758,14 @@ export default function MealPlanDetail() {
         )}
       </Modal>
 
-      <GroceryListModal
+      <EnhancedGroceryListModal
         visible={showGroceryList}
         onClose={() => setShowGroceryList(false)}
         mealPlan={mealPlan}
         days={days}
         mealsPerDay={mealsPerDay}
         caloriesPerDay={caloriesPerDay}
+        mealPlanId={id}
       />
     </SafeAreaView>
   );

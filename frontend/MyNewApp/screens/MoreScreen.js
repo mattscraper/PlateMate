@@ -289,16 +289,6 @@ export default function MoreScreen({ navigation }) {
               />
 
               <FeatureCard
-                icon="calendar-outline"
-                title="Saved Meal Plans"
-                description="Access your saved meal plans and track your weekly nutrition goals"
-                onPress={() =>
-                  handlePremiumFeaturePress("Saved Meal Plans", "SavedMealPlansScreen")
-                }
-                isPremiumFeature={true}
-              />
-
-              <FeatureCard
                 icon="bar-chart-outline"
                 title="Food Log History"
                 description="Detailed nutrition history with trends, insights, and progress tracking over time"

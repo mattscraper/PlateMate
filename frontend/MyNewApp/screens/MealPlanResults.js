@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import SaveMealPlanButton from "../components/SaveMealPlanButton";
-import GroceryListModal from "../components/GroceryListModal";
+import EnhancedGroceryListModal from "../components/EnhancedGroceryListModal";
 
 const { width } = Dimensions.get('window');
 
@@ -500,7 +500,7 @@ export default function MealPlanResults() {
         'Nutritious fats and oils'
       ],
       instructions: [
-        '1. Prepare ingredients according to preferences',
+        '1. Prepare all ingredients according to preferences',
         '2. Cook using healthy cooking methods',
         '3. Season with herbs and spices to taste'
       ],
@@ -900,14 +900,15 @@ export default function MealPlanResults() {
         )}
       </Modal>
 
-      {/* Grocery List Modal */}
-      <GroceryListModal
+      {/* Enhanced Grocery List Modal */}
+      <EnhancedGroceryListModal
         visible={showGroceryList}
         onClose={() => setShowGroceryList(false)}
         mealPlan={mealPlan}
         days={days}
         mealsPerDay={mealsPerDay}
         caloriesPerDay={caloriesPerDay}
+        mealPlanId={null} // No meal plan ID for new plans
       />
     </SafeAreaView>
   );
