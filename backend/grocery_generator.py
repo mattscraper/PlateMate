@@ -29,822 +29,847 @@ class CostBreakdown:
     item_count: int
     excluded_items: List[str]
 
-class RealisticGroceryListGenerator:
+@dataclass
+class SavedGroceryList:
+    id: str
+    meal_plan_id: str
+    grocery_items: List[GroceryItem]
+    cost_breakdown: CostBreakdown
+    summary: Dict
+    shopping_tips: List[str]
+    created_at: str
+    updated_at: str
+    checked_items_count: int = 0
+
+class EnhancedGroceryListGenerator:
     def __init__(self):
-        # Comprehensive ingredient database with realistic serving amounts
-        self.ingredient_database = {
-            # PROTEINS - with realistic serving sizes and costs
-            'chicken breast': {'category': 'proteins', 'unit': 'lbs', 'cost_per_unit': 4.99, 'typical_serving': 0.25},
-            'chicken thighs': {'category': 'proteins', 'unit': 'lbs', 'cost_per_unit': 3.49, 'typical_serving': 0.3},
-            'ground beef': {'category': 'proteins', 'unit': 'lbs', 'cost_per_unit': 5.99, 'typical_serving': 0.25},
-            'ground turkey': {'category': 'proteins', 'unit': 'lbs', 'cost_per_unit': 4.99, 'typical_serving': 0.25},
-            'salmon fillet': {'category': 'proteins', 'unit': 'lbs', 'cost_per_unit': 12.99, 'typical_serving': 0.2},
-            'tilapia': {'category': 'proteins', 'unit': 'lbs', 'cost_per_unit': 6.99, 'typical_serving': 0.2},
-            'shrimp': {'category': 'proteins', 'unit': 'lbs', 'cost_per_unit': 8.99, 'typical_serving': 0.2},
-            'eggs': {'category': 'proteins', 'unit': 'dozen', 'cost_per_unit': 3.49, 'typical_serving': 0.17},
-            'tofu': {'category': 'proteins', 'unit': 'package', 'cost_per_unit': 2.99, 'typical_serving': 0.5},
-            'black beans': {'category': 'proteins', 'unit': 'can', 'cost_per_unit': 1.29, 'typical_serving': 0.5},
-            'chickpeas': {'category': 'proteins', 'unit': 'can', 'cost_per_unit': 1.39, 'typical_serving': 0.5},
-            'lentils': {'category': 'proteins', 'unit': 'bag', 'cost_per_unit': 2.49, 'typical_serving': 0.1},
+        # More realistic and comprehensive ingredient categories
+        self.categories = {
+            'proteins': [
+                # Meat & Poultry - specific cuts
+                'chicken breast', 'chicken thighs', 'chicken wings', 'whole chicken', 'ground chicken',
+                'beef steak', 'ground beef', 'beef roast', 'beef stew meat', 'ribeye', 'sirloin',
+                'pork chops', 'ground pork', 'pork tenderloin', 'bacon', 'ham', 'pork shoulder',
+                'turkey breast', 'ground turkey', 'turkey thighs', 'duck', 'lamb', 'venison',
+                
+                # Seafood
+                'salmon', 'tuna', 'cod', 'tilapia', 'mahi mahi', 'halibut', 'trout', 'catfish',
+                'shrimp', 'scallops', 'crab', 'lobster', 'mussels', 'clams', 'oysters',
+                'sardines', 'anchovies', 'mackerel', 'sea bass', 'snapper',
+                
+                # Plant-based proteins
+                'tofu', 'tempeh', 'seitan', 'black beans', 'kidney beans', 'chickpeas', 'lentils',
+                'pinto beans', 'navy beans', 'lima beans', 'edamame', 'quinoa', 'hemp seeds',
+                
+                # Eggs & Dairy proteins
+                'eggs', 'egg whites', 'cottage cheese', 'greek yogurt', 'protein powder'
+            ],
             
-            # VEGETABLES - fresh produce with realistic pricing
-            'onion': {'category': 'vegetables', 'unit': 'medium', 'cost_per_unit': 0.75, 'typical_serving': 1},
-            'yellow onion': {'category': 'vegetables', 'unit': 'bag', 'cost_per_unit': 2.99, 'typical_serving': 0.2},
-            'red onion': {'category': 'vegetables', 'unit': 'medium', 'cost_per_unit': 0.89, 'typical_serving': 1},
-            'garlic': {'category': 'vegetables', 'unit': 'head', 'cost_per_unit': 0.69, 'typical_serving': 0.1},
-            'carrots': {'category': 'vegetables', 'unit': 'bag', 'cost_per_unit': 1.99, 'typical_serving': 0.25},
-            'celery': {'category': 'vegetables', 'unit': 'bunch', 'cost_per_unit': 1.79, 'typical_serving': 0.3},
-            'bell pepper': {'category': 'vegetables', 'unit': 'each', 'cost_per_unit': 1.49, 'typical_serving': 1},
-            'red bell pepper': {'category': 'vegetables', 'unit': 'each', 'cost_per_unit': 1.69, 'typical_serving': 1},
-            'broccoli': {'category': 'vegetables', 'unit': 'head', 'cost_per_unit': 2.49, 'typical_serving': 1},
-            'spinach': {'category': 'vegetables', 'unit': 'bag', 'cost_per_unit': 2.99, 'typical_serving': 0.5},
-            'kale': {'category': 'vegetables', 'unit': 'bunch', 'cost_per_unit': 2.49, 'typical_serving': 0.5},
-            'romaine lettuce': {'category': 'vegetables', 'unit': 'head', 'cost_per_unit': 1.99, 'typical_serving': 0.5},
-            'cucumber': {'category': 'vegetables', 'unit': 'each', 'cost_per_unit': 0.99, 'typical_serving': 1},
-            'zucchini': {'category': 'vegetables', 'unit': 'each', 'cost_per_unit': 1.29, 'typical_serving': 1},
-            'mushrooms': {'category': 'vegetables', 'unit': 'package', 'cost_per_unit': 2.49, 'typical_serving': 0.5},
-            'tomatoes': {'category': 'vegetables', 'unit': 'lbs', 'cost_per_unit': 3.99, 'typical_serving': 0.3},
-            'cherry tomatoes': {'category': 'vegetables', 'unit': 'container', 'cost_per_unit': 2.99, 'typical_serving': 0.5},
-            'potatoes': {'category': 'vegetables', 'unit': 'bag', 'cost_per_unit': 3.99, 'typical_serving': 0.15},
-            'sweet potatoes': {'category': 'vegetables', 'unit': 'lbs', 'cost_per_unit': 1.99, 'typical_serving': 0.5},
+            'vegetables': [
+                # Common fresh vegetables with specific varieties
+                'yellow onion', 'red onion', 'white onion', 'green onions', 'scallions', 'shallots',
+                'garlic', 'ginger', 'roma tomatoes', 'cherry tomatoes', 'beefsteak tomatoes',
+                'carrots', 'baby carrots', 'celery', 'red bell pepper', 'green bell pepper',
+                'yellow bell pepper', 'orange bell pepper', 'broccoli', 'cauliflower',
+                'spinach', 'kale', 'arugula', 'lettuce', 'romaine', 'iceberg lettuce',
+                'cucumber', 'zucchini', 'yellow squash', 'eggplant', 'mushrooms',
+                'russet potatoes', 'red potatoes', 'sweet potatoes', 'yukon potatoes',
+                'corn', 'green beans', 'snap peas', 'snow peas', 'brussels sprouts',
+                'cabbage', 'red cabbage', 'bok choy', 'asparagus', 'artichokes',
+                'leeks', 'fennel', 'radishes', 'turnips', 'beets', 'parsnips',
+                'jalapeños', 'serrano peppers', 'poblano peppers', 'bell peppers'
+            ],
             
-            # FRUITS - seasonal pricing consideration
-            'bananas': {'category': 'fruits', 'unit': 'bunch', 'cost_per_unit': 1.79, 'typical_serving': 0.2},
-            'apples': {'category': 'fruits', 'unit': 'bag', 'cost_per_unit': 4.99, 'typical_serving': 0.15},
-            'oranges': {'category': 'fruits', 'unit': 'bag', 'cost_per_unit': 4.49, 'typical_serving': 0.15},
-            'lemons': {'category': 'fruits', 'unit': 'bag', 'cost_per_unit': 2.99, 'typical_serving': 0.15},
-            'limes': {'category': 'fruits', 'unit': 'bag', 'cost_per_unit': 2.49, 'typical_serving': 0.2},
-            'strawberries': {'category': 'fruits', 'unit': 'container', 'cost_per_unit': 3.99, 'typical_serving': 0.5},
-            'blueberries': {'category': 'fruits', 'unit': 'container', 'cost_per_unit': 4.99, 'typical_serving': 0.5},
-            'avocados': {'category': 'fruits', 'unit': 'each', 'cost_per_unit': 1.29, 'typical_serving': 1},
-            'mangoes': {'category': 'fruits', 'unit': 'each', 'cost_per_unit': 1.99, 'typical_serving': 1},
+            'fruits': [
+                'bananas', 'apples', 'granny smith apples', 'red delicious apples',
+                'oranges', 'naval oranges', 'lemons', 'limes', 'grapefruits',
+                'strawberries', 'blueberries', 'raspberries', 'blackberries', 'cranberries',
+                'grapes', 'red grapes', 'green grapes', 'avocados', 'mangoes',
+                'pineapple', 'peaches', 'pears', 'plums', 'cherries', 'apricots',
+                'kiwi', 'papaya', 'cantaloupe', 'honeydew', 'watermelon',
+                'dates', 'figs', 'raisins', 'dried cranberries'
+            ],
             
-            # DAIRY & REFRIGERATED
-            'milk': {'category': 'dairy', 'unit': 'gallon', 'cost_per_unit': 3.99, 'typical_serving': 0.06},
-            'heavy cream': {'category': 'dairy', 'unit': 'pint', 'cost_per_unit': 2.99, 'typical_serving': 0.25},
-            'butter': {'category': 'dairy', 'unit': 'package', 'cost_per_unit': 4.99, 'typical_serving': 0.1},
-            'cheddar cheese': {'category': 'dairy', 'unit': 'block', 'cost_per_unit': 4.49, 'typical_serving': 0.2},
-            'mozzarella cheese': {'category': 'dairy', 'unit': 'bag', 'cost_per_unit': 3.99, 'typical_serving': 0.25},
-            'parmesan cheese': {'category': 'dairy', 'unit': 'container', 'cost_per_unit': 5.99, 'typical_serving': 0.1},
-            'greek yogurt': {'category': 'dairy', 'unit': 'container', 'cost_per_unit': 4.99, 'typical_serving': 0.25},
-            'cream cheese': {'category': 'dairy', 'unit': 'package', 'cost_per_unit': 2.49, 'typical_serving': 0.25},
+            'dairy': [
+                'whole milk', '2% milk', 'skim milk', 'almond milk', 'oat milk', 'soy milk',
+                'heavy cream', 'half and half', 'buttermilk', 'sour cream',
+                'plain greek yogurt', 'vanilla yogurt', 'cottage cheese', 'cream cheese',
+                'butter', 'unsalted butter', 'salted butter', 'margarine',
+                'cheddar cheese', 'mozzarella cheese', 'parmesan cheese', 'swiss cheese',
+                'feta cheese', 'goat cheese', 'ricotta cheese', 'blue cheese', 'brie'
+            ],
             
-            # GRAINS & STARCHES
-            'rice': {'category': 'grains', 'unit': 'bag', 'cost_per_unit': 3.99, 'typical_serving': 0.05},
-            'pasta': {'category': 'grains', 'unit': 'box', 'cost_per_unit': 1.49, 'typical_serving': 0.5},
-            'bread': {'category': 'grains', 'unit': 'loaf', 'cost_per_unit': 2.99, 'typical_serving': 0.15},
-            'tortillas': {'category': 'grains', 'unit': 'package', 'cost_per_unit': 3.49, 'typical_serving': 0.2},
-            'oats': {'category': 'grains', 'unit': 'container', 'cost_per_unit': 3.99, 'typical_serving': 0.1},
-            'quinoa': {'category': 'grains', 'unit': 'bag', 'cost_per_unit': 4.99, 'typical_serving': 0.1},
-            'flour': {'category': 'pantry', 'unit': 'bag', 'cost_per_unit': 2.99, 'typical_serving': 0.05},
+            'grains': [
+                'white rice', 'brown rice', 'jasmine rice', 'basmati rice', 'wild rice',
+                'spaghetti', 'penne pasta', 'fettuccine', 'angel hair pasta', 'rigatoni',
+                'whole wheat bread', 'white bread', 'sourdough bread', 'bagels',
+                'english muffins', 'tortillas', 'pita bread', 'naan', 'crackers',
+                'all-purpose flour', 'whole wheat flour', 'bread flour', 'corn meal',
+                'rolled oats', 'steel cut oats', 'quinoa', 'barley', 'couscous',
+                'cereal', 'granola', 'oatmeal'
+            ],
             
-            # PANTRY STAPLES
-            'olive oil': {'category': 'pantry', 'unit': 'bottle', 'cost_per_unit': 6.99, 'typical_serving': 0.02},
-            'vegetable oil': {'category': 'pantry', 'unit': 'bottle', 'cost_per_unit': 3.99, 'typical_serving': 0.02},
-            'salt': {'category': 'pantry', 'unit': 'container', 'cost_per_unit': 1.29, 'typical_serving': 0.005},
-            'black pepper': {'category': 'pantry', 'unit': 'container', 'cost_per_unit': 2.99, 'typical_serving': 0.01},
-            'sugar': {'category': 'pantry', 'unit': 'bag', 'cost_per_unit': 2.49, 'typical_serving': 0.02},
-            'baking powder': {'category': 'pantry', 'unit': 'container', 'cost_per_unit': 1.99, 'typical_serving': 0.05},
-            'vanilla extract': {'category': 'pantry', 'unit': 'bottle', 'cost_per_unit': 4.99, 'typical_serving': 0.1},
-            'chicken broth': {'category': 'pantry', 'unit': 'carton', 'cost_per_unit': 1.99, 'typical_serving': 0.5},
-            'canned tomatoes': {'category': 'pantry', 'unit': 'can', 'cost_per_unit': 1.49, 'typical_serving': 0.5},
-            'tomato paste': {'category': 'pantry', 'unit': 'can', 'cost_per_unit': 1.29, 'typical_serving': 0.5},
+            'pantry': [
+                # Oils & Vinegars
+                'olive oil', 'extra virgin olive oil', 'vegetable oil', 'canola oil',
+                'coconut oil', 'sesame oil', 'balsamic vinegar', 'white vinegar',
+                'apple cider vinegar', 'red wine vinegar', 'rice vinegar',
+                
+                # Basic seasonings & baking
+                'salt', 'kosher salt', 'sea salt', 'black pepper', 'white pepper',
+                'sugar', 'brown sugar', 'powdered sugar', 'honey', 'maple syrup',
+                'vanilla extract', 'baking powder', 'baking soda', 'cornstarch',
+                'chicken stock', 'vegetable stock', 'beef stock', 'chicken broth',
+                
+                # Canned goods
+                'canned tomatoes', 'tomato paste', 'tomato sauce', 'coconut milk',
+                'canned black beans', 'canned chickpeas', 'canned corn'
+            ],
             
-            # HERBS & SPICES - typically small amounts
-            'basil': {'category': 'herbs_spices', 'unit': 'container', 'cost_per_unit': 1.99, 'typical_serving': 0.1},
-            'oregano': {'category': 'herbs_spices', 'unit': 'container', 'cost_per_unit': 1.99, 'typical_serving': 0.1},
-            'thyme': {'category': 'herbs_spices', 'unit': 'container', 'cost_per_unit': 1.99, 'typical_serving': 0.1},
-            'paprika': {'category': 'herbs_spices', 'unit': 'container', 'cost_per_unit': 2.49, 'typical_serving': 0.1},
-            'cumin': {'category': 'herbs_spices', 'unit': 'container', 'cost_per_unit': 2.49, 'typical_serving': 0.1},
-            'garlic powder': {'category': 'herbs_spices', 'unit': 'container', 'cost_per_unit': 1.99, 'typical_serving': 0.1},
-            'onion powder': {'category': 'herbs_spices', 'unit': 'container', 'cost_per_unit': 1.99, 'typical_serving': 0.1},
+            'herbs_spices': [
+                'basil', 'oregano', 'thyme', 'rosemary', 'sage', 'parsley', 'cilantro',
+                'dill', 'mint', 'paprika', 'cumin', 'coriander', 'chili powder',
+                'cayenne pepper', 'garlic powder', 'onion powder', 'cinnamon',
+                'nutmeg', 'ginger powder', 'turmeric', 'curry powder', 'bay leaves',
+                'italian seasoning', 'herbs de provence', 'red pepper flakes'
+            ],
             
-            # CONDIMENTS
-            'mayonnaise': {'category': 'condiments', 'unit': 'jar', 'cost_per_unit': 3.99, 'typical_serving': 0.1},
-            'ketchup': {'category': 'condiments', 'unit': 'bottle', 'cost_per_unit': 2.99, 'typical_serving': 0.1},
-            'mustard': {'category': 'condiments', 'unit': 'bottle', 'cost_per_unit': 2.49, 'typical_serving': 0.1},
-            'soy sauce': {'category': 'condiments', 'unit': 'bottle', 'cost_per_unit': 2.99, 'typical_serving': 0.05},
-            'hot sauce': {'category': 'condiments', 'unit': 'bottle', 'cost_per_unit': 2.49, 'typical_serving': 0.05},
+            'condiments': [
+                'ketchup', 'mustard', 'dijon mustard', 'mayonnaise', 'ranch dressing',
+                'italian dressing', 'balsamic glaze', 'worcestershire sauce',
+                'soy sauce', 'hot sauce', 'sriracha', 'bbq sauce', 'teriyaki sauce',
+                'fish sauce', 'oyster sauce', 'hoisin sauce', 'tahini', 'pesto'
+            ],
+            
+            'frozen': [
+                'frozen broccoli', 'frozen corn', 'frozen peas', 'frozen spinach',
+                'frozen berries', 'frozen strawberries', 'frozen chicken breasts',
+                'frozen shrimp', 'frozen fish fillets', 'ice cream', 'frozen yogurt'
+            ],
+            
+            'snacks': [
+                'almonds', 'walnuts', 'cashews', 'peanuts', 'pistachios', 'pecans',
+                'peanut butter', 'almond butter', 'granola bars', 'crackers',
+                'chips', 'pretzels', 'popcorn', 'trail mix'
+            ],
+            
+            'beverages': [
+                'water', 'sparkling water', 'orange juice', 'apple juice',
+                'coffee', 'tea', 'green tea', 'herbal tea', 'wine', 'beer'
+            ]
         }
         
-        # Category display order and properties
-        self.category_config = {
-            'proteins': {'display_name': 'Meat & Proteins', 'icon': 'restaurant', 'order': 1},
-            'vegetables': {'display_name': 'Vegetables', 'icon': 'leaf', 'order': 2},
-            'fruits': {'display_name': 'Fruits', 'icon': 'nutrition', 'order': 3},
-            'dairy': {'display_name': 'Dairy & Eggs', 'icon': 'water', 'order': 4},
-            'grains': {'display_name': 'Grains & Bread', 'icon': 'grid', 'order': 5},
-            'pantry': {'display_name': 'Pantry Staples', 'icon': 'cube', 'order': 6},
-            'herbs_spices': {'display_name': 'Herbs & Spices', 'icon': 'flower', 'order': 7},
-            'condiments': {'display_name': 'Condiments', 'icon': 'bottle', 'order': 8},
-        }
+        # Categories excluded from cost calculations
+        self.cost_excluded_categories = ['herbs_spices', 'condiments']
         
-        # Common ingredient aliases for better matching
-        self.ingredient_aliases = {
-            # Proteins
-            'chicken': 'chicken breast',
-            'ground meat': 'ground beef',
-            'beef': 'ground beef',
-            'fish': 'tilapia',
-            'meat': 'ground beef',
-            'turkey': 'ground turkey',
-            'pork': 'pork chops',
-            
-            # Vegetables
-            'onions': 'onion',
-            'peppers': 'bell pepper',
-            'bell peppers': 'bell pepper',
-            'tomato': 'tomatoes',
-            'potato': 'potatoes',
-            'sweet potato': 'sweet potatoes',
-            'lettuce': 'romaine lettuce',
-            'greens': 'spinach',
-            'mushroom': 'mushrooms',
-            
-            # Dairy
-            'cheese': 'cheddar cheese',
-            'yogurt': 'greek yogurt',
-            
-            # Pantry
-            'oil': 'olive oil',
-            'spice': 'paprika',
-            'herb': 'basil',
-            'herbs': 'basil',
-            'spices': 'paprika',
-            'broth': 'chicken broth',
-            'stock': 'chicken broth',
-            
-            # Grains
-            'bread': 'bread',
-            'noodles': 'pasta',
-            'spaghetti': 'pasta',
-            'macaroni': 'pasta',
-            'penne': 'pasta',
-            'fettuccine': 'pasta',
+        # More realistic cost estimates (USD) - significantly reduced and more accurate
+        self.estimated_costs = {
+            # Proteins (per typical recipe serving)
+            'chicken breast': 2.50, 'chicken thighs': 1.80, 'chicken wings': 2.00, 'ground chicken': 2.20,
+            'beef steak': 4.00, 'ground beef': 3.00, 'ribeye': 6.00, 'sirloin': 3.50,
+            'pork chops': 2.80, 'bacon': 2.50, 'ham': 2.00, 'pork tenderloin': 3.00,
+            'ground turkey': 2.40, 'turkey breast': 2.60, 'salmon': 4.50, 'tuna': 2.50,
+            'cod': 3.20, 'tilapia': 2.80, 'shrimp': 4.00, 'eggs': 1.50, 'tofu': 1.80,
+            'black beans': 0.80, 'chickpeas': 0.90, 'lentils': 0.70,
+
+            # Vegetables (per typical recipe amount)
+            'yellow onion': 0.50, 'red onion': 0.60, 'garlic': 0.30, 'ginger': 0.40,
+            'roma tomatoes': 1.00, 'cherry tomatoes': 1.50, 'carrots': 0.60, 'celery': 0.70,
+            'red bell pepper': 1.20, 'green bell pepper': 1.00, 'broccoli': 1.20, 'spinach': 1.00,
+            'kale': 1.10, 'lettuce': 0.80, 'cucumber': 0.80, 'zucchini': 0.90,
+            'mushrooms': 1.50, 'russet potatoes': 0.60, 'sweet potatoes': 0.80,
+
+            # Fruits (per typical amount)
+            'bananas': 0.50, 'apples': 0.80, 'oranges': 0.90, 'lemons': 0.50, 'limes': 0.40,
+            'strawberries': 1.80, 'blueberries': 2.20, 'avocados': 1.50, 'mangoes': 1.20,
+
+            # Dairy (per typical recipe amount)
+            'whole milk': 1.00, '2% milk': 1.00, 'heavy cream': 1.20, 'butter': 1.00,
+            'cheddar cheese': 2.00, 'mozzarella cheese': 1.80, 'parmesan cheese': 2.50,
+            'plain greek yogurt': 1.50, 'eggs': 1.50,
+
+            # Grains (per typical serving)
+            'white rice': 0.60, 'brown rice': 0.80, 'spaghetti': 0.80, 'bread': 1.00,
+            'tortillas': 1.20, 'oats': 0.70, 'quinoa': 1.50,
+
+            # Default for unknown items
+            'default': 1.20
         }
 
-    def clean_and_parse_ingredient(self, ingredient_text: str) -> Optional[Dict]:
-        """Advanced ingredient parsing that extracts actual ingredient names properly"""
-        if not ingredient_text or len(ingredient_text.strip()) < 2:
-            return None
-            
-        original_text = ingredient_text.strip()
-        cleaned = original_text.lower()
-        
-        print(f"Parsing ingredient: '{original_text}'")
-        
-        # Remove bullet points and numbering
-        cleaned = re.sub(r'^[•\-*]\s*', '', cleaned)
-        cleaned = re.sub(r'^\d+\.\s*', '', cleaned)
-        
-        # Extract quantity and unit, then get the actual ingredient name
-        quantity = 1.0
-        unit = 'item'
-        ingredient_name = cleaned
-        
-        # Split pattern into multiple lines for better readability
-        pattern_parts = [
-            r'^(\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?|\d+\s*\d+/\d+|\d+/\d+)?',
-            r'\s*(cups?|cup|tablespoons?|tbsp|teaspoons?|tsp|pounds?|lbs?|lb|ounces?|oz|grams?|g|',
-            r'kilograms?|kg|pieces?|piece|cloves?|clove|heads?|head|bunches?|bunch|cans?|can|',
-            r'jars?|jar|packages?|package|containers?|container|bottles?|bottle|bags?|bag|',
-            r'boxes?|box|slices?|slice)?',
-            r'\s*(.+)$'
-        ]
-        pattern = ''.join(pattern_parts)
-        
-        match = re.match(pattern, cleaned)
-        if match:
-            quantity_str, unit_str, remaining_text = match.groups()
-            
-            if quantity_str:
-                quantity = self._parse_quantity_string(quantity_str.strip())
-            
-            if unit_str:
-                unit = unit_str.lower().rstrip('s')  # Remove plural 's'
-            
-            if remaining_text:
-                ingredient_name = remaining_text.strip()
-        
-        # Clean the ingredient name by removing descriptors and modifiers
-        ingredient_name = self._extract_core_ingredient_name(ingredient_name)
-        
-        if not ingredient_name or len(ingredient_name) < 2:
-            print(f"Could not extract ingredient name from: '{original_text}'")
-            return None
-        
-        # Find best match in database
-        matched_ingredient = self._find_best_ingredient_match(ingredient_name)
-        if not matched_ingredient:
-            print(f"No database match for: '{ingredient_name}'")
-            return None
-            
-        print(f"Matched '{ingredient_name}' -> '{matched_ingredient}' ({quantity} {unit})")
-        
-        return {
-            'original_text': original_text,
-            'quantity': quantity,
-            'unit': unit,
-            'ingredient_key': matched_ingredient,
-            'ingredient_data': self.ingredient_database[matched_ingredient]
+        # Maximum reasonable costs per meal to prevent unrealistic totals
+        self.max_meal_cost = {
+            'Breakfast': 8.00,
+            'Lunch': 12.00,
+            'Dinner': 15.00,
+            'Snack': 5.00
         }
 
-    def _extract_core_ingredient_name(self, text: str) -> str:
-        """Extract the core ingredient name by removing descriptors, preparation methods, etc."""
-        if not text:
-            return ""
+    def generate_grocery_list_with_persistence(self, meal_plan_text: str, days: int,
+                                             meals_per_day: int, meal_plan_id: str = None,
+                                             existing_grocery_list: Dict = None) -> Dict:
+        """Generate grocery list with persistence support"""
         
-        # Remove common descriptors and preparation methods
-        descriptors_to_remove = [
-            r'\b(fresh|dried|chopped|diced|minced|sliced|grated|shredded|crushed|ground)\b',
-            r'\b(organic|free-range|grass-fed|wild-caught|extra-virgin|virgin)\b',
-            r'\b(raw|cooked|steamed|roasted|grilled|baked|fried|sautéed)\b',
-            r'\b(frozen|canned|jarred|bottled|packaged)\b',
-            r'\b(large|medium|small|extra|jumbo|baby|mini)\b',
-            r'\b(ripe|unripe|green|red|yellow|white|black|brown)\b',
-            r'\b(thick|thin|fine|coarse|whole|half|quarter)\b',
-            r'\b(to taste|optional|for serving|for garnish|if desired|preferably)\b',
-            r'\b(about|approximately|roughly|around)\b'
-        ]
+        # If we have an existing grocery list, restore check states
+        if existing_grocery_list:
+            return self._restore_grocery_list_state(existing_grocery_list)
         
-        cleaned = text
-        for pattern in descriptors_to_remove:
-            cleaned = re.sub(pattern, ' ', cleaned, flags=re.IGNORECASE)
+        # Generate new grocery list
+        result = self.generate_grocery_list(meal_plan_text, days, meals_per_day)
         
-        # Remove measurements that might be in the ingredient name
-        cleaned = re.sub(r'\b\d+\s*(inch|inches|cm|mm)\b', ' ', cleaned, flags=re.IGNORECASE)
-        
-        # Remove parenthetical expressions
-        cleaned = re.sub(r'\([^)]*\)', ' ', cleaned)
-        
-        # Remove extra punctuation and normalize spaces
-        cleaned = re.sub(r'[,\.;:]+', ' ', cleaned)
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        
-        # Take the first few meaningful words (usually the actual ingredient)
-        words = cleaned.split()
-        
-        # Filter out remaining descriptive words
-        meaningful_words = []
-        skip_words = {'and', 'or', 'with', 'without', 'plus', 'of', 'for', 'in', 'on', 'at', 'to', 'from', 'the', 'a', 'an'}
-        
-        for word in words[:3]:  # Take max 3 words
-            if word.lower() not in skip_words and len(word) > 1:
-                meaningful_words.append(word)
-        
-        if not meaningful_words:
-            return ""
-        
-        # Join the meaningful words
-        result = ' '.join(meaningful_words)
-        
-        # Handle special cases
-        if 'bell pepper' in text.lower() or 'bell peppers' in text.lower():
-            return 'bell pepper'
-        elif 'sweet potato' in text.lower():
-            return 'sweet potatoes'
-        elif 'cherry tomato' in text.lower():
-            return 'cherry tomatoes'
-        elif 'green onion' in text.lower() or 'scallion' in text.lower():
-            return 'green onions'
-        
-        return result.lower()
+        if result.get('success'):
+            # Add persistence metadata
+            grocery_list_id = meal_plan_id or self._generate_grocery_list_id(meal_plan_text)
+            result['grocery_list_id'] = grocery_list_id
+            result['created_at'] = time.time()
+            result['updated_at'] = time.time()
+            
+            # Add check state tracking
+            for item in result['grocery_list']:
+                item['is_checked'] = False
+                item['checked_at'] = None
+            
+        return result
 
-    def _parse_quantity_string(self, qty_str: str) -> float:
-        """Parse quantity string including fractions and ranges"""
-        qty_str = qty_str.strip()
-        
-        # Handle ranges (take average)
-        if '-' in qty_str or 'to' in qty_str:
-            parts = re.split(r'[-\s+to\s+]', qty_str)
-            try:
-                return (float(parts[0]) + float(parts[-1])) / 2
-            except (ValueError, IndexError):
-                return 1.0
-        
-        # Handle fractions
-        if '/' in qty_str:
-            try:
-                if ' ' in qty_str:  # Mixed number like "1 1/2"
-                    whole, fraction = qty_str.split(' ', 1)
-                    whole_val = float(whole)
-                    num, den = fraction.split('/')
-                    frac_val = float(num) / float(den)
-                    return whole_val + frac_val
-                else:  # Simple fraction like "1/2"
-                    num, den = qty_str.split('/')
-                    return float(num) / float(den)
-            except (ValueError, ZeroDivisionError):
-                return 1.0
-        
-        # Handle regular numbers
+    def update_grocery_list_check_state(self, grocery_list: Dict, item_updates: List[Dict]) -> Dict:
+        """Update the check state of grocery list items"""
         try:
-            return float(qty_str)
-        except ValueError:
-            return 1.0
-
-    def _find_best_ingredient_match(self, ingredient_name: str) -> Optional[str]:
-        """Find the best matching ingredient in the database with improved logic"""
-        ingredient_lower = ingredient_name.lower().strip()
-        
-        print(f"Looking for match: '{ingredient_lower}'")
-        
-        # Direct exact match
-        if ingredient_lower in self.ingredient_database:
-            print(f"Exact match found: '{ingredient_lower}'")
-            return ingredient_lower
-        
-        # Check aliases
-        if ingredient_lower in self.ingredient_aliases:
-            match = self.ingredient_aliases[ingredient_lower]
-            print(f"Alias match found: '{ingredient_lower}' -> '{match}'")
-            return match
-        
-        # Handle plural/singular variations
-        singular_variations = [
-            (ingredient_lower.rstrip('s'), ingredient_lower),  # Remove 's'
-            (ingredient_lower + 's', ingredient_lower),        # Add 's'
-        ]
-        
-        for variation, original in singular_variations:
-            if variation in self.ingredient_database:
-                print(f"Singular/plural match: '{original}' -> '{variation}'")
-                return variation
-        
-        # Word-based matching for compound ingredients
-        ingredient_words = set(ingredient_lower.split())
-        best_match = None
-        best_score = 0
-        
-        for db_ingredient in self.ingredient_database.keys():
-            db_words = set(db_ingredient.split())
+            # Create a lookup for updates
+            updates_lookup = {update['name']: update for update in item_updates}
             
-            # Calculate overlap score
-            common_words = ingredient_words & db_words
-            if common_words:
-                # Score based on how many words match and their importance
-                score = len(common_words) / max(len(ingredient_words), len(db_words))
-                
-                # Boost score if key words match
-                if any(word in common_words for word in ['chicken', 'beef', 'pork', 'fish', 'cheese', 'tomato', 'onion']):
-                    score += 0.3
-                
-                if score > best_score and score >= 0.6:  # Require at least 60% match
-                    best_score = score
-                    best_match = db_ingredient
-        
-        if best_match:
-            print(f"Word-based match: '{ingredient_lower}' -> '{best_match}' (score: {best_score:.2f})")
-            return best_match
-        
-        # Partial string matching as last resort
-        for db_ingredient in self.ingredient_database.keys():
-            if ingredient_lower in db_ingredient or db_ingredient in ingredient_lower:
-                if len(ingredient_lower) >= 3:  # Avoid very short matches
-                    print(f"Partial match: '{ingredient_lower}' -> '{db_ingredient}'")
-                    return db_ingredient
-        
-        print(f"No match found for: '{ingredient_lower}'")
-        return None
+            checked_count = 0
+            for item in grocery_list['grocery_list']:
+                if item['name'] in updates_lookup:
+                    update = updates_lookup[item['name']]
+                    item['is_checked'] = update.get('is_checked', False)
+                    if item['is_checked']:
+                        item['checked_at'] = time.time()
+                        checked_count += 1
+                    else:
+                        item['checked_at'] = None
+            
+            # Update metadata
+            grocery_list['updated_at'] = time.time()
+            grocery_list['checked_items_count'] = checked_count
+            grocery_list['completion_percentage'] = round((checked_count / len(grocery_list['grocery_list'])) * 100, 1)
+            
+            return grocery_list
+            
+        except Exception as e:
+            print(f"Error updating check state: {e}")
+            return grocery_list
 
-    def parse_meal_plan_intelligently(self, meal_plan_text: str) -> List[Dict]:
-        """Intelligent meal plan parsing with ingredient extraction"""
-        print("Intelligently parsing meal plan for ingredients...")
+    def _generate_grocery_list_id(self, meal_plan_text: str) -> str:
+        """Generate a consistent ID for a meal plan's grocery list"""
+        content_hash = hashlib.md5(meal_plan_text.encode()).hexdigest()[:8]
+        return f"grocery_{content_hash}_{int(time.time())}"
+
+    def _restore_grocery_list_state(self, existing_grocery_list: Dict) -> Dict:
+        """Restore an existing grocery list with preserved check states"""
+        existing_grocery_list['restored'] = True
+        return existing_grocery_list
+
+    def parse_meal_plan_with_better_matching(self, meal_plan_text: str) -> List[Dict]:
+        """Enhanced meal plan parsing that better matches actual recipe content"""
+        print("🔍 Enhanced meal plan parsing for accurate grocery list...")
         
-        # Split into recipes/meals using various separators
+        # Split by recipe separators with more flexible parsing
         recipes = []
         
-        # Try different splitting strategies
-        splitting_patterns = [
-            r'={3,}',  # === separators
-            r'-{3,}',  # --- separators
-            r'\n\s*\n\s*\n',  # Multiple newlines
-            r'(?i)recipe\s*\d*:',  # Recipe: headers
-            r'(?i)(breakfast|lunch|dinner|snack)\s*:',  # Meal type headers
-            r'(?i)day\s+\d+',  # Day headers
-        ]
+        # Try multiple splitting strategies
+        separators = ['=====', '-----', '\n\n---\n\n', 'Recipe:', 'RECIPE:']
         
-        text_sections = [meal_plan_text]
+        for separator in separators:
+            if separator in meal_plan_text:
+                potential_recipes = meal_plan_text.split(separator)
+                if len(potential_recipes) > 1:
+                    recipes = potential_recipes
+                    break
         
-        for pattern in splitting_patterns:
-            new_sections = []
-            for section in text_sections:
-                split_parts = re.split(pattern, section)
-                new_sections.extend([part.strip() for part in split_parts if part.strip()])
+        if not recipes:
+            # Fallback: split by day markers and then by meal types
+            day_pattern = r'Day\s+\d+'
+            day_sections = re.split(day_pattern, meal_plan_text, flags=re.IGNORECASE)
             
-            if len(new_sections) > len(text_sections):
-                text_sections = new_sections
-                break
+            for section in day_sections[1:]:  # Skip first empty section
+                meal_patterns = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
+                for pattern in meal_patterns:
+                    meal_matches = re.findall(
+                        rf'{pattern}.*?(?={"|".join(meal_patterns)}|$)',
+                        section,
+                        re.DOTALL | re.IGNORECASE
+                    )
+                    recipes.extend(meal_matches)
         
-        # Extract ingredients from each section
-        for section in text_sections:
-            if len(section) < 20:  # Skip very short sections
+        parsed_recipes = []
+        
+        for recipe_text in recipes:
+            if not recipe_text.strip():
                 continue
                 
-            lines = section.split('\n')
+            lines = recipe_text.strip().split('\n')
             recipe_data = {
                 'title': '',
                 'ingredients': [],
-                'meal_type': 'meal',
-                'raw_text': section
+                'meal_type': '',
+                'estimated_cost': 0.0
             }
             
-            # Extract title (first meaningful line)
+            # Enhanced title extraction
             for line in lines:
                 line = line.strip()
                 if (line and len(line) > 3 and
-                    not line.lower().startswith(('day ', 'ingredients', 'instructions', 'prep', 'cook')) and
-                    not re.match(r'^\d+\.', line) and
-                    not line.startswith(('•', '-', '*')) and
-                    ':' not in line):
+                    not line.lower().startswith('day ') and
+                    not any(meal in line.lower() for meal in ['breakfast', 'lunch', 'dinner', 'snack']) and
+                    ':' not in line and
+                    not line.startswith('•') and
+                    not line.lower().startswith(('preparation', 'cooking', 'servings', 'calories', 'protein', 'carbs', 'fat')) and
+                    not re.match(r'^\d+\.', line)):
                     recipe_data['title'] = line
                     break
             
             # Extract meal type
-            section_lower = section.lower()
-            for meal_type in ['breakfast', 'lunch', 'dinner', 'snack']:
-                if meal_type in section_lower:
-                    recipe_data['meal_type'] = meal_type
+            for line in lines:
+                line_lower = line.lower()
+                for meal_type in ['breakfast', 'lunch', 'dinner', 'snack']:
+                    if meal_type in line_lower:
+                        recipe_data['meal_type'] = meal_type.title()
+                        break
+                if recipe_data['meal_type']:
                     break
             
-            # Extract ingredients with multiple strategies
-            ingredient_found = False
-            
-            # Strategy 1: Look for explicit ingredient sections
-            in_ingredients_section = False
+            # Enhanced ingredient extraction with better parsing
             for line in lines:
-                line_clean = line.strip()
-                if re.match(r'(?i)ingredients?:?', line_clean):
-                    in_ingredients_section = True
-                    continue
-                elif re.match(r'(?i)(instructions?|directions?|method|preparation):?', line_clean):
-                    in_ingredients_section = False
-                    continue
-                
-                if in_ingredients_section and line_clean:
-                    if line_clean.startswith(('•', '-', '*')) or re.match(r'^\d+\.', line_clean):
-                        ingredient_text = re.sub(r'^[•\-*\d\.\s]+', '', line_clean).strip()
-                        if ingredient_text and len(ingredient_text) > 2:
-                            recipe_data['ingredients'].append(ingredient_text)
-                            ingredient_found = True
+                line = line.strip()
+                if line.startswith('•'):
+                    ingredient = line[1:].strip()
+                    if ingredient and len(ingredient) > 1:
+                        # Clean and normalize ingredient
+                        cleaned_ingredient = self._clean_and_normalize_ingredient(ingredient)
+                        if cleaned_ingredient:
+                            recipe_data['ingredients'].append(cleaned_ingredient)
             
-            # Strategy 2: Look for bullet points and numbered lists anywhere
-            if not ingredient_found:
-                for line in lines:
-                    line = line.strip()
-                    if line.startswith(('•', '-', '*')) or re.match(r'^\d+\.', line):
-                        # Clean the ingredient line
-                        ingredient_text = re.sub(r'^[•\-*\d\.\s]+', '', line).strip()
-                        if ingredient_text and len(ingredient_text) > 2:
-                            # Check if this looks like an ingredient (has quantities or food words)
-                            food_words = ['chicken', 'beef', 'pork', 'fish', 'onion', 'tomato', 'potato', 'cheese', 'milk', 'egg', 'rice', 'pasta', 'bread', 'oil', 'salt', 'pepper']
-                            if (re.search(r'\b(cup|tbsp|tsp|lb|oz|gram|piece|clove|can|jar|pound|ounce)\b', ingredient_text.lower()) or
-                                any(food_word in ingredient_text.lower() for food_word in food_words)):
-                                recipe_data['ingredients'].append(ingredient_text)
-                                ingredient_found = True
+            # Estimate meal cost for validation
+            if recipe_data['ingredients']:
+                estimated_cost = self._estimate_meal_cost(recipe_data['ingredients'], recipe_data['meal_type'])
+                recipe_data['estimated_cost'] = estimated_cost
             
-            # Strategy 3: Look for quantity patterns in any line
-            if not ingredient_found:
-                for line in lines:
-                    line = line.strip()
-                    # Skip obvious non-ingredient lines
-                    skip_starts = ('recipe', 'day', 'breakfast', 'lunch', 'dinner', 'snack', 'ingredients', 'instructions', 'preparation', 'cooking', 'serves', 'servings', 'calories', 'protein', 'carbs', 'fat')
-                    food_words = ['chicken', 'beef', 'pork', 'fish', 'salmon', 'shrimp', 'onion', 'garlic', 'tomato', 'potato', 'cheese', 'milk', 'egg', 'rice', 'pasta', 'bread', 'oil', 'salt', 'pepper', 'spinach', 'broccoli', 'carrot', 'bell pepper']
-                    
-                    if (line and len(line) > 5 and
-                        not line.lower().startswith(skip_starts) and
-                        not line.endswith(':') and
-                        # Look for quantity indicators
-                        (re.search(r'\d+\s*(cup|tbsp|tsp|lb|oz|gram|piece|clove|can|jar|pound|ounce)', line.lower()) or
-                         any(food_word in line.lower() for food_word in food_words)) and
-                        len(line.split()) >= 2 and len(line.split()) <= 8):  # Reasonable ingredient length
-                        recipe_data['ingredients'].append(line)
-                        ingredient_found = True
-            
-            # Only add recipe if we found ingredients
-            if recipe_data['ingredients'] and len(recipe_data['ingredients']) > 0:
-                if not recipe_data['title']:
-                    recipe_data['title'] = f"Recipe from meal plan"
-                recipes.append(recipe_data)
-                print(f"  Found recipe: '{recipe_data['title'][:30]}...' with {len(recipe_data['ingredients'])} ingredients")
+            if recipe_data['title'] and recipe_data['ingredients']:
+                parsed_recipes.append(recipe_data)
         
-        print(f"Extracted {len(recipes)} recipes with ingredients")
-        return recipes
+        print(f"✅ Enhanced parsing found {len(parsed_recipes)} recipes with validated costs")
+        return parsed_recipes
 
-    def consolidate_ingredients_realistically(self, recipes: List[Dict]) -> List[GroceryItem]:
-        """Consolidate ingredients with realistic quantities and smart combining"""
-        print("Consolidating ingredients with realistic quantities...")
+    def _clean_and_normalize_ingredient(self, ingredient_text: str) -> Optional[str]:
+        """Clean and normalize ingredient text for better matching"""
+        if not ingredient_text:
+            return None
         
-        # Track ingredients by their database key
-        ingredient_tracker = defaultdict(lambda: {
-            'total_quantity': 0.0,
-            'unit_counts': defaultdict(float),
-            'recipe_uses': [],
-            'ingredient_data': None
+        # Remove common preparation descriptors
+        descriptors_to_remove = [
+            'fresh', 'dried', 'chopped', 'diced', 'minced', 'sliced', 'grated',
+            'organic', 'raw', 'cooked', 'frozen', 'canned', 'large', 'medium', 'small',
+            'to taste', 'optional', 'for serving', 'preferably'
+        ]
+        
+        cleaned = ingredient_text.lower()
+        for descriptor in descriptors_to_remove:
+            cleaned = re.sub(rf'\b{re.escape(descriptor)}\b', '', cleaned)
+        
+        # Clean up extra spaces and punctuation
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip(' ,.-')
+        
+        # Extract core ingredient (first 1-2 meaningful words)
+        words = cleaned.split()
+        if len(words) >= 2:
+            return ' '.join(words[:2])
+        elif len(words) == 1:
+            return words[0]
+        
+        return None
+
+    def _estimate_meal_cost(self, ingredients: List[str], meal_type: str) -> float:
+        """Estimate the cost of a meal and validate against reasonable limits"""
+        total_cost = 0.0
+        
+        for ingredient in ingredients:
+            ingredient_lower = ingredient.lower()
+            cost = self.estimated_costs.get(ingredient_lower, self.estimated_costs['default'])
+            
+            # Check for partial matches in cost database
+            if cost == self.estimated_costs['default']:
+                for cost_item, cost_value in self.estimated_costs.items():
+                    if cost_item in ingredient_lower or ingredient_lower in cost_item:
+                        cost = cost_value
+                        break
+            
+            total_cost += cost
+        
+        # Apply reasonable cost limits
+        max_cost = self.max_meal_cost.get(meal_type, self.max_meal_cost['Lunch'])
+        if total_cost > max_cost:
+            print(f"⚠️ Meal cost ${total_cost:.2f} exceeds reasonable limit ${max_cost:.2f} for {meal_type}, adjusting...")
+            total_cost = max_cost * 0.8  # Scale down to 80% of max
+        
+        return round(total_cost, 2)
+
+    def extract_and_consolidate_ingredients(self, recipes: List[Dict]) -> List[GroceryItem]:
+        """Enhanced ingredient consolidation with cost validation"""
+        print("🔄 Enhanced ingredient consolidation with cost validation...")
+        
+        consolidated = defaultdict(lambda: {
+            'quantities': [],
+            'units': set(),
+            'notes': set(),
+            'category': 'pantry',
+            'base_name': '',
+            'estimated_cost': 0.0
         })
         
-        # Process each recipe
         for recipe in recipes:
-            print(f"  Processing: {recipe['title'][:50]}...")
-            
             for ingredient_text in recipe['ingredients']:
-                parsed = self.clean_and_parse_ingredient(ingredient_text)
-                
+                parsed = self._parse_ingredient_enhanced(ingredient_text)
                 if parsed:
-                    key = parsed['ingredient_key']
-                    data = parsed['ingredient_data']
+                    base_name = parsed['base_name']
                     
-                    # Add to tracker
-                    ingredient_tracker[key]['total_quantity'] += parsed['quantity']
-                    ingredient_tracker[key]['unit_counts'][parsed['unit']] += parsed['quantity']
-                    ingredient_tracker[key]['recipe_uses'].append({
-                        'recipe': recipe['title'],
-                        'quantity': parsed['quantity'],
-                        'unit': parsed['unit'],
-                        'original_text': parsed['original_text']
-                    })
-                    ingredient_tracker[key]['ingredient_data'] = data
+                    consolidated[base_name]['quantities'].append(parsed['quantity'])
+                    consolidated[base_name]['units'].add(parsed['unit'])
+                    consolidated[base_name]['notes'].add(parsed['notes'])
+                    consolidated[base_name]['category'] = self._categorize_ingredient_enhanced(base_name)
+                    consolidated[base_name]['base_name'] = base_name
         
-        # Convert to grocery items with smart quantity calculation
         grocery_items = []
-        
-        for ingredient_key, tracker in ingredient_tracker.items():
-            data = tracker['ingredient_data']
+        for base_name, data in consolidated.items():
+            # Combine quantities intelligently
+            total_quantity = self._combine_quantities_enhanced(data['quantities'], list(data['units']))
             
-            # Determine the best unit and quantity
-            unit_counts = tracker['unit_counts']
+            # Calculate realistic cost
+            estimated_cost = self._calculate_realistic_item_cost(base_name, total_quantity, data['category'])
             
-            # Choose the most common unit, or convert to store unit
-            if unit_counts:
-                # Prefer the database unit if available
-                store_unit = data['unit']
-                
-                # Calculate total needed in store units
-                total_needed = self._convert_to_store_units(unit_counts, store_unit, ingredient_key)
-                
-                # Round up to reasonable purchase quantities
-                purchase_quantity = self._calculate_purchase_quantity(total_needed, store_unit, data)
-                
-                # Calculate cost
-                estimated_cost = purchase_quantity * data['cost_per_unit']
-                
-                # Format quantity display
-                quantity_display = self._format_quantity_display(purchase_quantity)
-                
-                grocery_item = GroceryItem(
-                    name=ingredient_key.replace('_', ' ').title(),
-                    quantity=quantity_display,
-                    unit=store_unit,
-                    category=data['category'],
-                    notes=f"Used in {len(tracker['recipe_uses'])} recipes",
-                    estimated_cost=round(estimated_cost, 2),
-                    is_checked=False
-                )
-                
-                grocery_items.append(grocery_item)
+            # Combine notes
+            notes = ' • '.join(filter(None, data['notes']))
+            
+            grocery_item = GroceryItem(
+                name=base_name.title(),
+                quantity=total_quantity['display'],
+                unit=total_quantity['unit'],
+                category=data['category'],
+                notes=notes[:100] if notes else "",
+                estimated_cost=estimated_cost,
+                is_checked=False
+            )
+            grocery_items.append(grocery_item)
         
-        # Sort by category and name
-        category_order = {config['order']: cat for cat, config in self.category_config.items()}
-        grocery_items.sort(key=lambda x: (
-            self.category_config.get(x.category, {}).get('order', 99),
-            x.name
-        ))
-        
-        print(f"Created {len(grocery_items)} consolidated grocery items")
+        print(f"✅ Created {len(grocery_items)} consolidated grocery items with validated costs")
         return grocery_items
 
-    def _convert_to_store_units(self, unit_counts: Dict[str, float], store_unit: str, ingredient_key: str) -> float:
-        """Convert various units to store purchase units"""
-        total_in_store_units = 0.0
+    def _parse_ingredient_enhanced(self, ingredient_text: str) -> Optional[Dict]:
+        """Enhanced ingredient parsing with better accuracy"""
+        ingredient_text = ingredient_text.strip()
+        if not ingredient_text:
+            return None
         
-        for unit, quantity in unit_counts.items():
-            if unit == store_unit:
-                total_in_store_units += quantity
-            elif unit in ['cup', 'cups'] and store_unit in ['bag', 'container', 'box']:
-                total_in_store_units += quantity * 0.1
-            elif unit in ['tbsp', 'tablespoon', 'tablespoons'] and store_unit == 'bottle':
-                total_in_store_units += quantity * 0.01
-            elif unit in ['tsp', 'teaspoon', 'teaspoons'] and store_unit == 'container':
-                total_in_store_units += quantity * 0.005
-            elif unit in ['piece', 'pieces', 'each'] and store_unit in ['each', 'item', 'piece']:
-                total_in_store_units += quantity
-            elif unit in ['clove', 'cloves'] and ingredient_key == 'garlic':
-                total_in_store_units += quantity * 0.1
-            else:
-                total_in_store_units += quantity
+        # More comprehensive parsing patterns
+        patterns = [
+            # Pattern for number + unit + ingredient
+            r'^(\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?)\s*(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?|pieces?|piece|cloves?|clove|slices?|slice|cans?|can|packages?|package|containers?|container|bottles?|bottle|jars?|jar|heads?|head|bunches?|bunch|stalks?|stalk|medium|large|small)\s+(.+)$',
+            
+            # Pattern for fraction + unit + ingredient
+            r'^(\d+/\d+|\d+\s+\d+/\d+)\s*(cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|lbs?|pounds?|oz|ounces?|g|grams?|kg|kilograms?)\s+(.+)$',
+            
+            # Pattern for number + ingredient (no unit)
+            r'^(\d+(?:\.\d+)?)\s+(.+)$',
+            
+            # Just the ingredient name
+            r'^(.+)$'
+        ]
         
-        return total_in_store_units
+        quantity = "1"
+        unit = "item"
+        base_name = ingredient_text.lower()
+        notes = ""
+        
+        for pattern in patterns:
+            match = re.match(pattern, ingredient_text, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                if len(groups) == 3:  # quantity + unit + ingredient
+                    quantity = groups[0]
+                    unit = groups[1] or "item"
+                    base_name = groups[2].lower()
+                elif len(groups) == 2:
+                    if any(word in groups[1].lower() for word in ['cup', 'tbsp', 'tsp', 'lb', 'oz']):
+                        quantity = groups[0]
+                        unit_ingredient = groups[1].split(' ', 1)
+                        if len(unit_ingredient) == 2:
+                            unit = unit_ingredient[0]
+                            base_name = unit_ingredient[1].lower()
+                        else:
+                            base_name = groups[1].lower()
+                    else:
+                        quantity = groups[0]
+                        base_name = groups[1].lower()
+                elif len(groups) == 1:
+                    base_name = groups[0].lower()
+                break
+        
+        # Clean and normalize the base name
+        base_name = self._clean_and_normalize_ingredient(base_name)
+        if not base_name:
+            return None
+        
+        return {
+            'quantity': quantity,
+            'unit': unit.lower(),
+            'base_name': base_name,
+            'notes': notes
+        }
 
-    def _calculate_purchase_quantity(self, needed_quantity: float, unit: str, ingredient_data: Dict) -> float:
-        """Calculate realistic purchase quantity"""
-        if needed_quantity <= 0:
-            return 1.0
+    def _categorize_ingredient_enhanced(self, ingredient_name: str) -> str:
+        """Enhanced ingredient categorization with better accuracy"""
+        ingredient_lower = ingredient_name.lower().strip()
         
-        # For items sold individually, round up to whole numbers
-        individual_units = ['each', 'item', 'piece', 'head', 'bunch', 'container', 'package', 'bag', 'box', 'bottle', 'jar', 'can', 'carton']
-        if unit in individual_units:
-            return max(1.0, round(needed_quantity))
+        # Priority order for categorization
+        category_priority = [
+            'proteins', 'vegetables', 'fruits', 'dairy', 'grains',
+            'herbs_spices', 'condiments', 'frozen', 'snacks', 'beverages', 'pantry'
+        ]
         
-        # For items sold by weight, use reasonable minimums
-        elif unit in ['lbs', 'pounds']:
-            return max(0.5, round(needed_quantity * 2) / 2)
+        for category in category_priority:
+            items = self.categories[category]
+            
+            # Exact match first
+            if ingredient_lower in items:
+                return category
+            
+            # Partial match - check if ingredient contains any category item
+            for item in items:
+                if item in ingredient_lower or ingredient_lower in item:
+                    return category
         
-        # For bulk items, ensure reasonable minimum quantities
-        elif unit in ['bag', 'container'] and ingredient_data['category'] in ['grains', 'pantry']:
-            return max(1.0, round(needed_quantity))
+        # Enhanced keyword-based categorization
+        protein_keywords = ['meat', 'protein', 'breast', 'thigh', 'fillet', 'ground', 'steak']
+        if any(keyword in ingredient_lower for keyword in protein_keywords):
+            return 'proteins'
         
-        else:
-            return max(1.0, round(needed_quantity, 1))
+        vegetable_keywords = ['vegetable', 'veggie', 'fresh', 'organic']
+        if any(keyword in ingredient_lower for keyword in vegetable_keywords):
+            return 'vegetables'
+        
+        spice_keywords = ['spice', 'herb', 'seasoning', 'powder', 'dried']
+        if any(keyword in ingredient_lower for keyword in spice_keywords):
+            return 'herbs_spices'
+        
+        return 'pantry'
 
-    def _format_quantity_display(self, quantity: float) -> str:
-        """Format quantity for display"""
-        if quantity == int(quantity):
-            return str(int(quantity))
-        elif quantity < 1:
-            if abs(quantity - 0.5) < 0.1:
-                return "1/2"
-            elif abs(quantity - 0.25) < 0.1:
-                return "1/4"
-            elif abs(quantity - 0.75) < 0.1:
-                return "3/4"
+    def _combine_quantities_enhanced(self, quantities: List[str], units: List[str]) -> Dict:
+        """Enhanced quantity combination with better handling"""
+        if not quantities:
+            return {'display': '1', 'unit': 'item'}
+        
+        def parse_quantity_enhanced(q_str):
+            q_str = q_str.strip()
+            
+            # Handle ranges
+            if '-' in q_str:
+                parts = q_str.split('-')
+                try:
+                    return (float(parts[0]) + float(parts[1])) / 2
+                except ValueError:
+                    return 1.0
+            
+            # Handle fractions
+            if '/' in q_str:
+                try:
+                    if ' ' in q_str:  # Mixed number
+                        whole, fraction = q_str.split(' ', 1)
+                        whole_val = float(whole)
+                        num, den = fraction.split('/')
+                        frac_val = float(num) / float(den)
+                        return whole_val + frac_val
+                    else:  # Simple fraction
+                        num, den = q_str.split('/')
+                        return float(num) / float(den)
+                except (ValueError, ZeroDivisionError):
+                    return 1.0
+            
+            # Handle regular numbers
+            try:
+                return float(q_str)
+            except ValueError:
+                return 1.0
+        
+        numeric_quantities = [parse_quantity_enhanced(q) for q in quantities]
+        
+        if numeric_quantities:
+            total = sum(numeric_quantities)
+            
+            # Format display with common fractions
+            if total < 1:
+                if abs(total - 0.5) < 0.1:
+                    display = "1/2"
+                elif abs(total - 0.25) < 0.1:
+                    display = "1/4"
+                elif abs(total - 0.75) < 0.1:
+                    display = "3/4"
+                else:
+                    display = f"{total:.2f}".rstrip('0').rstrip('.')
+            elif total < 10:
+                if abs(total - round(total) - 0.5) < 0.1:
+                    display = f"{int(total)} 1/2"
+                else:
+                    display = f"{total:.1f}".rstrip('0').rstrip('.')
             else:
-                return f"{quantity:.1f}"
+                display = str(int(round(total)))
+            
+            # Choose most appropriate unit
+            if units:
+                valid_units = [u for u in units if u and u != 'item']
+                if valid_units:
+                    unit = max(set(valid_units), key=valid_units.count)
+                else:
+                    unit = 'item'
+            else:
+                unit = 'item'
+            
+            return {'display': display, 'unit': unit}
+        
+        return {'display': quantities[0] if quantities else '1', 'unit': units[0] if units else 'item'}
+
+    def _calculate_realistic_item_cost(self, ingredient_name: str, quantity_info: Dict, category: str) -> float:
+        """Calculate realistic cost with better validation"""
+        if category in self.cost_excluded_categories:
+            return 0.0
+        
+        ingredient_lower = ingredient_name.lower()
+        base_cost = self.estimated_costs.get(ingredient_lower, self.estimated_costs['default'])
+        
+        # Better partial matching
+        if base_cost == self.estimated_costs['default']:
+            best_match_score = 0
+            best_match_cost = base_cost
+            
+            for cost_item, cost in self.estimated_costs.items():
+                if cost_item == 'default':
+                    continue
+                
+                # Calculate match score
+                score = 0
+                if cost_item in ingredient_lower:
+                    score = len(cost_item) / len(ingredient_lower)
+                elif ingredient_lower in cost_item:
+                    score = len(ingredient_lower) / len(cost_item)
+                
+                if score > best_match_score:
+                    best_match_score = score
+                    best_match_cost = cost
+            
+            if best_match_score > 0.5:  # Good match threshold
+                base_cost = best_match_cost
+        
+        # Calculate quantity multiplier
+        try:
+            quantity_str = quantity_info['display']
+            
+            if 'portions' in quantity_str:
+                match = re.search(r'(\d+(?:\.\d+)?)', quantity_str)
+                multiplier = float(match.group(1)) if match else 1.0
+            else:
+                # Handle fractions and numbers
+                if '/' in quantity_str:
+                    if ' ' in quantity_str:  # Mixed number
+                        whole, fraction = quantity_str.split(' ', 1)
+                        whole_val = float(whole)
+                        num, den = fraction.split('/')
+                        frac_val = float(num) / float(den)
+                        multiplier = whole_val + frac_val
+                    else:  # Simple fraction
+                        num, den = quantity_str.split('/')
+                        multiplier = float(num) / float(den)
+                else:
+                    multiplier = float(quantity_str)
+                    
+        except (ValueError, AttributeError, ZeroDivisionError):
+            multiplier = 1.0
+        
+        # Apply realistic scaling with caps
+        if multiplier > 5:  # Cap at 5x for very large quantities
+            adjusted_multiplier = min(multiplier, 8)
+        elif multiplier > 2:  # Reduce scaling for larger quantities
+            adjusted_multiplier = 2 + (multiplier - 2) * 0.4
+        elif multiplier < 0.25:  # Don't go below quarter cost
+            adjusted_multiplier = 0.25
         else:
-            return f"{quantity:.1f}".rstrip('0').rstrip('.')
+            adjusted_multiplier = multiplier
+        
+        # Add small variance for realism
+        variance = random.uniform(0.90, 1.10)
+        
+        estimated_cost = base_cost * adjusted_multiplier * variance
+        return round(max(estimated_cost, 0.10), 2)  # Minimum 10 cents
 
     def generate_grocery_list(self, meal_plan_text: str, days: int, meals_per_day: int) -> Dict:
-        """Generate a realistic grocery list from meal plan"""
-        print(f"Generating realistic grocery list for {days} days, {meals_per_day} meals/day")
+        """Generate grocery list with enhanced accuracy and cost validation"""
+        print(f"🛒 Generating enhanced grocery list for {days} days, {meals_per_day} meals/day")
         
-        try:
-            # Parse the meal plan
-            recipes = self.parse_meal_plan_intelligently(meal_plan_text)
-            
-            if not recipes:
-                return {
-                    'success': False,
-                    'error': 'No recipes or ingredients could be extracted from the meal plan'
-                }
-            
-            # Consolidate ingredients
-            grocery_items = self.consolidate_ingredients_realistically(recipes)
-            
-            if not grocery_items:
-                return {
-                    'success': False,
-                    'error': 'No valid ingredients could be processed from the meal plan'
-                }
-            
-            # Calculate costs and organize by category
-            total_cost = 0.0
-            category_breakdown = defaultdict(float)
-            categorized_items = defaultdict(list)
-            
-            for item in grocery_items:
-                total_cost += item.estimated_cost
-                category_breakdown[item.category] += item.estimated_cost
-                
-                # Convert to serializable format
-                item_dict = {
-                    'name': item.name,
-                    'quantity': item.quantity,
-                    'unit': item.unit,
-                    'category': self.category_config.get(item.category, {}).get('display_name', item.category.title()),
-                    'notes': item.notes,
-                    'estimated_cost': item.estimated_cost,
-                    'is_checked': False,
-                    'checked_at': None
-                }
-                categorized_items[item.category].append(item_dict)
-            
-            # Generate enhanced shopping tips
-            shopping_tips = self._generate_smart_shopping_tips(grocery_items, total_cost, days)
-            
-            # Create cost breakdown
-            cost_breakdown = {
-                'total_cost': round(total_cost, 2),
-                'cost_per_day': round(total_cost / max(days, 1), 2),
-                'cost_per_meal': round(total_cost / max(days * meals_per_day, 1), 2),
-                'category_breakdown': {
-                    self.category_config.get(cat, {}).get('display_name', cat.title()): round(cost, 2)
-                    for cat, cost in category_breakdown.items()
-                },
-                'item_count': len(grocery_items),
-                'excluded_items': []
-            }
-            
-            # Create organized grocery list
-            grocery_list = []
-            for category in sorted(categorized_items.keys(), key=lambda x: self.category_config.get(x, {}).get('order', 99)):
-                grocery_list.extend(categorized_items[category])
-            
-            # Summary statistics
-            summary = {
-                'total_items': len(grocery_items),
-                'total_cost': round(total_cost, 2),
-                'recipes_processed': len(recipes),
-                'days': days,
-                'meals_per_day': meals_per_day,
-                'avg_cost_per_meal': round(total_cost / max(days * meals_per_day, 1), 2),
-                'category_counts': {
-                    self.category_config.get(cat, {}).get('display_name', cat.title()): len(items)
-                    for cat, items in categorized_items.items()
-                }
-            }
-            
-            return {
-                'success': True,
-                'grocery_list': grocery_list,
-                'cost_breakdown': cost_breakdown,
-                'summary': summary,
-                'shopping_tips': shopping_tips,
-                'recipes_found': len(recipes),
-                'ingredients_processed': len(grocery_items)
-            }
-            
-        except Exception as e:
-            print(f"Error generating grocery list: {e}")
+        # Parse meal plan with better matching
+        recipes = self.parse_meal_plan_with_better_matching(meal_plan_text)
+        
+        if not recipes:
             return {
                 'success': False,
-                'error': f'Failed to generate grocery list: {str(e)}'
+                'error': 'No recipes found in meal plan'
             }
-
-    def _generate_smart_shopping_tips(self, grocery_items: List[GroceryItem], total_cost: float, days: int) -> List[str]:
-        """Generate intelligent shopping tips based on the list contents"""
-        tips = []
         
-        # Analyze list composition
-        category_counts = defaultdict(int)
-        high_cost_items = []
+        # Validate total meal costs
+        total_estimated_meal_cost = sum(recipe.get('estimated_cost', 0) for recipe in recipes)
+        if total_estimated_meal_cost > (days * meals_per_day * 12):  # $12 average per meal max
+            print(f"⚠️ Total meal cost ${total_estimated_meal_cost:.2f} seems high, applying cost adjustments...")
+        
+        # Extract and consolidate ingredients
+        grocery_items = self.extract_and_consolidate_ingredients(recipes)
+        
+        if not grocery_items:
+            return {
+                'success': False,
+                'error': 'No ingredients could be extracted from meal plan'
+            }
+        
+        # Sort items by category and name
+        category_order = {
+            'proteins': 1, 'vegetables': 2, 'fruits': 3, 'dairy': 4,
+            'grains': 5, 'pantry': 6, 'frozen': 7, 'snacks': 8,
+            'beverages': 9, 'condiments': 10, 'herbs_spices': 11
+        }
+        
+        grocery_items.sort(key=lambda x: (category_order.get(x.category, 99), x.name))
+        
+        # Calculate enhanced cost breakdown
+        excluded_items = []
+        total_cost = 0.0
+        category_costs = defaultdict(float)
         
         for item in grocery_items:
+            if item.category in self.cost_excluded_categories:
+                excluded_items.append(item.name)
+            else:
+                total_cost += item.estimated_cost
+                category_costs[item.category] += item.estimated_cost
+        
+        # Validate total cost reasonableness
+        expected_cost_range = (days * meals_per_day * 4, days * meals_per_day * 12)
+        if total_cost < expected_cost_range[0]:
+            print(f"⚠️ Total cost ${total_cost:.2f} seems low, might be missing ingredients")
+        elif total_cost > expected_cost_range[1]:
+            print(f"⚠️ Total cost ${total_cost:.2f} seems high, cost estimates may be inflated")
+        
+        cost_per_day = total_cost / days if days > 0 else 0
+        total_meals = days * meals_per_day
+        cost_per_meal = total_cost / total_meals if total_meals > 0 else 0
+        
+        cost_breakdown = CostBreakdown(
+            total_cost=round(total_cost, 2),
+            cost_per_day=round(cost_per_day, 2),
+            cost_per_meal=round(cost_per_meal, 2),
+            category_breakdown=dict(category_costs),
+            item_count=len(grocery_items),
+            excluded_items=excluded_items
+        )
+        
+        # Convert to serializable format
+        grocery_list_data = []
+        for item in grocery_items:
+            grocery_list_data.append({
+                'name': item.name,
+                'quantity': item.quantity,
+                'unit': item.unit,
+                'category': item.category.replace('_', ' ').title(),
+                'notes': item.notes,
+                'estimated_cost': item.estimated_cost,
+                'excluded_from_cost': item.category in self.cost_excluded_categories,
+                'is_checked': False,
+                'checked_at': None
+            })
+        
+        # Generate shopping tips
+        shopping_tips = self.get_enhanced_shopping_tips(grocery_list_data, total_cost)
+        
+        # Statistics
+        category_counts = defaultdict(int)
+        for item in grocery_items:
             category_counts[item.category] += 1
-            if item.estimated_cost > 8.0:
-                high_cost_items.append(item.name)
         
-        # Store navigation tips
-        if len(grocery_items) > 15:
-            tips.append("Shop the store perimeter first (produce, meat, dairy) then tackle inner aisles")
+        print(f"✅ Generated enhanced grocery list with {len(grocery_items)} items")
+        print(f"💰 Total cost: ${total_cost:.2f} (${cost_per_meal:.2f}/meal)")
         
-        # Cost-saving tips
-        if total_cost > 100:
-            tips.append("Look for store brands on pantry staples - they can save 20-30% with same quality")
-            
-        if high_cost_items:
-            tips.append(f"Price check these items: {', '.join(high_cost_items[:3])} - consider sales or alternatives")
+        return {
+            'success': True,
+            'grocery_list': grocery_list_data,
+            'cost_breakdown': {
+                'total_cost': cost_breakdown.total_cost,
+                'cost_per_day': cost_breakdown.cost_per_day,
+                'cost_per_meal': cost_breakdown.cost_per_meal,
+                'category_breakdown': {k.replace('_', ' ').title(): v for k, v in cost_breakdown.category_breakdown.items()},
+                'item_count': cost_breakdown.item_count,
+                'excluded_items': cost_breakdown.excluded_items
+            },
+            'summary': {
+                'total_items': len(grocery_items),
+                'total_cost': cost_breakdown.total_cost,
+                'excluded_items_count': len(excluded_items),
+                'days': days,
+                'meals_per_day': meals_per_day,
+                'recipes_parsed': len(recipes),
+                'category_counts': {k.replace('_', ' ').title(): v for k, v in category_counts.items()},
+                'cost_per_meal': cost_breakdown.cost_per_meal,
+                'cost_validation': {
+                    'is_reasonable': expected_cost_range[0] <= total_cost <= expected_cost_range[1],
+                    'expected_range': expected_cost_range
+                }
+            },
+            'shopping_tips': shopping_tips
+        }
+
+    def get_enhanced_shopping_tips(self, grocery_list_data: List[Dict], total_cost: float) -> List[str]:
+        """Generate enhanced shopping tips based on the grocery list and costs"""
+        tips = []
         
-        # Perishables management
-        if category_counts['vegetables'] + category_counts['fruits'] > 8:
-            tips.append("Buy a mix of ripe and unripe produce to ensure freshness throughout the week")
+        # Count items by category
+        category_counts = defaultdict(int)
+        for item in grocery_list_data:
+            category_counts[item['category'].lower().replace(' ', '_')] += 1
+        
+        # Shopping strategy tips
+        if len(grocery_list_data) > 15:
+            tips.append("🛒 Shop the perimeter first (produce, meat, dairy) then work through inner aisles systematically")
+        
+        # Cost-saving tips based on total cost
+        if total_cost > 80:
+            tips.append("💰 Look for sales on proteins and buy in bulk to freeze for future meals")
+            tips.append("🏷️ Consider store brands for pantry staples - they can save 20-30%")
+        
+        if total_cost > 120:
+            tips.append("📋 This is a substantial grocery trip - consider splitting across 2 stores if you have time")
+        
+        # Produce tips
+        produce_count = category_counts.get('vegetables', 0) + category_counts.get('fruits', 0)
+        if produce_count > 8:
+            tips.append("🥬 Buy a mix of ripe and unripe produce to ensure freshness throughout the week")
+            tips.append("🛍️ Bring reusable produce bags to stay organized and eco-friendly")
         
         # Protein tips
-        if category_counts['proteins'] > 3:
-            tips.append("Ask about family packs for meat - often 10-15% cheaper and you can freeze portions")
+        if category_counts.get('proteins', 0) > 3:
+            tips.append("🥩 Ask the butcher about family packs or bulk pricing for better value")
         
-        # Smart shopping timing
-        if len(grocery_items) > 20:
-            tips.append("Shop early morning or late evening for shorter lines and better produce selection")
+        # Storage tips
+        if category_counts.get('herbs_spices', 0) > 0:
+            tips.append("🌿 Store fresh herbs in water like flowers, or freeze in olive oil for longer life")
         
-        # Bulk buying opportunities
-        if category_counts['pantry'] > 5:
-            tips.append("Consider buying pantry staples in bulk - rice, pasta, and canned goods store well")
+        # Time-saving tips
+        if len(grocery_list_data) > 20:
+            tips.append("⏰ Shop during off-peak hours (early morning or late evening) for faster checkout")
         
-        # Organization tip
-        tips.append("Group items by store section on your phone to speed up shopping")
+        # Budget tips
+        if total_cost < 60:
+            tips.append("👍 Great job planning an efficient, budget-friendly grocery list!")
         
-        return tips[:6]  # Limit to 6 most relevant tips
-
-# Flask route implementation
-grocery_generator = RealisticGroceryListGenerator()
-
-def create_grocery_list_route():
-    """Create the Flask route for grocery list generation"""
-    
-    @cross_origin()
-    def generate_grocery_list():
-        try:
-            data = request.get_json()
-            
-            if not data:
-                return jsonify({'success': False, 'error': 'No data provided'}), 400
-            
-            meal_plan = data.get('meal_plan', '')
-            days = data.get('days', 7)
-            meals_per_day = data.get('meals_per_day', 3)
-            
-            if not meal_plan:
-                return jsonify({'success': False, 'error': 'Meal plan text is required'}), 400
-            
-            # Generate the grocery list
-            result = grocery_generator.generate_grocery_list(meal_plan, days, meals_per_day)
-            
-            return jsonify(result)
-            
-        except Exception as e:
-            print(f"Route error: {e}")
-            return jsonify({
-                'success': False,
-                'error': f'Server error: {str(e)}'
-            }), 500
-    
-    return generate_grocery_list
+        return tips
