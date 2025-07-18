@@ -203,16 +203,16 @@ const EnhancedRealisticGroceryListModal = ({
   // Get category icon
   const getCategoryIcon = (categoryName) => {
     const iconMap = {
-      'Meat & Proteins': '🥩',
-      'Vegetables': '🥕',
-      'Fruits': '🍎',
-      'Dairy & Eggs': '🥛',
-      'Grains & Bread': '🍞',
-      'Pantry Staples': '🥫',
-      'Herbs & Spices': '🌿',
-      'Condiments': '🍯'
+      'Meat & Proteins': 'restaurant',
+      'Vegetables': 'leaf',
+      'Fruits': 'nutrition',
+      'Dairy & Eggs': 'water',
+      'Grains & Bread': 'grid',
+      'Pantry Staples': 'cube',
+      'Herbs & Spices': 'flower',
+      'Condiments': 'bottle'
     };
-    return iconMap[categoryName] || '📦';
+    return iconMap[categoryName] || 'archive';
   };
 
   // Toggle item check state with optimistic updates
@@ -346,13 +346,13 @@ const EnhancedRealisticGroceryListModal = ({
     if (!groceryData) return;
 
     try {
-      const shareText = `🛒 My Grocery List\n\n${groceryData.categories
+      const shareText = `My Grocery List\n\n${groceryData.categories
         .map(category => 
-          `${category.icon} ${category.name}:\n${category.items
-            .map(item => `${item.checked ? '✅' : '⬜'} ${item.name}${item.quantity ? ` (${item.quantity}${item.unit ? ' ' + item.unit : ''})` : ''}`)
+          `${category.name}:\n${category.items
+            .map(item => `${item.checked ? '✓' : '○'} ${item.name}${item.quantity ? ` (${item.quantity}${item.unit ? ' ' + item.unit : ''})` : ''}`)
             .join('\n')}`
         )
-        .join('\n\n')}\n\n💰 Total estimated cost: $${groceryData.total_cost?.toFixed(2) || '0.00'}\n\n📱 Generated with PlateMate`;
+        .join('\n\n')}\n\nTotal estimated cost: ${groceryData.total_cost?.toFixed(2) || '0.00'}\n\nGenerated with PlateMate`;
 
       await Share.share({
         message: shareText,
@@ -485,7 +485,7 @@ const EnhancedRealisticGroceryListModal = ({
             {/* Cost Breakdown Panel */}
             {showCostBreakdown && (
               <View style={styles.expandablePanel}>
-                <Text style={styles.panelTitle}>💰 Cost Analysis</Text>
+                <Text style={styles.panelTitle}>Cost Analysis</Text>
                 <View style={styles.costStats}>
                   <View style={styles.costStat}>
                     <Text style={styles.costStatValue}>
@@ -510,7 +510,14 @@ const EnhancedRealisticGroceryListModal = ({
                   <View style={styles.categoryBreakdown}>
                     {Object.entries(groceryData.cost_breakdown.category_breakdown).map(([category, cost]) => (
                       <View key={category} style={styles.categoryBreakdownItem}>
-                        <Text style={styles.categoryBreakdownName}>{getCategoryIcon(category)} {category}</Text>
+                        <Text style={styles.categoryBreakdownName}>
+                          <Ionicons
+                            name={getCategoryIcon(category)}
+                            size={14}
+                            color="#64748b"
+                          />
+                          {' '}{category}
+                        </Text>
                         <Text style={styles.categoryBreakdownCost}>${cost.toFixed(2)}</Text>
                       </View>
                     ))}
@@ -522,7 +529,7 @@ const EnhancedRealisticGroceryListModal = ({
             {/* Shopping Tips Panel */}
             {showShoppingTips && groceryData.shopping_tips && (
               <View style={styles.expandablePanel}>
-                <Text style={styles.panelTitle}>💡 Smart Shopping Tips</Text>
+                <Text style={styles.panelTitle}>Smart Shopping Tips</Text>
                 {groceryData.shopping_tips.map((tip, index) => (
                   <View key={index} style={styles.tipItem}>
                     <Text style={styles.tipText}>{tip}</Text>
@@ -557,13 +564,19 @@ const EnhancedRealisticGroceryListModal = ({
                           isActive && styles.categoryTabActive
                         ]}
                         onPress={() => setSelectedCategory(category)}
-                      >
-                        <Text style={[
-                          styles.categoryTabText,
-                          isActive && styles.categoryTabTextActive
-                        ]}>
-                          {categoryData?.icon || '📦'} {category === 'all' ? 'All' : categoryData?.name || category}
-                        </Text>
+                                              >
+                          <Ionicons
+                            name={categoryData?.icon || 'archive'}
+                            size={16}
+                            color={isActive ? '#ffffff' : '#64748b'}
+                            style={{marginRight: 6}}
+                          />
+                          <Text style={[
+                            styles.categoryTabText,
+                            isActive && styles.categoryTabTextActive
+                          ]}>
+                            {category === 'all' ? 'All' : categoryData?.name || category}
+                          </Text>
                         <View style={[
                           styles.categoryTabBadge,
                           isActive && styles.categoryTabBadgeActive
@@ -628,7 +641,12 @@ const EnhancedRealisticGroceryListModal = ({
                             )}
                             {selectedCategory === 'all' && (
                               <Text style={styles.itemCategory}>
-                                {item.categoryIcon} {item.categoryName}
+                                <Ionicons
+                                  name={item.categoryIcon || 'archive'}
+                                  size={12}
+                                  color="#94a3b8"
+                                />
+                                {' '}{item.categoryName}
                               </Text>
                             )}
                             {item.notes && (
@@ -640,16 +658,7 @@ const EnhancedRealisticGroceryListModal = ({
                         </View>
                       </View>
                       
-                      <View style={styles.itemRight}>
-                        {item.price > 0 && (
-                          <Text style={[
-                            styles.itemPrice,
-                            item.checked && styles.itemPriceChecked
-                          ]}>
-                            ${item.price.toFixed(2)}
-                          </Text>
-                        )}
-                      </View>
+                      {/* Removed price display section */}
                     </TouchableOpacity>
                   );
                 })}
@@ -666,9 +675,6 @@ const EnhancedRealisticGroceryListModal = ({
               {/* Footer Information */}
               {groceryData && (
                 <View style={styles.footerInfo}>
-                  <Text style={styles.footerText}>
-                    💡 Generated from {groceryData.recipes_found} recipes
-                  </Text>
                   <Text style={styles.footerSubtext}>
                     Estimates based on average store prices • Actual costs may vary
                   </Text>
@@ -949,7 +955,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#64748b',
-    marginRight: 8,
   },
   categoryTabTextActive: {
     color: '#ffffff',
