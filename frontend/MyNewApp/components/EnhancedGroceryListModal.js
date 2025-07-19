@@ -1,4 +1,4 @@
-// EnhancedRealisticGroceryListModal.js - Optimized for the new backend
+// EnhancedRealisticGroceryListModal.js - Fixed for proper persistence and check state handling (NO DELAY)
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -21,7 +21,7 @@ import { authService } from '../services/auth';
 
 const { width, height } = Dimensions.get('window');
 
-const EnhancedRealisticGroceryListModal = ({
+const EnhancedGroceryListModal = ({
   visible,
   onClose,
   mealPlan,
@@ -42,22 +42,47 @@ const EnhancedRealisticGroceryListModal = ({
   const generateGroceryList = useCallback(async () => {
     if (!mealPlan || !visible) return;
 
+    // Prevent multiple simultaneous calls
+    if (loading) {
+      console.log('⚠️ Already loading, skipping duplicate request');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       console.log('🛒 Generating realistic grocery list...');
+      console.log('🔍 Meal Plan ID:', mealPlanId);
       
       // Check for existing saved list first
       let existingList = null;
       if (mealPlanId) {
         try {
           existingList = await authService.getGroceryListByMealPlanId(mealPlanId);
-          if (existingList && existingList.grocery_list) {
-            console.log('📋 Found existing grocery list, restoring...');
-            setGroceryData(transformSavedListData(existingList));
-            setLoading(false);
-            return;
+          console.log('📋 Existing grocery list found:', !!existingList);
+          console.log('📋 Existing list structure:', existingList ? Object.keys(existingList) : 'none');
+          
+          if (existingList && (existingList.categories || existingList.grocery_list)) {
+            console.log('📋 Restoring existing grocery list with check states...');
+            const transformedData = transformSavedListData(existingList);
+            console.log('📋 Transformed data valid:', !!transformedData?.categories?.length);
+            
+            if (transformedData && transformedData.categories && transformedData.categories.length > 0) {
+              setGroceryData(transformedData);
+              setLoading(false);
+              
+              // Animate entrance
+              Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+              }).start();
+              
+              return;
+            } else {
+              console.warn('⚠️ Existing list found but transformation failed, generating new list');
+            }
           }
         } catch (authError) {
           console.warn('⚠️ Could not load existing list:', authError.message);
@@ -110,7 +135,9 @@ const EnhancedRealisticGroceryListModal = ({
             summary: data.summary,
             shopping_tips: data.shopping_tips,
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            // Store categorized format for faster loading
+            categories: transformedData.categories
           };
           
           await authService.saveGroceryList(listToSave);
@@ -137,8 +164,13 @@ const EnhancedRealisticGroceryListModal = ({
 
   // Transform backend data to component format
   const transformBackendData = (data) => {
+    console.log('🔄 Transforming backend data...');
+    console.log('📊 Backend data keys:', Object.keys(data));
+    console.log('📊 Cost breakdown:', data.cost_breakdown?.total_cost);
+    
     // Group items by category
     const categorizedItems = {};
+    let totalCostFromItems = 0;
     
     if (data.grocery_list && Array.isArray(data.grocery_list)) {
       data.grocery_list.forEach(item => {
@@ -147,13 +179,17 @@ const EnhancedRealisticGroceryListModal = ({
           categorizedItems[category] = [];
         }
         
+        const itemCost = item.estimated_cost || 0;
+        totalCostFromItems += itemCost;
+        
         categorizedItems[category].push({
           name: item.name,
           quantity: item.quantity,
           unit: item.unit,
-          price: item.estimated_cost || 0,
+          price: itemCost,
           notes: item.notes || '',
           checked: item.is_checked || false,
+          checkedAt: item.checked_at || null,
           originalItem: item
         });
       });
@@ -161,14 +197,18 @@ const EnhancedRealisticGroceryListModal = ({
 
     // Convert to categories array with proper ordering
     const categoryOrder = {
-      'Meat & Proteins': 1,
+      'Proteins': 1,
       'Vegetables': 2,
       'Fruits': 3,
-      'Dairy & Eggs': 4,
-      'Grains & Bread': 5,
-      'Pantry Staples': 6,
-      'Herbs & Spices': 7,
-      'Condiments': 8
+      'Dairy': 4,
+      'Grains': 5,
+      'Pantry': 6,
+      'Herbs Spices': 7,
+      'Condiments': 8,
+      'Frozen': 9,
+      'Snacks': 10,
+      'Beverages': 11,
+      'Other': 99
     };
 
     const categories = Object.keys(categorizedItems)
@@ -179,11 +219,23 @@ const EnhancedRealisticGroceryListModal = ({
       }))
       .sort((a, b) => (categoryOrder[a.name] || 99) - (categoryOrder[b.name] || 99));
 
+    // Use cost breakdown total if available, otherwise use calculated total
+    const finalTotalCost = data.cost_breakdown?.total_cost || totalCostFromItems;
+
+    console.log(`✅ Transformed data: ${categories.length} categories, ${data.grocery_list?.length || 0} total items`);
+    console.log(`💰 Final total cost: ${finalTotalCost}`);
+
     return {
       success: true,
       categories: categories,
-      total_cost: data.cost_breakdown?.total_cost || 0,
-      cost_breakdown: data.cost_breakdown,
+      total_cost: finalTotalCost,
+      cost_breakdown: data.cost_breakdown || {
+        total_cost: finalTotalCost,
+        cost_per_day: 0,
+        cost_per_meal: 0,
+        category_breakdown: {},
+        item_count: data.grocery_list?.length || 0
+      },
       summary: data.summary,
       shopping_tips: data.shopping_tips || [],
       recipes_found: data.recipes_found || 0,
@@ -191,96 +243,233 @@ const EnhancedRealisticGroceryListModal = ({
     };
   };
 
-  // Transform saved list data
+  // Transform saved list data - FIXED VERSION
   const transformSavedListData = (savedData) => {
-    if (savedData.categories) {
-      return savedData; // Already in correct format
+    console.log('🔄 Transforming saved list data...');
+    console.log('📋 Saved data structure:', Object.keys(savedData));
+    console.log('📋 Has categories:', !!savedData.categories);
+    console.log('📋 Has grocery_list:', !!savedData.grocery_list);
+    console.log('📋 Categories length:', savedData.categories?.length);
+    console.log('📋 Grocery list length:', savedData.grocery_list?.length);
+    
+    // If already in correct format with categories, use it directly
+    if (savedData.categories && Array.isArray(savedData.categories) && savedData.categories.length > 0) {
+      console.log('✅ Using pre-transformed categories format');
+      
+      // Calculate total cost from categories
+      let totalCost = 0;
+      const enhancedCategories = savedData.categories.map(category => ({
+        ...category,
+        items: category.items.map(item => {
+          const price = item.price || item.estimated_cost || 0;
+          totalCost += price;
+          
+          return {
+            ...item,
+            checked: item.checked || item.is_checked || false,
+            checkedAt: item.checkedAt || item.checked_at || null,
+            price: price // Ensure price is preserved
+          };
+        })
+      }));
+      
+      return {
+        ...savedData,
+        categories: enhancedCategories,
+        total_cost: savedData.total_cost || totalCost,
+        success: true
+      };
     }
     
-    return transformBackendData(savedData);
+    // If it has grocery_list, transform it like backend data
+    if (savedData.grocery_list && Array.isArray(savedData.grocery_list)) {
+      console.log('✅ Transforming from grocery_list format');
+      
+      // Ensure cost breakdown is preserved
+      const transformedData = transformBackendData({
+        ...savedData,
+        success: true,
+        cost_breakdown: savedData.cost_breakdown || {
+          total_cost: 0,
+          cost_per_day: 0,
+          cost_per_meal: 0,
+          category_breakdown: {},
+          item_count: savedData.grocery_list.length
+        }
+      });
+      
+      // If total cost is 0, recalculate it from items
+      if (transformedData.total_cost === 0) {
+        let recalculatedCost = 0;
+        transformedData.categories.forEach(category => {
+          category.items.forEach(item => {
+            recalculatedCost += item.price || 0;
+          });
+        });
+        transformedData.total_cost = recalculatedCost;
+        
+        // Update cost breakdown
+        if (transformedData.cost_breakdown) {
+          transformedData.cost_breakdown.total_cost = recalculatedCost;
+        }
+      }
+      
+      return transformedData;
+    }
+    
+    console.warn('⚠️ Saved data has unexpected format, fallback to empty state');
+    return null;
   };
 
   // Get category icon
   const getCategoryIcon = (categoryName) => {
     const iconMap = {
-      'Meat & Proteins': 'restaurant',
+      'Proteins': 'restaurant',
       'Vegetables': 'leaf',
       'Fruits': 'nutrition',
-      'Dairy & Eggs': 'water',
-      'Grains & Bread': 'grid',
-      'Pantry Staples': 'cube',
-      'Herbs & Spices': 'flower',
-      'Condiments': 'bottle'
+      'Dairy': 'water',
+      'Grains': 'grid',
+      'Pantry': 'cube',
+      'Herbs Spices': 'flower',
+      'Condiments': 'bottle',
+      'Frozen': 'snow',
+      'Snacks': 'fast-food',
+      'Beverages': 'wine'
     };
     return iconMap[categoryName] || 'archive';
   };
 
-  // Toggle item check state with optimistic updates
+  // Toggle item check state with optimistic updates and persistence - FIXED VERSION (NO DELAY)
   const toggleItemChecked = useCallback(async (categoryName, itemIndex) => {
-    if (!groceryData || updatingChecks) return;
+    if (!groceryData) return;
 
-    setUpdatingChecks(true);
-    
+    // Don't block if we're already updating this specific item
+    const itemKey = `${categoryName}-${itemIndex}`;
+    if (updatingChecks === itemKey) return;
+
     try {
+      console.log(`🔄 Toggling check state for item in category: ${categoryName}, index: ${itemIndex}`);
+      
       // Find the category and item
       const categoryIndex = groceryData.categories.findIndex(cat => cat.name === categoryName);
       if (categoryIndex === -1 || !groceryData.categories[categoryIndex].items[itemIndex]) {
+        console.warn('⚠️ Category or item not found');
         return;
       }
 
       // Create updated data with optimistic update
       const updatedData = JSON.parse(JSON.stringify(groceryData)); // Deep clone
       const item = updatedData.categories[categoryIndex].items[itemIndex];
-      item.checked = !item.checked;
+      const newCheckedState = !item.checked;
+      
+      item.checked = newCheckedState;
+      item.checkedAt = newCheckedState ? new Date().toISOString() : null;
       
       // Update original item if it exists
       if (item.originalItem) {
-        item.originalItem.is_checked = item.checked;
-        item.originalItem.checked_at = item.checked ? new Date().toISOString() : null;
+        item.originalItem.is_checked = newCheckedState;
+        item.originalItem.checked_at = item.checkedAt;
       }
       
-      // Apply optimistic update
+      // Apply optimistic update IMMEDIATELY - this removes the delay
       setGroceryData(updatedData);
+      console.log(`✅ Optimistic update applied: ${item.name} = ${newCheckedState}`);
 
-      // Save to backend if we have a meal plan ID
+      // Set updating state AFTER the UI update, only for this specific item
+      setUpdatingChecks(itemKey);
+
+      // Save to backend in the background (don't await this)
       if (mealPlanId) {
-        try {
-          // Update the saved grocery list
-          const existingList = await authService.getGroceryListByMealPlanId(mealPlanId);
-          if (existingList) {
-            const updatedList = {
-              ...existingList,
-              grocery_list: updatedData.categories.flatMap(cat =>
-                cat.items.map(item => item.originalItem || {
-                  name: item.name,
-                  quantity: item.quantity,
-                  unit: item.unit,
-                  category: cat.name,
-                  estimated_cost: item.price,
-                  is_checked: item.checked,
-                  checked_at: item.checked ? new Date().toISOString() : null
-                })
-              ),
-              updated_at: new Date().toISOString()
-            };
+        // Save in background without blocking UI
+        (async () => {
+          try {
+            // Use the authService update method to preserve history
+            const itemUpdates = [{
+              name: item.name,
+              is_checked: newCheckedState
+            }];
             
-            await authService.saveGroceryList(updatedList);
-            console.log('✅ Item check state saved');
+            await authService.updateGroceryListCheckStates(mealPlanId, itemUpdates);
+            console.log('✅ Item check state updated in existing grocery list');
+            
+          } catch (saveError) {
+            console.warn('⚠️ Failed to update check state:', saveError);
+            
+            // If the specific update method fails, try the full save method as fallback
+            try {
+              console.log('🔄 Trying fallback save method...');
+              
+              const updatedGroceryList = updatedData.categories.flatMap(cat =>
+                cat.items.map(item => {
+                  const baseItem = item.originalItem || {
+                    name: item.name,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    category: cat.name,
+                    estimated_cost: item.price,
+                    notes: item.notes || ''
+                  };
+                  
+                  return {
+                    ...baseItem,
+                    is_checked: item.checked,
+                    checked_at: item.checkedAt
+                  };
+                })
+              );
+              
+              // Calculate updated totals
+              let checkedCount = 0;
+              updatedGroceryList.forEach(item => {
+                if (item.is_checked) checkedCount++;
+              });
+              
+              const completionPercentage = Math.round((checkedCount / updatedGroceryList.length) * 100);
+              
+              // Prepare the full grocery list object for saving (this will UPDATE not create new)
+              const groceryListToSave = {
+                meal_plan_id: mealPlanId, // This is the key for finding existing list
+                grocery_list: updatedGroceryList,
+                categories: updatedData.categories,
+                cost_breakdown: updatedData.cost_breakdown || groceryData.cost_breakdown,
+                summary: updatedData.summary || groceryData.summary,
+                shopping_tips: updatedData.shopping_tips || groceryData.shopping_tips,
+                total_cost: updatedData.total_cost || groceryData.total_cost,
+                checked_items_count: checkedCount,
+                completion_percentage: completionPercentage,
+                last_interaction: new Date().toISOString()
+              };
+              
+              await authService.saveGroceryList(groceryListToSave);
+              console.log('✅ Fallback save successful - grocery list updated');
+              
+            } catch (fallbackError) {
+              console.error('❌ Both update methods failed:', fallbackError);
+              
+              // Only show alert for save failure, don't revert UI since user expects it to work
+              Alert.alert(
+                'Save Failed',
+                'Could not save your changes. They will be saved when you close the list.',
+                [{ text: 'OK' }]
+              );
+            }
+          } finally {
+            // Clear the updating state for this specific item
+            setUpdatingChecks(prev => prev === itemKey ? false : prev);
           }
-        } catch (saveError) {
-          console.warn('⚠️ Failed to save check state:', saveError);
-          // Revert optimistic update on save failure
-          const revertedData = JSON.parse(JSON.stringify(groceryData));
-          revertedData.categories[categoryIndex].items[itemIndex].checked = !item.checked;
-          setGroceryData(revertedData);
-        }
+        })();
+      } else {
+        // No meal plan ID, so no need to save - clear updating state immediately
+        setUpdatingChecks(false);
       }
+
     } catch (error) {
       console.error('❌ Failed to toggle item:', error);
-    } finally {
+      // Don't revert optimistic update on error - let it stay for better UX
+      // Only clear the updating state
       setUpdatingChecks(false);
     }
-  }, [groceryData, updatingChecks, mealPlanId]);
+  }, [groceryData, mealPlanId]);
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
@@ -363,43 +552,88 @@ const EnhancedRealisticGroceryListModal = ({
     }
   }, [groceryData]);
 
-  // Handle modal close with auto-save
+  // Handle modal close with auto-save - STABILIZED VERSION
   const handleClose = useCallback(async () => {
-    if (groceryData && mealPlanId) {
+    if (groceryData && mealPlanId && !updatingChecks) {
       try {
-        // Quick save before closing
-        const existingList = await authService.getGroceryListByMealPlanId(mealPlanId);
-        if (existingList) {
-          const updatedList = {
-            ...existingList,
-            categories: groceryData.categories,
-            last_accessed: new Date().toISOString()
-          };
-          await authService.saveGroceryList(updatedList);
+        console.log('💾 Auto-saving grocery list progress on close...');
+        
+        // Quick save using the proper update method
+        const groceryListToSave = {
+          meal_plan_id: mealPlanId, // Key for finding existing list
+          categories: groceryData.categories,
+          total_cost: groceryData.total_cost,
+          cost_breakdown: groceryData.cost_breakdown,
+          summary: groceryData.summary,
+          shopping_tips: groceryData.shopping_tips,
+          last_accessed: new Date().toISOString(),
+          last_interaction: new Date().toISOString()
+        };
+        
+        // Convert categories back to grocery_list format for consistency
+        if (groceryData.categories) {
+          groceryListToSave.grocery_list = groceryData.categories.flatMap(cat =>
+            cat.items.map(item => ({
+              name: item.name,
+              quantity: item.quantity,
+              unit: item.unit,
+              category: cat.name,
+              estimated_cost: item.price,
+              notes: item.notes || '',
+              is_checked: item.checked,
+              checked_at: item.checkedAt
+            }))
+          );
         }
+        
+        // Save in background without waiting
+        authService.saveGroceryList(groceryListToSave).then(() => {
+          console.log('✅ Auto-save completed on modal close');
+        }).catch(error => {
+          console.warn('⚠️ Could not auto-save on close:', error);
+        });
+        
       } catch (error) {
-        console.warn('Could not save on close:', error);
+        console.warn('⚠️ Could not auto-save on close:', error);
+        // Don't prevent closing if save fails
       }
     }
+    
+    // Always close immediately for better UX
     onClose();
-  }, [groceryData, mealPlanId, onClose]);
+  }, [groceryData, mealPlanId, onClose, updatingChecks]);
 
-  // Load data when modal opens
+  // Load data when modal opens - STABILIZED VERSION
   useEffect(() => {
-    if (visible) {
+    if (visible && !loading && !groceryData) {
+      // Only generate if we don't already have data
       generateGroceryList();
-    } else {
-      // Reset animation when modal closes
+    } else if (!visible) {
+      // Reset animation when modal closes, but keep data
       fadeAnim.setValue(0);
     }
-  }, [visible, generateGroceryList]);
+  }, [visible]); // Remove generateGroceryList from dependencies to prevent loops
+
+  // Separate effect for when modal becomes visible with existing data
+  useEffect(() => {
+    if (visible && groceryData && fadeAnim._value === 0) {
+      // Animate entrance for existing data
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, groceryData]);
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
+      // Prevent modal from dismissing accidentally
+      supportedOrientations={['portrait']}
     >
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
@@ -564,19 +798,19 @@ const EnhancedRealisticGroceryListModal = ({
                           isActive && styles.categoryTabActive
                         ]}
                         onPress={() => setSelectedCategory(category)}
-                                              >
-                          <Ionicons
-                            name={categoryData?.icon || 'archive'}
-                            size={16}
-                            color={isActive ? '#ffffff' : '#64748b'}
-                            style={{marginRight: 6}}
-                          />
-                          <Text style={[
-                            styles.categoryTabText,
-                            isActive && styles.categoryTabTextActive
-                          ]}>
-                            {category === 'all' ? 'All' : categoryData?.name || category}
-                          </Text>
+                      >
+                        <Ionicons
+                          name={categoryData?.icon || 'archive'}
+                          size={16}
+                          color={isActive ? '#ffffff' : '#64748b'}
+                          style={{marginRight: 6}}
+                        />
+                        <Text style={[
+                          styles.categoryTabText,
+                          isActive && styles.categoryTabTextActive
+                        ]}>
+                          {category === 'all' ? 'All' : categoryData?.name || category}
+                        </Text>
                         <View style={[
                           styles.categoryTabBadge,
                           isActive && styles.categoryTabBadgeActive
@@ -606,6 +840,8 @@ const EnhancedRealisticGroceryListModal = ({
                     i.name === item.name
                   );
                   
+                  const itemKey = `${item.categoryName}-${itemIndex}`;
+                  
                   return (
                     <TouchableOpacity
                       key={`${item.categoryName}-${item.name}-${index}`}
@@ -614,7 +850,7 @@ const EnhancedRealisticGroceryListModal = ({
                         item.checked && styles.groceryItemChecked
                       ]}
                       onPress={() => toggleItemChecked(item.categoryName, itemIndex)}
-                      disabled={updatingChecks}
+                      disabled={updatingChecks === itemKey}
                       activeOpacity={0.7}
                     >
                       <View style={styles.itemLeft}>
@@ -657,8 +893,6 @@ const EnhancedRealisticGroceryListModal = ({
                           </View>
                         </View>
                       </View>
-                      
-                      {/* Removed price display section */}
                     </TouchableOpacity>
                   );
                 })}
@@ -678,6 +912,11 @@ const EnhancedRealisticGroceryListModal = ({
                   <Text style={styles.footerSubtext}>
                     Estimates based on average store prices • Actual costs may vary
                   </Text>
+                  {mealPlanId && (
+                    <Text style={styles.footerSubtext}>
+                      ✓ Your progress is automatically saved
+                    </Text>
+                  )}
                 </View>
               )}
               
@@ -966,6 +1205,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minWidth: 20,
     alignItems: 'center',
+    marginLeft: 6,
   },
   categoryTabBadgeActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -1050,17 +1290,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 2,
   },
-  itemRight: {
-    alignItems: 'flex-end',
-  },
-  itemPrice: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#059669',
-  },
-  itemPriceChecked: {
-    color: '#9ca3af',
-  },
 
   emptyState: {
     alignItems: 'center',
@@ -1084,17 +1313,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8fafc',
   },
-  footerText: {
-    fontSize: 14,
-    color: '#64748b',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
   footerSubtext: {
     fontSize: 12,
     color: '#94a3b8',
     textAlign: 'center',
     lineHeight: 16,
+    marginBottom: 4,
   },
 
   bottomPadding: {
@@ -1102,4 +1326,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EnhancedRealisticGroceryListModal;
+export default EnhancedGroceryListModal;

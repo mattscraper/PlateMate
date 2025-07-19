@@ -45,6 +45,7 @@ export default function WeightManagerScreen({ navigation }) {
   const [showBMICalculator, setShowBMICalculator] = useState(false);
   const [showCalorieCalculator, setShowCalorieCalculator] = useState(false);
   const [showTips, setShowTips] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
   
   // Form State
   const [goalType, setGoalType] = useState("lose_weight");
@@ -285,6 +286,179 @@ export default function WeightManagerScreen({ navigation }) {
     }
   };
 
+  // FIXED: Goal-specific recommendations with realistic protein amounts
+  const getGoalSpecificRecommendations = () => {
+    if (!currentGoal || !userProfile) {
+      return {
+        nutrition: [
+          "Set a specific goal to receive personalized nutrition recommendations",
+          "Focus on eating whole, unprocessed foods",
+          "Stay hydrated with 8-10 glasses of water daily"
+        ],
+        lifestyle: [
+          "Establish a consistent sleep schedule of 7-9 hours",
+          "Manage stress through meditation or relaxation techniques",
+          "Create a structured daily routine"
+        ],
+        activity: [
+          "Include both strength training and cardio in your routine",
+          "Aim for at least 150 minutes of moderate activity per week",
+          "Take regular breaks from sitting throughout the day"
+        ]
+      };
+    }
+
+    const currentWeightLbs = Math.round(kgToLbs(userProfile.weight));
+    const targetWeightLbs = currentGoal.targetWeightLbs;
+    const bmr = calculateBMR(userProfile.weight, userProfile.height, userProfile.age, gender);
+    const tdee = calculateTDEE(bmr, activityLevel);
+
+    switch (currentGoal.type) {
+      case "lose_weight":
+        return {
+          nutrition: [
+            `Target ${Math.round(tdee - 500)} calories daily for 1 lb/week loss`,
+            `Eat ${Math.round(currentWeightLbs * 0.8)}g protein daily to preserve muscle`,
+            "Fill half your plate with vegetables at each meal",
+            "Choose lean proteins: chicken, fish, eggs, tofu, legumes",
+            "Include fiber-rich foods to increase satiety",
+            "Drink water before meals to help control appetite",
+            "Limit liquid calories from sodas, juices, and alcohol",
+            "Use smaller plates and bowls to control portions"
+          ],
+          lifestyle: [
+            "Get 7-9 hours of quality sleep to regulate hunger hormones",
+            "Manage stress as cortisol can promote fat storage",
+            "Eat slowly and chew thoroughly to improve satiety",
+            "Plan and prep meals in advance",
+            "Keep healthy snacks readily available",
+            "Practice mindful eating without distractions",
+            "Stay consistent with meal timing",
+            "Find non-food ways to cope with emotions"
+          ],
+          activity: [
+            "Include strength training 3-4x per week to preserve muscle",
+            "Add 20-30 minutes of cardio 3-4x per week",
+            "Increase daily steps to 8,000-10,000",
+            "Take stairs instead of elevators when possible",
+            "Try HIIT workouts for efficient fat burning",
+            "Include active recovery like walking or yoga",
+            "Focus on compound movements: squats, deadlifts, pushups",
+            "Track workouts to ensure progressive overload"
+          ]
+        };
+
+      case "gain_weight":
+        return {
+          nutrition: [
+            `Target ${Math.round(tdee + 300)} calories daily for healthy weight gain`,
+            `Eat ${Math.round(currentWeightLbs * 0.9)}g protein daily for muscle building`,
+            "Include calorie-dense foods: nuts, avocados, olive oil",
+            "Eat frequent meals (5-6 smaller meals vs 3 large)",
+            "Add healthy fats to every meal",
+            "Drink smoothies with protein powder, oats, and fruits",
+            "Choose complex carbs: oats, quinoa, sweet potatoes",
+            "Don't fill up on water before meals"
+          ],
+          lifestyle: [
+            "Prioritize 8-9 hours of sleep for optimal recovery",
+            "Minimize stress which can suppress appetite",
+            "Set meal reminders to ensure consistent eating",
+            "Prepare calorie-dense snacks in advance",
+            "Track your weight and measurements weekly",
+            "Be patient - healthy weight gain takes time",
+            "Focus on gradual, sustainable changes",
+            "Celebrate small victories along the way"
+          ],
+          activity: [
+            "Focus heavily on strength training 4-5x per week",
+            "Emphasize compound movements for maximum muscle growth",
+            "Progressive overload - increase weight/reps each week",
+            "Limit cardio to 2-3 sessions to preserve calories",
+            "Allow 48-72 hours rest between training same muscles",
+            "Consider creatine supplementation for strength gains",
+            "Track all workouts to monitor progress",
+            "Work with a trainer if new to strength training"
+          ]
+        };
+
+      case "maintain_weight":
+        return {
+          nutrition: [
+            `Eat around ${Math.round(tdee)} calories daily for maintenance`,
+            `Target ${Math.round(currentWeightLbs * 0.7)}g protein daily`,
+            "Focus on nutrient-dense whole foods",
+            "Include variety to prevent boredom",
+            "Practice portion awareness without strict tracking",
+            "Allow flexibility for social events",
+            "Maintain consistent meal timing",
+            "Listen to hunger and fullness cues"
+          ],
+          lifestyle: [
+            "Maintain consistent sleep and wake times",
+            "Develop sustainable daily routines",
+            "Practice stress management techniques regularly",
+            "Monitor weight weekly, not daily",
+            "Focus on non-scale victories",
+            "Build supportive social connections",
+            "Plan for challenging situations in advance",
+            "Celebrate maintaining healthy habits"
+          ],
+          activity: [
+            "Continue strength training 3-4x per week",
+            "Include regular cardiovascular exercise",
+            "Try new activities to prevent boredom",
+            "Focus on functional fitness movements",
+            "Include flexibility and mobility work",
+            "Stay active throughout the day",
+            "Set performance-based goals vs weight goals",
+            "Find activities you genuinely enjoy"
+          ]
+        };
+
+      case "body_recomp":
+        return {
+          nutrition: [
+            `Eat around ${Math.round(tdee)} calories with precise macro tracking`,
+            `Prioritize ${Math.round(currentWeightLbs * 1.0)}g protein daily`,
+            "Time carbs around workouts for performance",
+            "Include healthy fats for hormone production",
+            "Track food intake meticulously for first 8 weeks",
+            "Consider nutrient timing for optimal results",
+            "Cycle between slight deficits and maintenance",
+            "Focus on food quality over just quantity"
+          ],
+          lifestyle: [
+            "Prioritize sleep quality for optimal body composition",
+            "Manage stress to optimize hormone balance",
+            "Be patient - recomp takes 6-12 months minimum",
+            "Take progress photos and measurements regularly",
+            "Focus on strength gains over scale weight",
+            "Stay consistent with your approach",
+            "Consider working with professionals",
+            "Celebrate small improvements in physique"
+          ],
+          activity: [
+            "Strength training 4-5x per week is essential",
+            "Focus on progressive overload consistently",
+            "Include both compound and isolation exercises",
+            "Limit cardio to maintain muscle mass",
+            "Track all workouts meticulously",
+            "Include deload weeks every 4-6 weeks",
+            "Focus on mind-muscle connection",
+            "Consider periodization for optimal results"
+          ]
+        };
+
+      default:
+        return {
+          nutrition: ["Focus on balanced, whole food nutrition"],
+          lifestyle: ["Maintain healthy daily habits"],
+          activity: ["Stay active with regular exercise"]
+        };
+    }
+  };
+
   // Comprehensive educational content
   const educationalContent = {
     weight_loss: {
@@ -457,36 +631,28 @@ export default function WeightManagerScreen({ navigation }) {
     return insights;
   };
 
-  // Generate personalized recommendations
+  // FIXED: Generate personalized recommendations based on goal
   const generateRecommendations = () => {
     const recommendations = [];
     
-    if (userProfile) {
-      const bmi = calculateBMI(userProfile.weight, userProfile.height);
-      
-      if (bmi < 18.5) {
-        recommendations.push({
-          title: "Consider gaining weight",
-          description: "Your BMI suggests you may benefit from healthy weight gain",
-          action: "Set a weight gain goal",
-          priority: "high"
-        });
-      } else if (bmi > 25) {
-        recommendations.push({
-          title: "Consider weight management",
-          description: "Focus on gradual, sustainable weight loss",
-          action: "Set a weight loss goal",
-          priority: "medium"
-        });
-      }
-    }
+    // Always show personalized recommendations button
+    recommendations.push({
+      title: "View Personalized Recommendations",
+      description: currentGoal ?
+        `Get specific advice for your ${goalTypes.find(g => g.id === currentGoal.type)?.label.toLowerCase()} goal` :
+        "Get nutrition, lifestyle, and activity recommendations",
+      action: "View Recommendations",
+      priority: "high",
+      onPress: () => setShowRecommendations(true)
+    });
 
     if (weightEntries.length < 7) {
       recommendations.push({
         title: "Log weight more consistently",
         description: "Daily tracking provides better insights into your progress",
-        action: "Set a daily reminder",
-        priority: "high"
+        action: "Set up daily logging",
+        priority: "high",
+        onPress: () => setShowLogWeight(true)
       });
     }
 
@@ -495,7 +661,8 @@ export default function WeightManagerScreen({ navigation }) {
         title: "Set a specific goal",
         description: "Having a clear target makes success more likely",
         action: "Create your first goal",
-        priority: "high"
+        priority: "high",
+        onPress: () => setShowGoalSetup(true)
       });
     }
 
@@ -1332,6 +1499,7 @@ export default function WeightManagerScreen({ navigation }) {
     );
   };
 
+  // FIXED: RecommendationsSection with working onPress
   const RecommendationsSection = () => {
     if (recommendations.length === 0) return null;
 
@@ -1358,7 +1526,11 @@ export default function WeightManagerScreen({ navigation }) {
             <Text style={[styles.recommendationDescription, { color: colors.textSecondary }]}>
               {rec.description}
             </Text>
-            <TouchableOpacity style={[styles.recommendationAction, { borderColor: colors.primary }]}>
+            <TouchableOpacity
+              style={[styles.recommendationAction, { borderColor: colors.primary }]}
+              onPress={rec.onPress}
+              activeOpacity={0.8}
+            >
               <Text style={[styles.recommendationActionText, { color: colors.primary }]}>
                 {rec.action}
               </Text>
@@ -1712,6 +1884,8 @@ export default function WeightManagerScreen({ navigation }) {
   const MacroBreakdownCard = () => {
     if (!userProfile) return null;
 
+    const currentWeightLbs = Math.round(kgToLbs(userProfile.weight));
+
     return (
       <View style={[styles.macroCard, styles.shadowCard]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -1722,21 +1896,21 @@ export default function WeightManagerScreen({ navigation }) {
             <View style={[styles.macroColor, { backgroundColor: colors.primary }]} />
             <Text style={[styles.macroLabel, { color: colors.text }]}>Protein</Text>
             <Text style={[styles.macroValue, { color: colors.textSecondary }]}>
-              {Math.round(kgToLbs(userProfile.weight) * 1.2)}g
+              {Math.round(currentWeightLbs * 0.8)}g
             </Text>
           </View>
           <View style={styles.macroItem}>
             <View style={[styles.macroColor, { backgroundColor: colors.secondary }]} />
             <Text style={[styles.macroLabel, { color: colors.text }]}>Carbs</Text>
             <Text style={[styles.macroValue, { color: colors.textSecondary }]}>
-              {Math.round(kgToLbs(userProfile.weight) * 2.5)}g
+              {Math.round(currentWeightLbs * 1.5)}g
             </Text>
           </View>
           <View style={styles.macroItem}>
             <View style={[styles.macroColor, { backgroundColor: colors.accent }]} />
             <Text style={[styles.macroLabel, { color: colors.text }]}>Fats</Text>
             <Text style={[styles.macroValue, { color: colors.textSecondary }]}>
-              {Math.round(kgToLbs(userProfile.weight) * 0.8)}g
+              {Math.round(currentWeightLbs * 0.4)}g
             </Text>
           </View>
         </View>
@@ -2460,6 +2634,7 @@ export default function WeightManagerScreen({ navigation }) {
                 )}
               </View>
 
+              {/* FIXED: Success Tips Button - Now actually works */}
               <TouchableOpacity
                 style={[styles.tipsButton, { backgroundColor: colors.accentLight }]}
                 onPress={() => setShowTips(true)}
@@ -2554,6 +2729,108 @@ export default function WeightManagerScreen({ navigation }) {
             </ScrollView>
           </SafeAreaView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* NEW: Recommendations Modal - Goal-specific recommendations */}
+      <Modal visible={showRecommendations} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowRecommendations(false)}>
+              <Text style={[styles.modalCancel, { color: colors.textSecondary }]}>Done</Text>
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Your Recommendations
+            </Text>
+            <View style={{ width: 60 }} />
+          </View>
+          
+          <ScrollView style={styles.modalBody}>
+            {(() => {
+              const recommendations = getGoalSpecificRecommendations();
+              return (
+                <View>
+                  {currentGoal && (
+                    <View style={[styles.recommendationsHeader, { backgroundColor: colors.primaryLight }]}>
+                      <Text style={[styles.recommendationsTitle, { color: colors.primary }]}>
+                        🎯 {goalTypes.find(g => g.id === currentGoal.type)?.label} Recommendations
+                      </Text>
+                      <Text style={[styles.recommendationsSubtitle, { color: colors.textSecondary }]}>
+                        Personalized advice for your current goal
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Nutrition Recommendations */}
+                  <View style={[styles.recommendationCategory, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.categoryHeader, { backgroundColor: colors.secondary }]}>
+                      <Ionicons name="restaurant-outline" size={20} color={colors.white} />
+                      <Text style={[styles.categoryHeaderTitle, { color: colors.white }]}>
+                        Nutrition
+                      </Text>
+                    </View>
+                    <View style={styles.categoryContent}>
+                      {recommendations.nutrition.map((tip, index) => (
+                        <View key={index} style={styles.recommendationItem}>
+                          <View style={[styles.recommendationBullet, { backgroundColor: colors.secondary }]} />
+                          <Text style={[styles.recommendationText, { color: colors.textSecondary }]}>
+                            {tip}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Lifestyle Recommendations */}
+                  <View style={[styles.recommendationCategory, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.categoryHeader, { backgroundColor: colors.accent }]}>
+                      <Ionicons name="moon-outline" size={20} color={colors.white} />
+                      <Text style={[styles.categoryHeaderTitle, { color: colors.white }]}>
+                        Lifestyle
+                      </Text>
+                    </View>
+                    <View style={styles.categoryContent}>
+                      {recommendations.lifestyle.map((tip, index) => (
+                        <View key={index} style={styles.recommendationItem}>
+                          <View style={[styles.recommendationBullet, { backgroundColor: colors.accent }]} />
+                          <Text style={[styles.recommendationText, { color: colors.textSecondary }]}>
+                            {tip}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Activity Recommendations */}
+                  <View style={[styles.recommendationCategory, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.categoryHeader, { backgroundColor: colors.purple }]}>
+                      <Ionicons name="fitness-outline" size={20} color={colors.white} />
+                      <Text style={[styles.categoryHeaderTitle, { color: colors.white }]}>
+                        Activity & Exercise
+                      </Text>
+                    </View>
+                    <View style={styles.categoryContent}>
+                      {recommendations.activity.map((tip, index) => (
+                        <View key={index} style={styles.recommendationItem}>
+                          <View style={[styles.recommendationBullet, { backgroundColor: colors.purple }]} />
+                          <Text style={[styles.recommendationText, { color: colors.textSecondary }]}>
+                            {tip}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={[styles.recommendationsFooter, { backgroundColor: colors.gray50 }]}>
+                    <Text style={[styles.footerText, { color: colors.textMuted }]}>
+                      💡 These recommendations are personalized based on your current goal and profile.
+                      Consistency is key to achieving your transformation!
+                    </Text>
+                  </View>
+                </View>
+              );
+            })()}
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
 
       {/* Settings Modal - FUNCTIONAL */}
@@ -3778,9 +4055,11 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+    marginTop:14,
   },
   modalHeader: {
     flexDirection: 'row',
+    marginTop: 9,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
@@ -4051,6 +4330,69 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginBottom: 4,
+  },
+
+  // NEW: Recommendations Modal Styles
+  recommendationsHeader: {
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  recommendationsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  recommendationsSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  recommendationCategory: {
+    borderRadius: 16,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 8,
+  },
+  categoryHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  categoryContent: {
+    padding: 16,
+  },
+  recommendationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 12,
+  },
+  recommendationBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+  },
+  recommendationText: {
+    fontSize: 14,
+    lineHeight: 20,
+    flex: 1,
+  },
+  recommendationsFooter: {
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  footerText: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
   },
 
   // Settings Modal
@@ -4448,73 +4790,38 @@ const styles = StyleSheet.create({
   historyDate: {
     fontSize: 12,
   },
-    modalFullContainer: {
-      flex: 1,
-      backgroundColor: '#FFFFFF', // colors.surface
-    },
-    modalHeaderFixed: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-        marginTop: 33,
-      borderBottomWidth: 1,
-      borderBottomColor: '#E5E7EB', // colors.border
-      backgroundColor: '#FFFFFF', // colors.surface
-      minHeight: 60,
-      zIndex: 1,
-    },
-    modalHeaderButton: {
-      minWidth: 60,
-      minHeight: 44,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    modalContentFlex: {
-      flex: 1,
-      backgroundColor: '#F9FAFB', // colors.background
-    },
-    modalBodyFlex: {
-      flex: 1,
-    },
-    modalBodyContent: {
-      padding: 20,
-      paddingBottom: 40,
-    },
-
-    // Keep your existing modal styles but update modalContainer:
-    modalContainer: {
-      flex: 1,
-      backgroundColor: '#F9FAFB',
-        marginTop:14,
-    },
-    modalHeader: {
-      flexDirection: 'row',
-        marginTop: 9,
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: '#E5E7EB',
-      backgroundColor: '#FFFFFF',
-    },
-    modalTitle: {
-      fontSize: 17,
-      fontWeight: '600',
-    },
-    modalCancel: {
-      fontSize: 16,
-      fontWeight: '500',
-    },
-    modalSave: {
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    modalBody: {
-      flex: 1,
-      padding: 20,
-    },
-  });
-
+  modalFullContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF', // colors.surface
+  },
+  modalHeaderFixed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginTop: 33,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB', // colors.border
+    backgroundColor: '#FFFFFF', // colors.surface
+    minHeight: 60,
+    zIndex: 1,
+  },
+  modalHeaderButton: {
+    minWidth: 60,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContentFlex: {
+    flex: 1,
+    backgroundColor: '#F9FAFB', // colors.background
+  },
+  modalBodyFlex: {
+    flex: 1,
+  },
+  modalBodyContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+});

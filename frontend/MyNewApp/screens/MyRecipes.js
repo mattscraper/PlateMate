@@ -359,12 +359,6 @@ export default function MyRecipesScreen({ navigation }) {
         Create your first meal plan to organize your weekly meals and shopping
         list!
       </Text>
-      <TouchableOpacity
-        style={styles.exploreButton}
-        onPress={() => navigation.navigate("MealPlans")}
-      >
-        <Text style={styles.exploreButtonText}>Create Meal Plan</Text>
-      </TouchableOpacity>
     </View>
   );
 

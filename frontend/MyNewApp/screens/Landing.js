@@ -662,6 +662,19 @@ export default function LandingScreen({ navigation }) {
                   navigation.navigate("FoodScannerHome");
                 }}
               />
+              
+          {/* Food Log & Nutrition Tracker - Premium */}
+          <HeroFeatureCard
+            icon="nutrition-outline"
+            title="Smart Nutrition Tracker"
+            description="AI-powered food logging with detailed macro tracking and personalized insights"
+            onPress={() =>
+              handlePremiumFeaturePress(
+                "Smart Nutrition Tracker",
+                "FoodLog"
+              )
+            }
+          />
 
               {/* Weight Manager - Premium Feature */}
               <HeroFeatureCard
@@ -673,18 +686,7 @@ export default function LandingScreen({ navigation }) {
                 }
               />
 
-              {/* Food Log & Nutrition Tracker - Premium */}
-              <HeroFeatureCard
-                icon="nutrition-outline"
-                title="Smart Nutrition Tracker"
-                description="AI-powered food logging with detailed macro tracking and personalized insights"
-                onPress={() =>
-                  handlePremiumFeaturePress(
-                    "Smart Nutrition Tracker",
-                    "FoodLog"
-                  )
-                }
-              />
+             
             </View>
 
             {/* All Features Section */}

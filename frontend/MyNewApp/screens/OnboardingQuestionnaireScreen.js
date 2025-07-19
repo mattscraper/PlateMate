@@ -16,6 +16,7 @@ import {
   StatusBar,
   Image,
   TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -62,7 +63,7 @@ const ageOptions = Array.from({ length: 83 }, (_, i) => {
   return { label: `${age} years`, value: age.toString() };
 });
 
-// Account Modal Component
+// Enhanced Account Modal Component with better keyboard handling
 const AccountModal = ({
   visible,
   onClose,
@@ -78,23 +79,42 @@ const AccountModal = ({
   onAuth,
   onSkip
 }) => {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <View style={styles.modalContainer}>
-        <SafeAreaView style={styles.modalSafeArea}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.modalContainer}>
+          <SafeAreaView style={styles.modalSafeArea}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
 
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalKeyboardView}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
-          >
             <ScrollView
-              contentContainerStyle={styles.modalScrollContent}
+              ref={scrollViewRef}
+              style={styles.modalScrollView}
+              contentContainerStyle={[
+                styles.modalScrollContent,
+                { paddingBottom: Math.max(keyboardHeight, 20) + 100 }
+              ]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               bounces={false}
@@ -145,6 +165,11 @@ const AccountModal = ({
                       autoCapitalize="none"
                       autoCorrect={false}
                       returnKeyType="next"
+                      onFocus={() => {
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollTo({ y: 200, animated: true });
+                        }, 100);
+                      }}
                     />
                   </View>
                 </View>
@@ -162,6 +187,11 @@ const AccountModal = ({
                       secureTextEntry={!showPassword}
                       returnKeyType="done"
                       onSubmitEditing={onAuth}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollTo({ y: 300, animated: true });
+                        }, 100);
+                      }}
                     />
                     <TouchableOpacity
                       style={styles.modalPasswordToggle}
@@ -176,38 +206,38 @@ const AccountModal = ({
                   </View>
                 </View>
               </View>
+
+              <View style={styles.modalActionSection}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalPrimaryButton,
+                    (!email.trim() || !password || password.length < 6 || isLoading) && styles.modalPrimaryButtonDisabled
+                  ]}
+                  onPress={onAuth}
+                  disabled={!email.trim() || !password || password.length < 6 || isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.modalPrimaryButtonText}>
+                      {isLoginMode ? "Sign In" : "Create Account"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalSecondaryButton} onPress={onSkip}>
+                  <Text style={styles.modalSecondaryButtonText}>Continue without account</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
-
-            <View style={styles.modalActionSection}>
-              <TouchableOpacity
-                style={[
-                  styles.modalPrimaryButton,
-                  (!email.trim() || !password || password.length < 6 || isLoading) && styles.modalPrimaryButtonDisabled
-                ]}
-                onPress={onAuth}
-                disabled={!email.trim() || !password || password.length < 6 || isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.modalPrimaryButtonText}>
-                    {isLoginMode ? "Sign In" : "Create Account"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.modalSecondaryButton} onPress={onSkip}>
-                <Text style={styles.modalSecondaryButtonText}>Continue without account</Text>
-              </TouchableOpacity>
-            </View>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </View>
+          </SafeAreaView>
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
 
-// Premium Modal Component with Enhanced Logic
+// Premium Modal Component with individual purchase buttons
 const PremiumModal = ({
   visible,
   onClose,
@@ -218,8 +248,7 @@ const PremiumModal = ({
   packages,
   revenueCatAvailable
 }) => {
-  const [selectedPlan, setSelectedPlan] = useState('yearly');
-  const [purchasing, setPurchasing] = useState(false);
+  const [purchasingPackageId, setPurchasingPackageId] = useState(null);
 
   const getPackageInfo = (pkg) => {
     const identifier = pkg.identifier.toLowerCase();
@@ -239,6 +268,7 @@ const PremiumModal = ({
       return {
         id: 'monthly',
         title: 'Monthly Premium',
+        subtitle: 'Perfect for trying premium',
         price: product.priceString,
         period: '/month',
         productId: product.identifier,
@@ -246,6 +276,7 @@ const PremiumModal = ({
           "Smart Ingredient Search",
           "Personalized Meal Plans",
           "Food Scanner & Health Scores",
+          "AI Weight Management",
           "AI Macro Tracking",
           "Grocery List Generator",
           "Unlimited Recipe Saves",
@@ -258,6 +289,7 @@ const PremiumModal = ({
       return {
         id: 'yearly',
         title: 'Annual Premium',
+        subtitle: 'Best value for serious users',
         price: product.priceString,
         period: '/year',
         productId: product.identifier,
@@ -267,6 +299,7 @@ const PremiumModal = ({
           "Smart Ingredient Search",
           "Personalized Meal Plans",
           "Food Scanner & Health Scores",
+          "AI Weight Management & Goals",
           "Additive Detection",
           "AI Macro Tracking",
           "Grocery List Generator",
@@ -283,6 +316,7 @@ const PremiumModal = ({
     return {
       id: pkg.identifier,
       title: product.title || 'Premium',
+      subtitle: 'Premium features',
       price: product.priceString,
       period: '',
       productId: product.identifier,
@@ -293,48 +327,21 @@ const PremiumModal = ({
 
   const plans = packages.map(pkg => getPackageInfo(pkg)).filter(Boolean);
 
-  // Set default to yearly if available
-  useEffect(() => {
-    if (plans.length > 0) {
-      const yearlyPlan = plans.find(p => p.id === 'yearly');
-      if (yearlyPlan) {
-        setSelectedPlan('yearly');
-      } else {
-        setSelectedPlan(plans[0].id);
-      }
-    }
-  }, [plans]);
-
-  const handlePurchase = async () => {
-    const selectedPackage = packages.find(pkg => {
-      const info = getPackageInfo(pkg);
-      return info?.id === selectedPlan;
-    });
-
-    if (!selectedPackage) {
-      Alert.alert('Error', 'Selected plan not found');
-      return;
-    }
-
-    setPurchasing(true);
-    await onSelectPremium(selectedPackage);
-    setPurchasing(false);
+  const handlePurchase = async (packageToPurchase) => {
+    setPurchasingPackageId(packageToPurchase.identifier);
+    await onSelectPremium(packageToPurchase);
+    setPurchasingPackageId(null);
   };
 
-  const PlanCard = ({ plan, onPress }) => {
-    const isSelected = selectedPlan === plan.id;
+  const PlanCard = ({ plan, packageData }) => {
+    const isThisPackagePurchasing = purchasingPackageId === packageData.identifier;
     const isFallbackPackage = plan.productId?.includes('fallback');
     
     return (
-      <TouchableOpacity
-        style={[
-          styles.planCard,
-          isSelected && styles.planCardSelected,
-          plan.popular && styles.planCardPopular
-        ]}
-        onPress={() => setSelectedPlan(plan.id)}
-        activeOpacity={0.8}
-      >
+      <View style={[
+        styles.planCard,
+        plan.popular && styles.planCardPopular
+      ]}>
         {plan.popular && (
           <View style={styles.popularBadge}>
             <Ionicons name="diamond" size={12} color="white" />
@@ -352,6 +359,7 @@ const PremiumModal = ({
         <View style={styles.planCardHeader}>
           <View style={styles.planCardLeft}>
             <Text style={styles.planCardTitle}>{plan.title}</Text>
+            <Text style={styles.planCardSubtitle}>{plan.subtitle}</Text>
             <View style={styles.planCardPricing}>
               <Text style={styles.planCardPrice}>{plan.price}</Text>
               <Text style={styles.planCardPeriod}>{plan.period}</Text>
@@ -361,15 +369,6 @@ const PremiumModal = ({
                 </View>
               )}
             </View>
-          </View>
-          
-          <View style={[
-            styles.planCardRadio,
-            isSelected && styles.planCardRadioSelected
-          ]}>
-            {isSelected && (
-              <Ionicons name="checkmark" size={16} color="white" />
-            )}
           </View>
         </View>
 
@@ -381,7 +380,33 @@ const PremiumModal = ({
             </View>
           ))}
         </View>
-      </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.planUpgradeButton,
+            plan.isRecommended && styles.recommendedUpgradeButton,
+            isFallbackPackage && styles.fallbackUpgradeButton,
+          ]}
+          onPress={() => handlePurchase(packageData)}
+          disabled={purchasingPackageId !== null}
+          activeOpacity={0.8}
+        >
+          {isThisPackagePurchasing ? (
+            <View style={styles.purchasingContainer}>
+              <ActivityIndicator color="white" size="small" />
+              <Text style={styles.planUpgradeButtonText}>Processing...</Text>
+            </View>
+          ) : (
+            <View style={styles.buttonContent}>
+              <Ionicons name="diamond" size={16} color="white" />
+              <Text style={styles.planUpgradeButtonText}>
+                {isFallbackPackage ? "Contact for Upgrade" : "Get Premium"}
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="white" />
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -389,18 +414,13 @@ const PremiumModal = ({
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={styles.premiumModalContainer}>
         <SafeAreaView style={styles.premiumModalSafeArea}>
-          <View style={styles.premiumModalHeader}>
-            <TouchableOpacity style={styles.premiumModalCloseButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
-
+          {/* Removed the close button header */}
+          
           <ScrollView
             style={styles.premiumModalScroll}
             contentContainerStyle={styles.premiumModalContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Status Indicator */}
             {!revenueCatAvailable && (
               <View style={styles.statusBanner}>
                 <Ionicons name="warning" size={16} color="#f39c12" />
@@ -420,7 +440,7 @@ const PremiumModal = ({
               <Text style={styles.premiumSubtitle}>
                 {userCreatedAccount
                   ? "Now choose your plan to get the most out of Kitchly"
-                  : "Get access to AI-powered nutrition tools"
+                  : "Get access to AI-powered nutrition & weight management tools"
                 }
               </Text>
             </View>
@@ -434,46 +454,33 @@ const PremiumModal = ({
               <View style={styles.planSelectionSection}>
                 <Text style={styles.planSelectionTitle}>Choose Your Plan</Text>
                 
-                {plans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} />
+                {plans.map((plan, index) => (
+                  <PlanCard
+                    key={plan.id || index}
+                    plan={plan}
+                    packageData={packages[index]}
+                  />
                 ))}
               </View>
             )}
+
+            <View style={styles.premiumModalActionsInline}>
+              <TouchableOpacity
+                style={styles.premiumFreeButtonProminent}
+                onPress={onContinueFree}
+                activeOpacity={0.8}
+                disabled={purchasingPackageId !== null}
+              >
+                <Ionicons name="arrow-forward-circle" size={20} color="#008b8b" />
+                <Text style={styles.premiumFreeButtonProminentText}>Continue with Free Version</Text>
+                <Text style={styles.premiumFreeButtonSubtext}>Always available • No credit card required</Text>
+              </TouchableOpacity>
+              
+              <Text style={styles.premiumFreeDisclaimer}>
+                You can upgrade to premium anytime from the app settings
+              </Text>
+            </View>
           </ScrollView>
-
-          <View style={styles.premiumModalActions}>
-            <TouchableOpacity
-              style={[
-                styles.premiumUpgradeButton,
-                (isLoading || purchasing) && styles.premiumUpgradeButtonDisabled
-              ]}
-              onPress={handlePurchase}
-              disabled={isLoading || purchasing}
-              activeOpacity={0.8}
-            >
-              {purchasing ? (
-                <View style={styles.purchasingContainer}>
-                  <ActivityIndicator size="small" color="white" />
-                  <Text style={styles.premiumUpgradeButtonText}>Processing...</Text>
-                </View>
-              ) : (
-                <View style={styles.buttonContent}>
-                  <Ionicons name="diamond" size={16} color="white" />
-                  <Text style={styles.premiumUpgradeButtonText}>Get Premium Now</Text>
-                  <Ionicons name="arrow-forward" size={16} color="white" />
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.premiumFreeButton}
-              onPress={onContinueFree}
-              activeOpacity={0.8}
-              disabled={purchasing}
-            >
-              <Text style={styles.premiumFreeButtonText}>Continue with Free</Text>
-            </TouchableOpacity>
-          </View>
         </SafeAreaView>
       </View>
     </Modal>
@@ -505,7 +512,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
       id: "welcome",
       type: "welcome",
       title: "Welcome to Kitchly",
-      subtitle: "Your AI nutrition assistant",
+      subtitle: "Your AI nutrition & weight management assistant",
       description: "Let's personalize your experience in just 3 minutes"
     },
     {
@@ -540,7 +547,20 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         { id: "muscle", text: "Build muscle", icon: "fitness" },
         { id: "energy", text: "More energy", icon: "flash" },
         { id: "healthy_eating", text: "Eat healthier", icon: "leaf" },
-        { id: "meal_prep", text: "Meal planning", icon: "calendar" }
+        { id: "meal_prep", text: "Meal planning", icon: "calendar" },
+        { id: "track_weight", text: "Track my weight progress", icon: "analytics" },
+        { id: "save_money", text: "Save money on groceries", icon: "wallet" }
+      ]
+    },
+    {
+      id: "weight_goals",
+      type: "multiple_choice",
+      title: "What's your weight management focus?",
+      options: [
+        { id: "lose_weight", text: "Lose weight gradually", icon: "trending-down" },
+        { id: "maintain_weight", text: "Maintain current weight", icon: "remove" },
+        { id: "gain_weight", text: "Gain weight healthily", icon: "trending-up" },
+        { id: "build_muscle", text: "Build muscle & strength", icon: "barbell" }
       ]
     },
     {
@@ -557,7 +577,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     {
       id: "nutrition_tracking",
       type: "multiple_choice",
-      title: "Do you track nutrition?",
+      title: "Do you track nutrition or weight?",
       options: [
         { id: "no_want_to", text: "No, but ready to start!", icon: "add-circle" },
         { id: "yes_manual", text: "Yes, but it's tedious", icon: "time" },
@@ -569,6 +589,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
       id: "physical_stats",
       type: "form",
       title: "Basic information",
+      subtitle: "This helps us provide personalized recommendations",
       fields: [
         { id: "height", label: "Height", type: "dropdown", options: heightOptions, defaultIndex: 8 },
         { id: "weight", label: "Weight", type: "dropdown", options: weightOptions, defaultIndex: 70 },
@@ -597,7 +618,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     }).start();
   }, [currentStep]);
 
-  // Initialize premium packages when premium modal is shown
   useEffect(() => {
     if (showPremiumModal) {
       initializePremiumPackages();
@@ -634,7 +654,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
       setPremiumLoading(true);
       console.log('🚀 Onboarding: Loading premium packages...');
 
-      // Check if user is authenticated
       const user = authService.getCurrentUser();
       if (!user) {
         console.log('⚠️ Onboarding: No authenticated user, using fallback packages');
@@ -645,12 +664,10 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
 
       console.log('👤 Onboarding: User authenticated:', user.uid);
 
-      // Check if RevenueCat is available
       const isAvailable = PurchaseService.checkAvailability();
       setRevenueCatAvailable(isAvailable);
 
       if (isAvailable) {
-        // Configure RevenueCat if not already done
         console.log('🔧 Onboarding: Configuring RevenueCat...');
         const configured = await PurchaseService.configure(
           'appl_fwRWQRdSViPvwzChtARGpDVvLEs',
@@ -740,18 +757,15 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     try {
       let user;
       if (isLoginMode) {
-        // User is logging into existing account - skip premium and go straight to completion
         user = await authService.login(email.trim().toLowerCase(), password);
         if (user) {
           setShowAccountScreen(false);
-          // Skip premium modal for existing users and complete onboarding
           if (onComplete) {
             onComplete(answers);
           }
         }
       } else {
         try {
-          // User is creating new account - show premium modal after creation
           user = await authService.register(email.trim().toLowerCase(), password);
           if (user) {
             setUserCreatedAccount(true);
@@ -759,7 +773,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
             setShowPremiumModal(true);
           }
         } catch (error) {
-          // Handle account already exists error
           if (error.message?.includes('already exists') ||
               error.message?.includes('already in use') ||
               error.code === 'auth/email-already-in-use') {
@@ -775,14 +788,14 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
                   text: "Sign In",
                   onPress: () => {
                     setIsLoginMode(true);
-                    setPassword(""); // Clear password for security
+                    setPassword("");
                   }
                 }
               ]
             );
             return;
           }
-          throw error; // Re-throw if it's a different error
+          throw error;
         }
       }
     } catch (error) {
@@ -805,7 +818,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     try {
       console.log('💳 Onboarding: Starting purchase:', packageToPurchase.identifier);
 
-      // Check if this is a fallback package
       if (packageToPurchase.identifier.includes('fallback')) {
         console.log('⚠️ Onboarding: Fallback package selected');
         
@@ -826,12 +838,10 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
             {
               text: "Simulate Premium (DEV)",
               onPress: async () => {
-                // DEV ONLY: Simulate premium activation for testing
                 console.log('🧪 DEV: Simulating premium activation...');
                 try {
                   const user = authService.getCurrentUser();
                   if (user) {
-                    // Directly update Firestore for testing
                     const userRef = doc(db, "users", user.uid);
                     await updateDoc(userRef, {
                       isPremium: true,
@@ -839,7 +849,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
                       'usage.lastActive': new Date().toISOString()
                     });
                     
-                    // Force refresh both services
                     await PremiumService.forceRefresh();
                     await authService.forceRefreshPremiumStatus();
                     
@@ -874,7 +883,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         return;
       }
 
-      // Use PurchaseService for actual purchase
       console.log('🔄 Onboarding: Attempting RevenueCat purchase...');
       const result = await PurchaseService.purchasePackage(packageToPurchase);
       
@@ -883,7 +891,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
       if (result.success) {
         console.log('✅ Onboarding: Purchase successful!');
         
-        // 1. Update Firestore immediately (optimistic update)
         try {
           const user = authService.getCurrentUser();
           if (user) {
@@ -899,7 +906,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
           console.warn('⚠️ Immediate Firestore update failed:', firestoreError);
         }
         
-        // 2. Notify services about successful purchase
         try {
           await PremiumService.handlePurchaseSuccess(result);
         } catch (premiumServiceError) {
@@ -912,7 +918,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
           console.warn('⚠️ AuthService handlePurchaseSuccess failed:', authServiceError);
         }
         
-        // 3. Force refresh both services
         setTimeout(async () => {
           try {
             await PremiumService.forceRefresh();
@@ -925,7 +930,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         
         Alert.alert(
           "🎉 Welcome to Premium!",
-          "Congratulations! You now have access to all premium features.",
+          "Congratulations! You now have access to all premium features including AI weight management.",
           [
             {
               text: "Get Started",
@@ -987,12 +992,17 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     setShowPremiumModal(false);
   };
 
-  // Dropdown Component
+  // FIXED: Enhanced Dropdown Component with proper height calculations
   const SimpleDropdown = ({ field, value, onSelect }) => {
     const isOpen = showDropdown === field.id;
+    
+    // Calculate proper dropdown height based on screen space
+    const maxDropdownHeight = Math.min(height * 0.4, 280); // 40% of screen or 280px max
+    const itemHeight = 48;
+    const maxVisibleItems = Math.floor(maxDropdownHeight / itemHeight);
 
     return (
-      <View style={[styles.dropdownContainer, isOpen && { zIndex: 9999, elevation: 9999 }]}>
+      <View style={[styles.dropdownContainer, isOpen && { zIndex: 10000, elevation: 10000 }]}>
         <TouchableOpacity
           style={[styles.dropdownButton, isOpen && styles.dropdownButtonActive]}
           onPress={() => setShowDropdown(isOpen ? null : field.id)}
@@ -1010,17 +1020,24 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
               <View style={styles.dropdownBackdrop} />
             </TouchableWithoutFeedback>
             
-            <View style={styles.dropdownList}>
+            <View style={[styles.dropdownList, { maxHeight: maxDropdownHeight }]}>
               <ScrollView
-                style={styles.dropdownScroll}
-                showsVerticalScrollIndicator={false}
+                style={[styles.dropdownScroll, { maxHeight: maxDropdownHeight }]}
+                showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
-                contentOffset={field.defaultIndex ? { x: 0, y: field.defaultIndex * 48 } : { x: 0, y: 0 }}
+                keyboardShouldPersistTaps="handled"
+                contentOffset={field.defaultIndex ? { x: 0, y: Math.max(0, field.defaultIndex * itemHeight - (maxDropdownHeight / 2)) } : { x: 0, y: 0 }}
+                bounces={false}
               >
-                {field.options.map((option) => (
+                {field.options.map((option, index) => (
                   <TouchableOpacity
                     key={option.value}
-                    style={[styles.dropdownOption, value === option.value && styles.dropdownOptionSelected]}
+                    style={[
+                      styles.dropdownOption,
+                      { height: itemHeight },
+                      value === option.value && styles.dropdownOptionSelected,
+                      index === field.options.length - 1 && styles.dropdownOptionLast
+                    ]}
                     onPress={() => {
                       onSelect(option.value);
                       setShowDropdown(null);
@@ -1046,7 +1063,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
   const currentQuestion = questions[currentStep];
   const isAnswered = answers[currentQuestion?.id];
 
-  // Welcome Step
+  // Welcome Step with weight management highlight
   const WelcomeStep = () => (
     <View style={styles.welcomeContainer}>
       <Image source={require("../assets/logo.png")} style={styles.welcomeLogo} resizeMode="contain" />
@@ -1055,6 +1072,10 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
       <Text style={styles.welcomeDescription}>{currentQuestion.description}</Text>
       
       <View style={styles.welcomeFeatures}>
+        <View style={styles.welcomeFeature}>
+          <Ionicons name="fitness" size={20} color="#008b8b" />
+          <Text style={styles.welcomeFeatureText}>AI weight management & goal tracking</Text>
+        </View>
         <View style={styles.welcomeFeature}>
           <Ionicons name="scan" size={20} color="#008b8b" />
           <Text style={styles.welcomeFeatureText}>Instant barcode scanning with health scores</Text>
@@ -1074,10 +1095,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         <View style={styles.welcomeFeature}>
           <Ionicons name="basket" size={20} color="#008b8b" />
           <Text style={styles.welcomeFeatureText}>Auto-generated grocery lists</Text>
-        </View>
-        <View style={styles.welcomeFeature}>
-          <Ionicons name="analytics" size={20} color="#008b8b" />
-          <Text style={styles.welcomeFeatureText}>Detailed macro & nutrition insights</Text>
         </View>
        </View>
        
@@ -1120,19 +1137,19 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     </View>
   );
 
-  // Multiple Select Step
+  // Multiple Select Step with Grid Layout
   const MultipleSelectStep = () => (
     <View style={styles.questionContainer}>
       <Text style={styles.questionTitle}>{currentQuestion.title}</Text>
       <Text style={styles.questionSubtitle}>Select all that apply</Text>
       
-      <View style={styles.optionsContainer}>
+      <View style={styles.optionsGrid}>
         {currentQuestion.options.map((option) => {
           const isSelected = answers[currentQuestion.id]?.includes(option.id);
           return (
             <TouchableOpacity
               key={option.id}
-              style={[styles.optionButton, isSelected && styles.optionButtonSelected]}
+              style={[styles.gridOptionButton, isSelected && styles.gridOptionButtonSelected]}
               onPress={() => {
                 const currentAnswers = answers[currentQuestion.id] || [];
                 let newAnswers;
@@ -1147,37 +1164,39 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
               }}
               activeOpacity={0.8}
             >
-              <View style={styles.optionIconContainer}>
-                <Ionicons name={option.icon} size={24} color={isSelected ? "white" : "#008b8b"} />
+              <View style={styles.gridOptionIconContainer}>
+                <Ionicons name={option.icon} size={20} color={isSelected ? "white" : "#008b8b"} />
               </View>
-              <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+              <Text style={[styles.gridOptionText, isSelected && styles.gridOptionTextSelected]}>
                 {option.text}
               </Text>
               {isSelected && (
-                <Ionicons name="checkmark-circle" size={24} color="#008b8b" />
+                <View style={styles.gridCheckmark}>
+                  <Ionicons name="checkmark-circle" size={18} color="#008b8b" />
+                </View>
               )}
             </TouchableOpacity>
           );
         })}
       </View>
-      
-      {isAnswered && (
-        <TouchableOpacity style={styles.continueButton} onPress={nextStep}>
-          <Text style={styles.continueButtonText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={20} color="white" />
-        </TouchableOpacity>
-      )}
     </View>
   );
 
-  // Form Step
+  // Form Step - with proper spacing to avoid footer blocking
   const FormStep = () => (
     <View style={styles.questionContainer}>
       <Text style={styles.questionTitle}>{currentQuestion.title}</Text>
+      {currentQuestion.subtitle && (
+        <Text style={styles.questionSubtitle}>{currentQuestion.subtitle}</Text>
+      )}
       
       <View style={styles.formContainer}>
-        {currentQuestion.fields.map((field) => (
-          <View key={field.id} style={styles.inputContainer}>
+        {currentQuestion.fields.map((field, index) => (
+          <View key={field.id} style={[
+            styles.inputContainer,
+            // Add extra margin to last field to prevent footer blocking
+            index === currentQuestion.fields.length - 1 && styles.lastInputContainer
+          ]}>
             <Text style={styles.inputLabel}>{field.label}</Text>
             <SimpleDropdown
               field={field}
@@ -1193,13 +1212,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
           </View>
         ))}
       </View>
-      
-      {isAnswered && (
-        <TouchableOpacity style={styles.continueButton} onPress={nextStep}>
-          <Text style={styles.continueButtonText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={20} color="white" />
-        </TouchableOpacity>
-      )}
     </View>
   );
 
@@ -1234,20 +1246,33 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         )}
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}
-        keyboardDismissMode="none"
-      >
-        <Animated.View style={[styles.questionWrapper, { opacity: fadeAnim }]}>
-          {currentQuestion?.type === "welcome" && <WelcomeStep />}
-          {currentQuestion?.type === "multiple_choice" && <MultipleChoiceStep />}
-          {currentQuestion?.type === "multiple_select" && <MultipleSelectStep />}
-          {currentQuestion?.type === "form" && <FormStep />}
-        </Animated.View>
-      </ScrollView>
+      <View style={styles.contentContainer}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
+          keyboardDismissMode="none"
+        >
+          <Animated.View style={[styles.questionWrapper, { opacity: fadeAnim }]}>
+            {currentQuestion?.type === "welcome" && <WelcomeStep />}
+            {currentQuestion?.type === "multiple_choice" && <MultipleChoiceStep />}
+            {currentQuestion?.type === "multiple_select" && <MultipleSelectStep />}
+            {currentQuestion?.type === "form" && <FormStep />}
+          </Animated.View>
+        </ScrollView>
+
+        {/* Fixed Continue Button for Multi-Select and Form Steps */}
+        {((currentQuestion?.type === "multiple_select" && isAnswered) ||
+          (currentQuestion?.type === "form" && isAnswered)) && (
+          <View style={styles.fixedButtonContainer}>
+            <TouchableOpacity style={styles.continueButton} onPress={nextStep}>
+              <Text style={styles.continueButtonText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
 
       <AccountModal
         visible={showAccountScreen}
@@ -1340,6 +1365,9 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  contentContainer: {
+    flex: 1,
+  },
   content: {
     flex: 1,
   },
@@ -1352,6 +1380,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     minHeight: 400,
+  },
+  fixedButtonContainer: {
+    backgroundColor: "white",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e9ecef",
   },
 
   // Welcome Step
@@ -1464,6 +1499,63 @@ const styles = StyleSheet.create({
   optionsContainer: {
     gap: 10,
   },
+  optionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  gridOptionButton: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: "#e9ecef",
+    width: (width - 60) / 2,
+    alignItems: "center",
+    minHeight: 120,
+    position: "relative",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  gridOptionButtonSelected: {
+    borderColor: "#008b8b",
+    backgroundColor: "#f0f9f9",
+  },
+  gridOptionIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#f8f9fa",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  gridOptionText: {
+    fontSize: 14,
+    color: "#2c3e50",
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  gridOptionTextSelected: {
+    color: "#008b8b",
+    fontWeight: "600",
+  },
+  gridCheckmark: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+  },
   optionButton: {
     backgroundColor: "white",
     borderRadius: 12,
@@ -1537,9 +1629,13 @@ const styles = StyleSheet.create({
   // Form Step
   formContainer: {
     gap: 20,
+    paddingBottom: 120, // Add padding to prevent footer blocking
   },
   inputContainer: {
     marginBottom: 6,
+  },
+  lastInputContainer: {
+    marginBottom: 100, // Extra space for last input to prevent dropdown blocking
   },
   inputLabel: {
     fontSize: 16,
@@ -1548,7 +1644,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  // Dropdown Styles
+  // FIXED: Enhanced Dropdown Styles with proper height handling
   dropdownContainer: {
     position: "relative",
   },
@@ -1622,7 +1718,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#008b8b",
     marginTop: 4,
-    maxHeight: 240,
     zIndex: 10001,
     elevation: 10001,
     ...Platform.select({
@@ -1638,21 +1733,23 @@ const styles = StyleSheet.create({
     }),
   },
   dropdownScroll: {
-    maxHeight: 240,
+    // maxHeight will be set dynamically in component
   },
   dropdownOption: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    minHeight: 48,
     backgroundColor: "white",
   },
   dropdownOptionSelected: {
     backgroundColor: "#f0f9f9",
+  },
+  dropdownOptionLast: {
+    borderBottomWidth: 0,
   },
   dropdownOptionText: {
     fontSize: 16,
@@ -1686,7 +1783,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Account Modal Styles
+  // Enhanced Account Modal Styles
   modalContainer: {
     flex: 1,
     backgroundColor: "white",
@@ -1701,6 +1798,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
+    backgroundColor: "white",
   },
   modalCloseButton: {
     width: 40,
@@ -1710,14 +1808,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalKeyboardView: {
+  modalScrollView: {
     flex: 1,
   },
   modalScrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 20,
   },
   modalLogoSection: {
     alignItems: "center",
@@ -1767,10 +1864,10 @@ const styles = StyleSheet.create({
     color: "white",
   },
   modalFormSection: {
-    marginBottom: 20,
+    marginBottom: 40,
   },
   modalInputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   modalInputLabel: {
     fontSize: 16,
@@ -1786,7 +1883,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e9ecef",
     paddingHorizontal: 16,
-    height: 52,
+    height: 56,
   },
   modalInputIcon: {
     marginRight: 12,
@@ -1801,17 +1898,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   modalActionSection: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    backgroundColor: "white",
     gap: 12,
+    marginTop: 20,
   },
   modalPrimaryButton: {
     backgroundColor: "#008b8b",
     borderRadius: 12,
-    height: 52,
+    height: 56,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1828,7 +1921,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e9ecef",
-    height: 52,
+    height: 56,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -2006,7 +2099,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 16,
+    marginBottom: 8,
   },
   planCardLeft: {
     flex: 1,
@@ -2015,11 +2108,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#2c3e50",
+    marginBottom: 4,
+  },
+  planCardSubtitle: {
+    fontSize: 14,
+    color: "#7f8c8d",
     marginBottom: 8,
   },
   planCardPricing: {
     flexDirection: "row",
     alignItems: "flex-end",
+    marginBottom: 12,
   },
   planCardPrice: {
     fontSize: 24,
@@ -2061,6 +2160,7 @@ const styles = StyleSheet.create({
   },
   planCardFeatures: {
     gap: 8,
+    marginBottom: 20,
   },
   planCardFeature: {
     flexDirection: "row",
@@ -2071,6 +2171,109 @@ const styles = StyleSheet.create({
     color: "#2c3e50",
     marginLeft: 8,
     flex: 1,
+  },
+  // Individual plan upgrade buttons - Enhanced styling
+  planUpgradeButton: {
+    backgroundColor: "#008b8b",
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  recommendedUpgradeButton: {
+    backgroundColor: "#007a7a", // Slightly darker for recommended
+    ...Platform.select({
+      ios: {
+        shadowColor: "#007a7a",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  fallbackUpgradeButton: {
+    backgroundColor: "#008b8b",
+  },
+  planUpgradeButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
+    marginHorizontal: 8,
+    letterSpacing: 0.3,
+  },
+  premiumModalActionsInline: {
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#e9ecef",
+  },
+  // Enhanced Free Button Styling
+  premiumFreeButtonProminent: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderWidth: 2,
+    borderColor: "#008b8b",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 300,
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#008b8b",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  premiumFreeButtonProminentText: {
+    color: "#008b8b",
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  premiumFreeButtonSubtext: {
+    color: "#7f8c8d",
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  premiumFreeDisclaimer: {
+    color: "#95a5a6",
+    fontSize: 13,
+    textAlign: "center",
+    fontStyle: "italic",
+    lineHeight: 16,
+    paddingHorizontal: 20,
   },
   premiumModalActions: {
     paddingHorizontal: 24,

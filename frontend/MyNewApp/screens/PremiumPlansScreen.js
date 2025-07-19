@@ -375,6 +375,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
           "Smart Ingredient Search",
           "Personalized Meal Plans",
           "Food Scanner & Health Scores",
+          "AI Weight Management",
           "AI Macro Tracking",
           "Grocery List Generator",
           "Unlimited Recipe Saves",
@@ -394,6 +395,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
           "Smart Ingredient Search",
           "Personalized Meal Plans",
           "Food Scanner & Health Scores",
+          "AI Weight Management & Goals",
           "Additive Detection",
           "AI Macro Tracking",
           "Grocery List Generator",
@@ -426,19 +428,19 @@ export default function PremiumPlansScreen({ navigation, route }) {
       <View style={[styles.planCard, isRecommended && styles.recommendedPlanCard]}>
         {isRecommended && (
           <View style={styles.recommendedBadge}>
-            <Ionicons name="diamond" size={12} color="white" />
             <Text style={styles.recommendedBadgeText}>BEST VALUE</Text>
+            <Ionicons name="diamond" size={12} color="white" style={styles.badgeIcon} />
           </View>
         )}
         
         {isFallbackPackage && (
           <View style={styles.fallbackBadge}>
-            <Ionicons name="warning" size={12} color="#f39c12" />
             <Text style={styles.fallbackBadgeText}>ESTIMATED PRICING</Text>
+            <Ionicons name="warning" size={12} color="white" style={styles.badgeIcon} />
           </View>
         )}
         
-        <View style={styles.planHeader}>
+        <View style={[styles.planHeader, isRecommended && styles.recommendedPlanHeader]}>
           <View style={styles.planIconContainer}>
             <Ionicons name="diamond" size={24} color={isRecommended ? "#008b8b" : "#95a5a6"} />
           </View>
@@ -524,7 +526,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
     );
   }
 
-  // Already premium state
+  // Already premium state - PRODUCTION READY (NO DEBUG BUTTON)
   if (hasActivePremium || isPremium) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -567,17 +569,11 @@ export default function PremiumPlansScreen({ navigation, route }) {
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={styles.debugButton}
-            onPress={async () => {
-              const debugInfo = await authService.debugUserState();
-              console.log('🐛 Debug Info:', debugInfo);
-              Alert.alert(
-                'Debug Info',
-                `Premium Status: ${debugInfo.currentStatus}\nInitialized: ${debugInfo.isInitialized}\nListeners: ${debugInfo.listenerCount}`
-              );
-            }}
+            style={styles.continueButton}
+            onPress={() => navigation.goBack()}
           >
-            <Text style={styles.debugButtonText}>Debug Status</Text>
+            <Text style={styles.continueButtonText}>Continue to App</Text>
+            <Ionicons name="arrow-forward" size={16} color="#008b8b" />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -665,6 +661,16 @@ export default function PremiumPlansScreen({ navigation, route }) {
 
               <View style={styles.featureCard}>
                 <View style={styles.featureIconContainer}>
+                  <Ionicons name="fitness" size={24} color="#008b8b" />
+                </View>
+                <Text style={styles.featureTitle}>AI Weight Management</Text>
+                <Text style={styles.featureDescription}>
+                  Track weight, set goals & get personalized insights
+                </Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
                   <Ionicons name="analytics" size={24} color="#008b8b" />
                 </View>
                 <Text style={styles.featureTitle}>AI Macro Tracking</Text>
@@ -690,6 +696,16 @@ export default function PremiumPlansScreen({ navigation, route }) {
                 <Text style={styles.featureTitle}>Unlimited Saves</Text>
                 <Text style={styles.featureDescription}>
                   Save & organize unlimited recipes
+                </Text>
+              </View>
+
+              <View style={styles.featureCard}>
+                <View style={styles.featureIconContainer}>
+                  <Ionicons name="remove-circle" size={24} color="#008b8b" />
+                </View>
+                <Text style={styles.featureTitle}>Ad-Free Experience</Text>
+                <Text style={styles.featureDescription}>
+                  Enjoy the app without any interruptions
                 </Text>
               </View>
             </View>
@@ -849,15 +865,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
   },
-  debugButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#ecf0f1',
-    borderRadius: 8,
+  // PRODUCTION READY: Clean continue button instead of debug button
+  continueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#008b8b',
+    marginTop: 8,
   },
-  debugButtonText: {
-    fontSize: 14,
-    color: '#7f8c8d',
+  continueButtonText: {
+    fontSize: 16,
+    color: '#008b8b',
+    fontWeight: '600',
+    marginRight: 8,
   },
   heroSection: {
     alignItems: 'center',
@@ -969,51 +993,67 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 8,
+    marginTop: 28, // Add space for the badge
   },
+  // FIXED: Better looking badge
   recommendedBadge: {
     position: 'absolute',
-    top: -1,
-    left: 20,
-    right: 20,
+    top: -12,
+    left: 24,
+    right: 24,
     backgroundColor: '#008b8b',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#008b8b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   recommendedBadgeText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
-    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
+  badgeIcon: {
+    marginLeft: 6,
   },
   fallbackBadge: {
     position: 'absolute',
-    top: -1,
-    left: 20,
-    right: 20,
+    top: -12,
+    left: 24,
+    right: 24,
     backgroundColor: '#f39c12',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#f39c12',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   fallbackBadgeText: {
     color: 'white',
     fontSize: 12,
     fontWeight: 'bold',
-    marginLeft: 4,
+    letterSpacing: 0.5,
   },
   planHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  recommendedPlanHeader: {
+    marginTop: 8, // Add space when there's a badge
   },
   planIconContainer: {
     width: 48,

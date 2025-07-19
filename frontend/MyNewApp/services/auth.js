@@ -1,4 +1,4 @@
-// Enhanced authService.js with Grocery List Persistence
+// Enhanced authService.js with Fixed Grocery List Persistence
 import * as SecureStore from "expo-secure-store";
 import axios from "axios";
 import {
@@ -278,32 +278,74 @@ export const authService = {
     }
   },
 
-  // Grocery list operations
+  // FIXED: Grocery list operations with proper update/persistence logic
   async saveGroceryList(groceryListData) {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("User not logged in");
 
-      // Generate ID if not provided
-      if (!groceryListData.grocery_list_id) {
-        groceryListData.grocery_list_id = `grocery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      }
-
-      groceryListData.user_id = user.uid;
-      groceryListData.saved_at = new Date().toISOString();
-      groceryListData.updated_at = new Date().toISOString();
+      console.log('💾 Saving grocery list...', groceryListData.meal_plan_id);
 
       const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        throw new Error("User document does not exist");
+      }
+
+      const userData = userDoc.data();
+      const existingGroceryLists = userData.groceryLists || [];
+
+      // Check if this grocery list already exists (by meal_plan_id)
+      const existingIndex = existingGroceryLists.findIndex(
+        list => list.meal_plan_id === groceryListData.meal_plan_id
+      );
+
+      // Generate ID if not provided
+      if (!groceryListData.grocery_list_id) {
+        groceryListData.grocery_list_id = `grocery_${groceryListData.meal_plan_id || Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+
+      // Prepare the grocery list data
+      const groceryListToSave = {
+        ...groceryListData,
+        user_id: user.uid,
+        updated_at: new Date().toISOString()
+      };
+
+      // If it's the first time saving, add created_at
+      if (existingIndex === -1) {
+        groceryListToSave.created_at = new Date().toISOString();
+        groceryListToSave.saved_at = new Date().toISOString();
+      } else {
+        // Preserve original creation date
+        groceryListToSave.created_at = existingGroceryLists[existingIndex].created_at;
+        groceryListToSave.saved_at = existingGroceryLists[existingIndex].saved_at;
+      }
+
+      let updatedGroceryLists;
+      if (existingIndex === -1) {
+        // Add new grocery list
+        updatedGroceryLists = [...existingGroceryLists, groceryListToSave];
+        console.log('📝 Creating new grocery list entry');
+      } else {
+        // Update existing grocery list
+        updatedGroceryLists = [...existingGroceryLists];
+        updatedGroceryLists[existingIndex] = groceryListToSave;
+        console.log('🔄 Updating existing grocery list entry');
+      }
+
+      // Update the user document with the complete array
       await updateDoc(userRef, {
-        groceryLists: arrayUnion(groceryListData),
+        groceryLists: updatedGroceryLists,
         'usage.groceryListsGenerated': arrayUnion(new Date().toISOString()),
         'usage.lastActive': new Date().toISOString()
       });
 
-      console.log('✅ Grocery list saved successfully');
-      return groceryListData;
+      console.log('✅ Grocery list saved/updated successfully');
+      return groceryListToSave;
     } catch (error) {
-      console.error('Save grocery list error:', error);
+      console.error('❌ Save grocery list error:', error);
       throw error;
     }
   },
@@ -340,10 +382,13 @@ export const authService = {
     }
   },
 
+  // FIXED: Update grocery list check states with proper persistence
   async updateGroceryListCheckStates(groceryListId, itemUpdates) {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("User not logged in");
+
+      console.log('🔄 Updating grocery list check states...', groceryListId);
 
       const userRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userRef);
@@ -355,55 +400,93 @@ export const authService = {
       const userData = userDoc.data();
       const groceryLists = userData.groceryLists || [];
       
-      // Find the grocery list to update
-      const listIndex = groceryLists.findIndex(list => list.grocery_list_id === groceryListId);
+      // Find the grocery list to update (by ID or meal_plan_id)
+      const listIndex = groceryLists.findIndex(list =>
+        list.grocery_list_id === groceryListId ||
+        list.meal_plan_id === groceryListId
+      );
       
       if (listIndex === -1) {
         throw new Error("Grocery list not found");
       }
 
-      // Update check states
-      const updatedList = { ...groceryLists[listIndex] };
+      // Clone the grocery list for updating
+      const updatedList = JSON.parse(JSON.stringify(groceryLists[listIndex]));
+      
+      // Create lookup for updates
       const updatesLookup = {};
       itemUpdates.forEach(update => {
         updatesLookup[update.name] = update;
       });
 
       let checkedCount = 0;
-      updatedList.grocery_list.forEach(item => {
-        if (updatesLookup[item.name]) {
-          const update = updatesLookup[item.name];
-          item.is_checked = update.is_checked;
-          item.checked_at = update.is_checked ? new Date().toISOString() : null;
-        }
-        if (item.is_checked) checkedCount++;
-      });
+      
+      // Update check states in grocery_list array
+      if (updatedList.grocery_list && Array.isArray(updatedList.grocery_list)) {
+        updatedList.grocery_list.forEach(item => {
+          if (updatesLookup[item.name]) {
+            const update = updatesLookup[item.name];
+            item.is_checked = update.is_checked;
+            item.checked_at = update.is_checked ? new Date().toISOString() : null;
+          }
+          if (item.is_checked) checkedCount++;
+        });
+      }
 
+      // Update check states in categories array if it exists
+      if (updatedList.categories && Array.isArray(updatedList.categories)) {
+        updatedList.categories.forEach(category => {
+          if (category.items && Array.isArray(category.items)) {
+            category.items.forEach(item => {
+              if (updatesLookup[item.name]) {
+                const update = updatesLookup[item.name];
+                item.checked = update.is_checked;
+                item.checkedAt = update.is_checked ? new Date().toISOString() : null;
+                
+                // Also update originalItem if it exists
+                if (item.originalItem) {
+                  item.originalItem.is_checked = update.is_checked;
+                  item.originalItem.checked_at = item.checkedAt;
+                }
+              }
+            });
+          }
+        });
+      }
+
+      // Update metadata
       updatedList.updated_at = new Date().toISOString();
+      updatedList.last_interaction = new Date().toISOString();
       updatedList.checked_items_count = checkedCount;
-      updatedList.completion_percentage = Math.round((checkedCount / updatedList.grocery_list.length) * 100);
+      
+      const totalItems = updatedList.grocery_list ? updatedList.grocery_list.length : 0;
+      updatedList.completion_percentage = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
 
       // Replace the grocery list in the array
-      groceryLists[listIndex] = updatedList;
+      const updatedGroceryLists = [...groceryLists];
+      updatedGroceryLists[listIndex] = updatedList;
 
       // Update the document
       await updateDoc(userRef, {
-        groceryLists: groceryLists,
+        groceryLists: updatedGroceryLists,
         'usage.lastActive': new Date().toISOString()
       });
 
-      console.log('✅ Grocery list check states updated successfully');
+      console.log(`✅ Grocery list check states updated: ${checkedCount}/${totalItems} items checked (${updatedList.completion_percentage}%)`);
       return updatedList;
     } catch (error) {
-      console.error('Update grocery list check states error:', error);
+      console.error('❌ Update grocery list check states error:', error);
       throw error;
     }
   },
 
+  // FIXED: Remove grocery list with proper array filtering
   async removeGroceryList(groceryListId) {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("User not logged in");
+
+      console.log('🗑️ Removing grocery list...', groceryListId);
 
       const userRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userRef);
@@ -414,19 +497,28 @@ export const authService = {
 
       const userData = userDoc.data();
       const groceryLists = userData.groceryLists || [];
-      const listToRemove = groceryLists.find(list => list.grocery_list_id === groceryListId);
+      
+      // Find and remove the grocery list (by ID or meal_plan_id)
+      const filteredLists = groceryLists.filter(list =>
+        list.grocery_list_id !== groceryListId &&
+        list.meal_plan_id !== groceryListId
+      );
 
-      if (listToRemove) {
-        await updateDoc(userRef, {
-          groceryLists: arrayRemove(listToRemove),
-          'usage.lastActive': new Date().toISOString()
-        });
-        console.log('✅ Grocery list removed successfully');
+      if (filteredLists.length === groceryLists.length) {
+        console.log('⚠️ Grocery list not found for removal');
+        return false;
       }
 
+      // Update the document with filtered array
+      await updateDoc(userRef, {
+        groceryLists: filteredLists,
+        'usage.lastActive': new Date().toISOString()
+      });
+
+      console.log('✅ Grocery list removed successfully');
       return true;
     } catch (error) {
-      console.error('Remove grocery list error:', error);
+      console.error('❌ Remove grocery list error:', error);
       throw error;
     }
   },

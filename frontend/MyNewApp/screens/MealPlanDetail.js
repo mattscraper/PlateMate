@@ -33,6 +33,7 @@ export default function MealPlanDetail() {
     dietType = "",
     caloriesPerDay = 2000,
     id = null, // Meal plan ID for saved plans
+    name = "Saved Meal Plan"
   } = mealPlanData;
 
   const [parsedDays, setParsedDays] = useState([]);
@@ -55,7 +56,13 @@ export default function MealPlanDetail() {
   });
 
   useEffect(() => {
+    console.log("=== MEAL PLAN DETAIL PARSING ===");
+    console.log("Raw meal plan length:", mealPlan?.length);
+    console.log("Expected:", `${days} days × ${mealsPerDay} meals = ${days * mealsPerDay} total recipes`);
+    console.log("Target calories per day:", caloriesPerDay);
+    
     if (!mealPlan || mealPlan.trim().length < 100) {
+      console.error("❌ No meal plan data or too short");
       setIsLoading(false);
       return;
     }
@@ -65,20 +72,28 @@ export default function MealPlanDetail() {
       setParsedDays(parsed);
       setIsLoading(false);
     } catch (error) {
-      console.error("Parsing failed:", error);
+      console.error("❌ Parsing failed:", error);
       setIsLoading(false);
     }
   }, [mealPlan, days, mealsPerDay]);
 
   const parseEnhancedMealPlan = (text) => {
+    console.log("🔥 Starting enhanced parsing...");
+    
     const cleanedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    
+    // Split by days first
     const dayPattern = /Day\s+(\d+)/gi;
     const dayMatches = [...cleanedText.matchAll(dayPattern)];
+    
+    console.log(`Found ${dayMatches.length} day headers`);
     
     const parsedDays = [];
     
     for (let i = 0; i < days; i++) {
       const dayNumber = i + 1;
+      console.log(`\n--- Processing Day ${dayNumber} ---`);
+      
       let dayText = '';
       
       if (i < dayMatches.length) {
@@ -88,6 +103,7 @@ export default function MealPlanDetail() {
       }
       
       if (!dayText) {
+        console.warn(`⚠️ No content for Day ${dayNumber}, creating basic day`);
         parsedDays.push(createBasicDay(dayNumber));
         continue;
       }
@@ -96,19 +112,30 @@ export default function MealPlanDetail() {
       parsedDays.push(dayData);
     }
     
+    // If we don't have enough days, create basic ones
     while (parsedDays.length < days) {
       const missingDay = parsedDays.length + 1;
+      console.warn(`⚠️ Creating basic day ${missingDay}`);
       parsedDays.push(createBasicDay(missingDay));
     }
+    
+    console.log(`✅ Parsed ${parsedDays.length} days successfully`);
     
     return parsedDays;
   };
 
   const parseDay = (dayText, dayNumber) => {
+    console.log(`\n=== Parsing Day ${dayNumber} ===`);
+    
+    // Split by ===== to get individual meals
     const mealBlocks = dayText.split('=====').filter(block => block.trim());
+    
+    console.log(`Found ${mealBlocks.length} meal blocks for Day ${dayNumber}`);
+    
     const meals = [];
     const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
     
+    // Process each meal block
     for (let i = 0; i < mealBlocks.length && meals.length < mealsPerDay; i++) {
       const mealBlock = mealBlocks[i].trim();
       if (!mealBlock) continue;
@@ -116,20 +143,26 @@ export default function MealPlanDetail() {
       const meal = parseMeal(mealBlock, mealTypes[meals.length] || 'Meal');
       if (meal) {
         meals.push(meal);
+        console.log(`✅ Successfully parsed: ${meal.title} (${meal.calories} cal)`);
       }
     }
     
+    // If we don't have enough meals, create basic ones
     while (meals.length < mealsPerDay) {
       const mealType = mealTypes[meals.length] || 'Meal';
-      meals.push(createBasicMeal(mealType));
+      console.warn(`⚠️ Creating basic ${mealType} for Day ${dayNumber}`);
+      meals.push(createBasicMeal(mealType, meals.length));
     }
     
+    // Calculate totals
     const totals = meals.reduce((sum, meal) => ({
       calories: sum.calories + meal.calories,
       protein: sum.protein + meal.protein,
       carbs: sum.carbs + meal.carbs,
       fat: sum.fat + meal.fat
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    console.log(`✅ Day ${dayNumber} complete: ${meals.length} meals, ${totals.calories} calories`);
 
     return {
       dayNumber,
@@ -147,11 +180,14 @@ export default function MealPlanDetail() {
     let ingredients = [];
     let instructions = [];
     let timings = [];
-    let calories = Math.round(caloriesPerDay / mealsPerDay);
-    let protein = Math.round(calories * 0.25 / 4);
-    let carbs = Math.round(calories * 0.45 / 4);
-    let fat = Math.round(calories * 0.30 / 9);
+    let calories = 0;
+    let protein = 0;
+    let carbs = 0;
+    let fat = 0;
 
+    console.log(`\nParsing meal block for ${expectedMealType}:`);
+
+    // Find meal type in the first few lines
     const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
     for (let i = 0; i < Math.min(3, lines.length); i++) {
       const foundType = mealTypes.find(type =>
@@ -159,52 +195,50 @@ export default function MealPlanDetail() {
       );
       if (foundType) {
         mealType = foundType;
+        console.log(`✅ Found meal type: ${mealType}`);
         break;
       }
     }
 
+    // ENHANCED TITLE EXTRACTION
     let titleFound = false;
     for (let i = 0; i < lines.length && !titleFound; i++) {
       const line = lines[i];
       const lowerLine = line.toLowerCase();
       
+      // Skip meal type headers, day headers, timing info, nutrition info, ingredients, instructions, separators
       if (mealTypes.some(type => lowerLine.includes(type.toLowerCase())) ||
           lowerLine.match(/^day\s+\d+/i) ||
-          lowerLine.includes('preparation') ||
-          lowerLine.includes('cooking') ||
-          lowerLine.includes('servings') ||
-          lowerLine.includes('prep:') ||
-          lowerLine.includes('cook:') ||
-          lowerLine.match(/\d+\s*minutes?\b/i) ||
-          lowerLine.match(/\d+\s*hours?\b/i) ||
-          lowerLine.includes('calories') ||
-          lowerLine.includes('protein') ||
-          lowerLine.includes('carbs') ||
-          lowerLine.includes('carbohydrates') ||
-          lowerLine.includes('fat') ||
-          line.startsWith('•') ||
-          line.match(/^\d+\./) ||
-          lowerLine.includes('ingredients') ||
-          lowerLine.includes('instructions') ||
-          line === '=====' ||
-          line === '-----' ||
-          line.length < 3) {
+          lowerLine.includes('preparation') || lowerLine.includes('cooking') || lowerLine.includes('servings') ||
+          lowerLine.includes('prep:') || lowerLine.includes('cook:') ||
+          lowerLine.match(/\d+\s*minutes?\b/i) || lowerLine.match(/\d+\s*hours?\b/i) ||
+          lowerLine.includes('calories') || lowerLine.includes('protein') || lowerLine.includes('carbs') ||
+          lowerLine.includes('fat') || lowerLine.includes('nutritional') ||
+          line.match(/\d+g\b/) || line.match(/\d+\s*mg\b/) ||
+          line.startsWith('•') || line.match(/^\d+\./) ||
+          lowerLine.includes('ingredients') || lowerLine.includes('instructions') ||
+          line === '=====' || line === '-----' || line.length < 3) {
         continue;
       }
       
+      // This should be our title!
       if (line.length >= 3) {
         title = line;
         titleFound = true;
+        console.log(`✅ Found title: "${title}"`);
         break;
       }
     }
 
+    // If no title found, create one based on meal type
     if (!title || title.length < 3) {
-      const adjectives = ['Delicious', 'Healthy', 'Fresh', 'Nutritious', 'Tasty', 'Hearty'];
+      console.log(`⚠️ No title found, creating fallback title`);
+      const adjectives = ['Delicious', 'Healthy', 'Fresh', 'Nutritious', 'Tasty', 'Hearty', 'Satisfying'];
       const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
       title = `${randomAdj} ${mealType} Bowl`;
     }
 
+    // Parse ingredients (lines starting with •)
     for (const line of lines) {
       if (line.startsWith('•')) {
         const ingredient = line.substring(1).trim();
@@ -214,84 +248,132 @@ export default function MealPlanDetail() {
       }
     }
 
+    // Parse instructions (numbered lines)
     for (const line of lines) {
       if (line.match(/^\d+\./)) {
         instructions.push(line);
       }
     }
 
-    for (const line of lines) {
+    // ENHANCED NUTRITION PARSING
+    let nutritionLines = [];
+    
+    // First, look for dedicated nutrition section
+    for (let i = 0; i < lines.length; i++) {
+      const lowerLine = lines[i].toLowerCase();
+      
+      if (lowerLine.includes('nutritional information') ||
+          lowerLine.includes('nutrition facts') ||
+          lowerLine.includes('nutrition:') ||
+          (lowerLine.includes('calories') && lowerLine.includes(':'))) {
+        
+        // Collect this line and next few lines for nutrition parsing
+        for (let j = i; j < Math.min(i + 8, lines.length); j++) {
+          const nutritionLine = lines[j];
+          if (nutritionLine.trim()) {
+            nutritionLines.push(nutritionLine);
+          }
+        }
+        break;
+      }
+    }
+    
+    // If no dedicated section found, scan all lines for nutrition info
+    if (nutritionLines.length === 0) {
+      nutritionLines = lines.filter(line => {
+        const lower = line.toLowerCase();
+        return lower.includes('calories') || lower.includes('protein') ||
+               lower.includes('carbs') || lower.includes('fat') ||
+               lower.match(/\d+g\b/) || lower.match(/\d+\s*cal/);
+      });
+    }
+    
+    // Parse nutrition from collected lines
+    for (const line of nutritionLines) {
       const lowerLine = line.toLowerCase();
       
-      if (lowerLine.includes('calories')) {
+      // Enhanced calorie parsing
+      if (!calories && (lowerLine.includes('calories') || lowerLine.includes('cal'))) {
         const caloriePatterns = [
           /calories?\s*:?\s*(\d+)/i,
           /(\d+)\s*calories?/i,
           /cal\s*:?\s*(\d+)/i,
-          /(\d+)\s*cal\b/i
+          /(\d+)\s*cal\b/i,
+          /(\d+)\s*kcal/i,
+          /energy\s*:?\s*(\d+)/i
         ];
         
         for (const pattern of caloriePatterns) {
           const match = line.match(pattern);
           if (match) {
             const extractedCals = parseInt(match[1]);
-            if (extractedCals > 50 && extractedCals < 3000) {
+            if (extractedCals >= 50 && extractedCals <= 2000) {
               calories = extractedCals;
+              console.log(`✅ Found calories: ${calories}`);
               break;
             }
           }
         }
       }
       
-      if (lowerLine.includes('protein')) {
+      // Enhanced protein parsing
+      if (!protein && lowerLine.includes('protein')) {
         const proteinPatterns = [
           /protein\s*:?\s*(\d+)g?/i,
-          /(\d+)g?\s*protein/i
+          /(\d+)g?\s*protein/i,
+          /prot\s*:?\s*(\d+)/i
         ];
         
         for (const pattern of proteinPatterns) {
           const match = line.match(pattern);
           if (match) {
             const extractedProtein = parseInt(match[1]);
-            if (extractedProtein > 0 && extractedProtein < 200) {
+            if (extractedProtein >= 0 && extractedProtein <= 200) {
               protein = extractedProtein;
+              console.log(`✅ Found protein: ${protein}g`);
               break;
             }
           }
         }
       }
       
-      if (lowerLine.includes('carbs') || lowerLine.includes('carbohydrates')) {
+      // Enhanced carbs parsing
+      if (!carbs && (lowerLine.includes('carbs') || lowerLine.includes('carbohydrates'))) {
         const carbPatterns = [
           /carbs?\s*:?\s*(\d+)g?/i,
           /carbohydrates?\s*:?\s*(\d+)g?/i,
-          /(\d+)g?\s*carbs?/i
+          /(\d+)g?\s*carbs?/i,
+          /(\d+)g?\s*carbohydrates?/i
         ];
         
         for (const pattern of carbPatterns) {
           const match = line.match(pattern);
           if (match) {
             const extractedCarbs = parseInt(match[1]);
-            if (extractedCarbs > 0 && extractedCarbs < 500) {
+            if (extractedCarbs >= 0 && extractedCarbs <= 500) {
               carbs = extractedCarbs;
+              console.log(`✅ Found carbs: ${carbs}g`);
               break;
             }
           }
         }
       }
       
-      if (lowerLine.includes('fat') && !lowerLine.includes('fatigue')) {
+      // Enhanced fat parsing
+      if (!fat && lowerLine.includes('fat') && !lowerLine.includes('fatigue')) {
         const fatPatterns = [
           /fat\s*:?\s*(\d+)g?/i,
-          /(\d+)g?\s*fat\b/i
+          /(\d+)g?\s*fat\b/i,
+          /fats?\s*:?\s*(\d+)/i
         ];
         
         for (const pattern of fatPatterns) {
           const match = line.match(pattern);
           if (match) {
             const extractedFat = parseInt(match[1]);
-            if (extractedFat > 0 && extractedFat < 200) {
+            if (extractedFat >= 0 && extractedFat <= 200) {
               fat = extractedFat;
+              console.log(`✅ Found fat: ${fat}g`);
               break;
             }
           }
@@ -299,6 +381,7 @@ export default function MealPlanDetail() {
       }
     }
 
+    // Parse timing info
     for (const line of lines) {
       if (line.toLowerCase().includes('preparation') ||
           line.toLowerCase().includes('cooking') ||
@@ -309,6 +392,7 @@ export default function MealPlanDetail() {
       }
     }
 
+    // Set defaults if missing
     if (ingredients.length === 0) {
       ingredients = [
         'Fresh, high-quality ingredients',
@@ -326,7 +410,32 @@ export default function MealPlanDetail() {
     }
 
     if (timings.length === 0) {
-      timings = ['Prep: 15 min', 'Cook: 20 min', 'Servings: 2'];
+      timings = ['Prep: 15 min', 'Cook: 20 min', 'Servings: 1'];
+    }
+
+    // REALISTIC FALLBACK CALCULATION based on meal type
+    if (!calories) {
+      const mealCalorieEstimates = {
+        'Breakfast': Math.round(caloriesPerDay * 0.25),  // 25% of daily
+        'Lunch': Math.round(caloriesPerDay * 0.35),      // 35% of daily
+        'Dinner': Math.round(caloriesPerDay * 0.35),     // 35% of daily
+        'Snack': Math.round(caloriesPerDay * 0.10)       // 10% of daily
+      };
+      calories = mealCalorieEstimates[mealType] || Math.round(caloriesPerDay / mealsPerDay);
+      console.log(`⚠️ No calories found, estimated ${calories} for ${mealType}`);
+    }
+
+    // Calculate realistic macros if missing
+    if (!protein) {
+      protein = Math.round(calories * 0.25 / 4); // 25% of calories from protein
+    }
+    
+    if (!carbs) {
+      carbs = Math.round(calories * 0.45 / 4); // 45% of calories from carbs
+    }
+    
+    if (!fat) {
+      fat = Math.round(calories * 0.30 / 9); // 30% of calories from fat
     }
 
     return {
@@ -344,7 +453,7 @@ export default function MealPlanDetail() {
 
   const createBasicDay = (dayNumber) => {
     const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'].slice(0, mealsPerDay);
-    const meals = mealTypes.map(type => createBasicMeal(type));
+    const meals = mealTypes.map((type, index) => createBasicMeal(type, index));
     
     const totals = meals.reduce((sum, meal) => ({
       calories: sum.calories + meal.calories,
@@ -361,14 +470,22 @@ export default function MealPlanDetail() {
     };
   };
 
-  const createBasicMeal = (mealType) => {
-    const avgCals = Math.round(caloriesPerDay / mealsPerDay);
+  const createBasicMeal = (mealType, mealIndex = 0) => {
+    // Use realistic calorie distribution instead of equal division
+    const mealCalorieDistribution = {
+      'Breakfast': Math.round(caloriesPerDay * 0.25),  // 25%
+      'Lunch': Math.round(caloriesPerDay * 0.35),      // 35%
+      'Dinner': Math.round(caloriesPerDay * 0.35),     // 35%
+      'Snack': Math.round(caloriesPerDay * 0.10)       // 10%
+    };
+    
+    const targetCalories = mealCalorieDistribution[mealType] || Math.round(caloriesPerDay / mealsPerDay);
     
     const mealTitles = {
-      'Breakfast': ['Protein Power Bowl', 'Morning Energy Plate', 'Sunrise Special'],
-      'Lunch': ['Balanced Midday Plate', 'Power Lunch Bowl', 'Afternoon Fuel'],
-      'Dinner': ['Evening Comfort Meal', 'Dinner Delight', 'Sunset Feast'],
-      'Snack': ['Energy Boost', 'Quick Bite', 'Healthy Snack']
+      'Breakfast': ['Protein Power Bowl', 'Morning Energy Plate', 'Sunrise Special', 'Healthy Breakfast Bowl'],
+      'Lunch': ['Balanced Midday Plate', 'Power Lunch Bowl', 'Afternoon Fuel', 'Nutritious Lunch'],
+      'Dinner': ['Evening Comfort Meal', 'Dinner Delight', 'Sunset Feast', 'Hearty Dinner'],
+      'Snack': ['Energy Boost', 'Quick Bite', 'Healthy Snack', 'Power Snack']
     };
 
     const titles = mealTitles[mealType] || ['Healthy Meal'];
@@ -378,21 +495,21 @@ export default function MealPlanDetail() {
       mealType,
       title: randomTitle,
       ingredients: [
-        'High-quality protein source',
+        'High-quality protein source (portioned for target calories)',
         'Fresh seasonal vegetables',
         'Healthy whole grains',
         'Nutritious fats and oils'
       ],
       instructions: [
-        '1. Prepare ingredients according to preferences',
+        '1. Prepare all ingredients according to preferences',
         '2. Cook using healthy cooking methods',
         '3. Season with herbs and spices to taste'
       ],
       timings: ['Prep: 15 min', 'Cook: 20 min', 'Servings: 1'],
-      calories: avgCals,
-      protein: Math.round(avgCals * 0.25 / 4),
-      carbs: Math.round(avgCals * 0.45 / 4),
-      fat: Math.round(avgCals * 0.30 / 9)
+      calories: targetCalories,
+      protein: Math.round(targetCalories * 0.25 / 4),
+      carbs: Math.round(targetCalories * 0.45 / 4),
+      fat: Math.round(targetCalories * 0.30 / 9)
     };
   };
 
@@ -448,11 +565,13 @@ export default function MealPlanDetail() {
           <Ionicons name="arrow-back" size={24} color="#008b8b" />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>{mealPlanData.name || "Saved Meal Plan"}</Text>
+        <Text style={styles.headerTitle}>{name}</Text>
         
-        <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={24} color="#008b8b" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerActionButton} onPress={handleShare}>
+            <Ionicons name="share-outline" size={20} color="#008b8b" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Animated.ScrollView
@@ -540,10 +659,9 @@ export default function MealPlanDetail() {
                     <Text style={styles.dayTitle}>{day.title}</Text>
                     <Text style={styles.dayCalories}>{day.calories} calories</Text>
                   </View>
-                  <View style={styles.dayProgress}>
-                    <View style={styles.progressRing}>
-                      <Text style={styles.progressText}>{Math.round((day.calories / caloriesPerDay) * 100)}%</Text>
-                    </View>
+                  <View style={styles.dayCaloriesOnly}>
+                    <Text style={styles.dayCaloriesNumber}>{day.calories}</Text>
+                    <Text style={styles.dayCaloriesLabel}>cal</Text>
                   </View>
                 </View>
 
@@ -764,7 +882,6 @@ export default function MealPlanDetail() {
         mealPlan={mealPlan}
         days={days}
         mealsPerDay={mealsPerDay}
-        caloriesPerDay={caloriesPerDay}
         mealPlanId={id}
       />
     </SafeAreaView>
@@ -838,6 +955,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     letterSpacing: -0.2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   scrollContent: {
@@ -980,21 +1110,19 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontWeight: '500',
   },
-  dayProgress: {},
-  progressRing: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#f8fafc',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#008b8b',
+  
+  dayCaloriesOnly: {
+    alignItems: 'flex-end',
   },
-  progressText: {
-    fontSize: 11,
-    fontWeight: '600',
+  dayCaloriesNumber: {
+    fontSize: 18,
+    fontWeight: '700',
     color: '#008b8b',
+  },
+  dayCaloriesLabel: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '500',
   },
 
   macroSection: {
