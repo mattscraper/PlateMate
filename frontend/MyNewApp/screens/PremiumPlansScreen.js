@@ -390,7 +390,7 @@ export default function PremiumPlansScreen({ navigation, route }) {
         subtitle: 'Best value for serious users',
         price: product.priceString,
         period: '/year',
-        savings: 'Save 33%',
+        savings: 'Save 30%',
         features: [
           "Smart Ingredient Search",
           "Personalized Meal Plans",

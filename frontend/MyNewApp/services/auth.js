@@ -63,138 +63,24 @@ export const authService = {
     return auth.currentUser;
   },
 
-  async register(email, password) {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+    async register(email, password) {
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
-      // Get token
-      const token = await user.getIdToken();
-      await this.saveToken(token);
+        // Get token
+        const token = await user.getIdToken();
+        await this.saveToken(token);
 
-      // Create enhanced user document with grocery list support
-      const userData = {
-        email: user.email,
-        uid: user.uid,
-        createdAt: new Date().toISOString(),
-        isPremium: false,
-        savedRecipes: [],
-        mealPlans: [], // Enhanced to include grocery lists
-        groceryLists: [], // Standalone grocery lists
-        preferences: {
-          dietaryRestrictions: [],
-          allergies: [],
-          cuisinePreferences: [],
-          shoppingPreferences: {
-            preferredStores: [],
-            budgetLimits: {},
-            organicPreference: false
-          }
-        },
-        profile: {
-          height: null,
-          weight: null,
-          targetWeight: null,
-          age: null,
-          activityLevel: null,
-          healthGoals: [],
-          onboardingCompleted: false,
-          onboardingData: null
-        },
-        usage: {
-          recipesViewed: 0,
-          mealPlansCreated: 0,
-          groceryListsGenerated: 0,
-          lastActive: new Date().toISOString()
-        }
-      };
-
-      // Create document with retry logic
-      let retries = 3;
-      let documentCreated = false;
-      
-      while (retries > 0 && !documentCreated) {
-        try {
-          await setDoc(doc(db, "users", user.uid), userData);
-          documentCreated = true;
-          console.log('✅ Enhanced user document created successfully');
-        } catch (docError) {
-          retries--;
-          console.log(`⚠️ Document creation failed, retries left: ${retries}`);
-          
-          if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
-          }
-        }
-      }
-
-      // Initialize PremiumService for new user
-      await PremiumService.initialize(user);
-
-      return { ...user, ...userData };
-    } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
-    }
-  },
-
-  async login(email, password) {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      const token = await user.getIdToken();
-      await this.saveToken(token);
-
-      // Get user document and migrate if needed
-      const userRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userRef);
-      
-      let userData;
-      if (userDoc.exists()) {
-        userData = userDoc.data();
-        
-        // Migrate existing user documents to support grocery lists
-        if (!userData.groceryLists) {
-          console.log('📝 Migrating user document for grocery list support');
-          await updateDoc(userRef, {
-            groceryLists: [],
-            'preferences.shoppingPreferences': {
-              preferredStores: [],
-              budgetLimits: {},
-              organicPreference: false
-            },
-            'usage.groceryListsGenerated': 0,
-            'usage.lastActive': new Date().toISOString()
-          });
-          userData.groceryLists = [];
-          userData.preferences.shoppingPreferences = {
-            preferredStores: [],
-            budgetLimits: {},
-            organicPreference: false
-          };
-          userData.usage.groceryListsGenerated = 0;
-        } else {
-          // Update last active
-          try {
-            await updateDoc(userRef, {
-              'usage.lastActive': new Date().toISOString()
-            });
-          } catch (updateError) {
-            console.log('⚠️ Failed to update last active:', updateError);
-          }
-        }
-      } else {
-        // Create missing document with full grocery support
-        console.log('📝 Creating missing user document with grocery support');
-        userData = {
+        // Create enhanced user document with grocery list support AND streak tracking
+        const userData = {
           email: user.email,
           uid: user.uid,
           createdAt: new Date().toISOString(),
           isPremium: false,
           savedRecipes: [],
-          mealPlans: [],
-          groceryLists: [],
+          mealPlans: [], // Enhanced to include grocery lists
+          groceryLists: [], // Standalone grocery lists
           preferences: {
             dietaryRestrictions: [],
             allergies: [],
@@ -206,8 +92,21 @@ export const authService = {
             }
           },
           profile: {
-            height: null, weight: null, targetWeight: null, age: null,
-            activityLevel: null, healthGoals: [], onboardingCompleted: false, onboardingData: null
+            height: null,
+            weight: null,
+            targetWeight: null,
+            age: null,
+            activityLevel: null,
+            healthGoals: [],
+            onboardingCompleted: false,
+            onboardingData: null,
+            // FIXED: Include streak fields in initial profile
+            streak: 0,
+            lastLogDate: null,
+            weightEntries: [],
+            currentGoal: null,
+            goalHistory: [],
+            hasConfirmedWeight: false
           },
           usage: {
             recipesViewed: 0,
@@ -216,19 +115,170 @@ export const authService = {
             lastActive: new Date().toISOString()
           }
         };
-        await setDoc(userRef, userData);
+
+        // Create document with retry logic
+        let retries = 3;
+        let documentCreated = false;
+        
+        while (retries > 0 && !documentCreated) {
+          try {
+            await setDoc(doc(db, "users", user.uid), userData);
+            documentCreated = true;
+            console.log('✅ Enhanced user document created successfully with streak tracking');
+          } catch (docError) {
+            retries--;
+            console.log(`⚠️ Document creation failed, retries left: ${retries}`);
+            
+            if (retries > 0) {
+              await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
+            }
+          }
+        }
+
+        // Initialize PremiumService for new user
+        await PremiumService.initialize(user);
+
+        return { ...user, ...userData };
+      } catch (error) {
+        console.error('Registration error:', error);
+        throw error;
       }
+    },
 
-      // Initialize PremiumService for logged in user
-      await PremiumService.initialize(user);
+    // FIXED: Enhanced login method to ensure streak migration
+    async login(email, password) {
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
-      return { ...user, ...userData };
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
-    }
-  },
+        const token = await user.getIdToken();
+        await this.saveToken(token);
 
+        // Get user document and migrate if needed
+        const userRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userRef);
+        
+        let userData;
+        if (userDoc.exists()) {
+          userData = userDoc.data();
+          
+          // FIXED: Migrate existing user documents to support streak tracking
+          let needsMigration = false;
+          const migrationData = {};
+          
+          // Check for grocery list support
+          if (!userData.groceryLists) {
+            console.log('📝 Migrating user document for grocery list support');
+            migrationData.groceryLists = [];
+            migrationData['preferences.shoppingPreferences'] = {
+              preferredStores: [],
+              budgetLimits: {},
+              organicPreference: false
+            };
+            migrationData['usage.groceryListsGenerated'] = 0;
+            needsMigration = true;
+          }
+          
+          // FIXED: Check for streak tracking support
+          if (userData.profile && (userData.profile.streak === undefined || userData.profile.lastLogDate === undefined)) {
+            console.log('📝 Migrating user document for streak tracking support');
+            migrationData['profile.streak'] = userData.profile.streak || 0;
+            migrationData['profile.lastLogDate'] = userData.profile.lastLogDate || null;
+            migrationData['profile.weightEntries'] = userData.profile.weightEntries || [];
+            migrationData['profile.currentGoal'] = userData.profile.currentGoal || null;
+            migrationData['profile.goalHistory'] = userData.profile.goalHistory || [];
+            migrationData['profile.hasConfirmedWeight'] = userData.profile.hasConfirmedWeight || false;
+            needsMigration = true;
+          }
+          
+          // Update last active
+          migrationData['usage.lastActive'] = new Date().toISOString();
+          
+          if (needsMigration) {
+            try {
+              await updateDoc(userRef, migrationData);
+              console.log('✅ User document migrated successfully');
+              
+              // Update local userData with migrated values
+              if (migrationData.groceryLists !== undefined) {
+                userData.groceryLists = [];
+                userData.preferences.shoppingPreferences = migrationData['preferences.shoppingPreferences'];
+                userData.usage.groceryListsGenerated = 0;
+              }
+              
+              if (migrationData['profile.streak'] !== undefined) {
+                userData.profile.streak = migrationData['profile.streak'];
+                userData.profile.lastLogDate = migrationData['profile.lastLogDate'];
+                userData.profile.weightEntries = migrationData['profile.weightEntries'];
+                userData.profile.currentGoal = migrationData['profile.currentGoal'];
+                userData.profile.goalHistory = migrationData['profile.goalHistory'];
+                userData.profile.hasConfirmedWeight = migrationData['profile.hasConfirmedWeight'];
+              }
+            } catch (updateError) {
+              console.log('⚠️ Failed to migrate user document:', updateError);
+            }
+          } else {
+            // Just update last active
+            try {
+              await updateDoc(userRef, {
+                'usage.lastActive': new Date().toISOString()
+              });
+            } catch (updateError) {
+              console.log('⚠️ Failed to update last active:', updateError);
+            }
+          }
+        } else {
+          // Create missing document with full grocery and streak support
+          console.log('📝 Creating missing user document with full feature support');
+          userData = {
+            email: user.email,
+            uid: user.uid,
+            createdAt: new Date().toISOString(),
+            isPremium: false,
+            savedRecipes: [],
+            mealPlans: [],
+            groceryLists: [],
+            preferences: {
+              dietaryRestrictions: [],
+              allergies: [],
+              cuisinePreferences: [],
+              shoppingPreferences: {
+                preferredStores: [],
+                budgetLimits: {},
+                organicPreference: false
+              }
+            },
+            profile: {
+              height: null, weight: null, targetWeight: null, age: null,
+              activityLevel: null, healthGoals: [], onboardingCompleted: false, onboardingData: null,
+              // FIXED: Include streak fields
+              streak: 0,
+              lastLogDate: null,
+              weightEntries: [],
+              currentGoal: null,
+              goalHistory: [],
+              hasConfirmedWeight: false
+            },
+            usage: {
+              recipesViewed: 0,
+              mealPlansCreated: 0,
+              groceryListsGenerated: 0,
+              lastActive: new Date().toISOString()
+            }
+          };
+          await setDoc(userRef, userData);
+        }
+
+        // Initialize PremiumService for logged in user
+        await PremiumService.initialize(user);
+
+        console.log('📊 Login successful - streak:', userData.profile?.streak, 'lastLogDate:', userData.profile?.lastLogDate);
+        return { ...user, ...userData };
+      } catch (error) {
+        console.error('Login error:', error);
+        throw error;
+      }
+    },
   // Enhanced meal plan operations with grocery list persistence
   async saveMealPlanWithGroceryList(mealPlanData, groceryListData = null) {
     try {
@@ -956,44 +1006,96 @@ export const authService = {
     return null;
   },
 
-  async getUserProfile() {
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("User not logged in");
+    // FIXED: getUserProfile method to ensure streak data is returned
+    async getUserProfile() {
+      try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not logged in");
 
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        return userDoc.data().profile || null;
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const profile = userData.profile || {};
+          
+          // FIXED: Ensure streak and lastLogDate are included in profile
+          profile.streak = userData.profile?.streak || 0;
+          profile.lastLogDate = userData.profile?.lastLogDate || null;
+          profile.weightEntries = userData.profile?.weightEntries || [];
+          profile.currentGoal = userData.profile?.currentGoal || null;
+          profile.goalHistory = userData.profile?.goalHistory || [];
+          
+          console.log('📊 getUserProfile - streak:', profile.streak, 'lastLogDate:', profile.lastLogDate);
+          return profile;
+        }
+        return null;
+      } catch (error) {
+        console.error('Get user profile error:', error);
+        throw error;
       }
-      return null;
-    } catch (error) {
-      console.error('Get user profile error:', error);
-      throw error;
-    }
-  },
+    },
 
-  async updateUserProfile(profileData) {
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("User not logged in");
+ 
+    // FIXED: getUserProfile method to ensure streak data is returned
+    async getUserProfile() {
+      try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not logged in");
 
-      const userRef = doc(db, "users", user.uid);
-      const updateData = {};
-      
-      Object.keys(profileData).forEach(key => {
-        updateData[`profile.${key}`] = profileData[key];
-      });
-      
-      updateData['usage.lastActive'] = new Date().toISOString();
-      
-      await updateDoc(userRef, updateData);
-      console.log('✅ User profile updated successfully');
-      return true;
-    } catch (error) {
-      console.error('Update user profile error:', error);
-      throw error;
-    }
-  },
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const profile = userData.profile || {};
+          
+          // FIXED: Ensure streak and lastLogDate are included in profile
+          profile.streak = userData.profile?.streak || 0;
+          profile.lastLogDate = userData.profile?.lastLogDate || null;
+          profile.weightEntries = userData.profile?.weightEntries || [];
+          profile.currentGoal = userData.profile?.currentGoal || null;
+          profile.goalHistory = userData.profile?.goalHistory || [];
+          
+          console.log('📊 getUserProfile - streak:', profile.streak, 'lastLogDate:', profile.lastLogDate);
+          return profile;
+        }
+        return null;
+      } catch (error) {
+        console.error('Get user profile error:', error);
+        throw error;
+      }
+    },
+
+    // FIXED: updateUserProfile method to handle streak fields properly
+    async updateUserProfile(profileData) {
+      try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("User not logged in");
+
+        const userRef = doc(db, "users", user.uid);
+        const updateData = {};
+        
+        // FIXED: Handle streak and lastLogDate fields specially
+        Object.keys(profileData).forEach(key => {
+          if (key === 'streak' || key === 'lastLogDate' || key === 'weightEntries' || key === 'currentGoal' || key === 'goalHistory') {
+            // These fields go directly under profile
+            updateData[`profile.${key}`] = profileData[key];
+          } else {
+            // Other fields go under profile as before
+            updateData[`profile.${key}`] = profileData[key];
+          }
+        });
+        
+        updateData['usage.lastActive'] = new Date().toISOString();
+        
+        console.log('💾 Updating user profile with:', JSON.stringify(updateData, null, 2));
+        
+        await updateDoc(userRef, updateData);
+        console.log('✅ User profile updated successfully');
+        return true;
+      } catch (error) {
+        console.error('Update user profile error:', error);
+        throw error;
+      }
+    },
+
 
   calculateHealthMetrics(profile) {
     if (!profile || !profile.height || !profile.weight) {

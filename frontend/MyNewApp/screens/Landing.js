@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
   Image,
   Animated,
+  Linking,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +21,127 @@ import { authService } from "../services/auth";
 import PremiumService from "../services/PremiumService";
 import { useFocusEffect } from "@react-navigation/native";
 import PersistentFooter from "../components/PersistentFooter";
+
+// Terms of Service Content
+const TERMS_OF_SERVICE = `📄 Kitchly Terms of Service
+
+Effective Date: July 27th, 2025
+App Name: Kitchly
+Company Name: Riso Development LLC
+Contact Email: risodevelopmentcontact@gmail.com
+
+1. Acceptance of Terms
+By creating an account or using the Kitchly app, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these terms, please do not use the app.
+
+2. Description of the Service
+Kitchly provides nutrition and meal planning tools, including barcode scanning, recipe recommendations, AI-generated meal plans, weight tracking, voice-based logging, and shopping list creation. Some features require a paid subscription.
+
+3. Account Registration
+You must be at least 13 years old to create an account. When registering, you agree to provide accurate information including your age, height, weight, and activity level. You are responsible for maintaining the confidentiality of your account credentials.
+
+4. Subscriptions and Payments
+Kitchly is free to download. Premium features are available through monthly and yearly subscriptions.
+• Prices and durations are shown within the app.
+• Payment is charged to your Apple ID account.
+• Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period.
+• You can manage or cancel your subscription in your Apple device settings: Manage Subscriptions
+
+Refunds: All purchases are final. Refunds are managed through Apple and subject to their policies.
+
+5. Health Data & Usage
+Kitchly collects and uses health-related data (e.g., weight, goals, dietary preferences) to deliver personalized recommendations. This data is handled according to our Privacy Policy and is never shared with third parties.
+
+6. User Content
+You may log food entries, weight progress, and health goals. You retain ownership of this content, but grant Kitchly the right to use this data internally to improve your experience.
+
+You may not log unrealistic, misleading, or inappropriate content. We reserve the right to restrict or terminate your access if we detect abuse or misuse of AI-generated features.
+
+7. Restrictions
+You agree not to:
+• Use the app for unlawful or harmful purposes.
+• Reverse engineer, tamper with, or interfere with the functionality.
+• Use the AI features in a misleading or abusive way.
+• Attempt to bypass account limitations or exploit bugs.
+
+Violation of these terms may result in account suspension without notice.
+
+8. Data Retention & Deletion
+At this time, Kitchly does not offer self-service account deletion. If you wish to request data deletion, contact us at: risodevelopmentcontact@gmail.com.
+
+9. Changes to the Terms
+We may update these Terms from time to time. Continued use of Kitchly after changes have been made constitutes acceptance of those changes.
+
+10. Contact & Support
+For support or legal inquiries, contact:
+📧 risodevelopmentcontact@gmail.com
+
+11. Governing Law
+These Terms are governed by the laws applicable to Riso Development LLC's operating jurisdiction.`;
+
+// Terms Modal Component
+const TermsModal = ({ visible, onClose }) => {
+  const handlePrivacyPolicyPress = () => {
+    const privacyPolicyUrl = "https://www.privacypolicies.com/live/6898ece2-326a-48e7-b950-555cf9ab1713";
+    
+    Linking.canOpenURL(privacyPolicyUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(privacyPolicyUrl);
+        } else {
+          Alert.alert(
+            "Unable to Open Link",
+            "Please visit our privacy policy at: " + privacyPolicyUrl,
+            [{ text: "OK" }]
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening privacy policy:", err);
+        Alert.alert(
+          "Privacy Policy",
+          "Please visit our privacy policy at: " + privacyPolicyUrl,
+          [{ text: "OK" }]
+        );
+      });
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide">
+      <SafeAreaView style={styles.termsModalContainer}>
+        <View style={styles.termsModalHeader}>
+        </View>
+        
+        <ScrollView
+          style={styles.termsModalContent}
+          showsVerticalScrollIndicator={true}
+          contentContainerStyle={styles.termsModalScrollContent}
+        >
+          <Text style={styles.termsText}>{TERMS_OF_SERVICE}</Text>
+          
+          <TouchableOpacity
+            style={styles.privacyPolicyButton}
+            onPress={handlePrivacyPolicyPress}
+          >
+            <Ionicons name="shield-checkmark" size={20} color="#008b8b" />
+            <Text style={styles.privacyPolicyButtonText}>
+              View Privacy Policy
+            </Text>
+            <Ionicons name="open-outline" size={16} color="#008b8b" />
+          </TouchableOpacity>
+        </ScrollView>
+        
+        <View style={styles.termsModalFooter}>
+          <TouchableOpacity
+            style={styles.termsModalAcceptButton}
+            onPress={onClose}
+          >
+            <Text style={styles.termsModalAcceptButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+};
 
 export default function LandingScreen({ navigation }) {
   // Core state
@@ -32,6 +155,7 @@ export default function LandingScreen({ navigation }) {
   const [isForgotVisible, setIsForgotVisible] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Refs
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -183,6 +307,35 @@ export default function LandingScreen({ navigation }) {
   const handlePasswordChange = useCallback((text) => {
     setPassword(text);
   }, []);
+
+  const handleTermsPress = () => {
+    setShowTermsModal(true);
+  };
+
+  const handlePrivacyPolicyPress = () => {
+    const privacyPolicyUrl = "https://www.privacypolicies.com/live/6898ece2-326a-48e7-b950-555cf9ab1713";
+    
+    Linking.canOpenURL(privacyPolicyUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(privacyPolicyUrl);
+        } else {
+          Alert.alert(
+            "Unable to Open Link",
+            "Please visit our privacy policy at: " + privacyPolicyUrl,
+            [{ text: "OK" }]
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening privacy policy:", err);
+        Alert.alert(
+          "Privacy Policy",
+          "Please visit our privacy policy at: " + privacyPolicyUrl,
+          [{ text: "OK" }]
+        );
+      });
+  };
 
   const handleLogin = async () => {
     console.log('🔐 LandingScreen: Login attempt started');
@@ -901,6 +1054,28 @@ export default function LandingScreen({ navigation }) {
                     </TouchableOpacity>
                   </View>
 
+                  {/* Terms and Conditions Section - Only for Create Account */}
+                  {isNewUser && (
+                    <View style={styles.termsSection}>
+                      <Text style={styles.termsAgreementText}>
+                        By creating an account, you agree to Kitchly's{" "}
+                        <Text
+                          style={styles.termsLink}
+                          onPress={handleTermsPress}
+                        >
+                          Terms and Conditions
+                        </Text>
+                        {" "}and{" "}
+                        <Text
+                          style={styles.termsLink}
+                          onPress={handlePrivacyPolicyPress}
+                        >
+                          Privacy Policy
+                        </Text>
+                      </Text>
+                    </View>
+                  )}
+
                   {!isNewUser && (
                     <TouchableOpacity
                       style={styles.forgotPasswordButton}
@@ -1018,6 +1193,12 @@ export default function LandingScreen({ navigation }) {
           </SafeAreaView>
         </View>
       )}
+
+      {/* Terms Modal */}
+      <TermsModal
+        visible={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+      />
 
       {/* Toast Notification */}
       <Toast visible={showToast} message={toastMessage} type={toastType} />
@@ -1209,14 +1390,6 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  heroCardGradient: {
-    backgroundColor: "transparent",
-    borderLeftWidth: 0,
-    // Creating a gradient effect with multiple colored borders
-    borderWidth: 2,
-    borderColor: "#8B5CF6",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  },
   heroCardContent: {
     flexDirection: "row",
     alignItems: "center",
@@ -1231,20 +1404,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 18,
   },
-  heroIconContainerGradient: {
-    backgroundColor: "#8B5CF6",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#8B5CF6",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
   heroTextContainer: {
     flex: 1,
     marginRight: 14,
@@ -1255,16 +1414,10 @@ const styles = StyleSheet.create({
     color: "#2c3e50",
     marginBottom: 5,
   },
-  heroTitleGradient: {
-    color: "#8B5CF6",
-  },
   heroDescription: {
     fontSize: 14,
     color: "#7f8c8d",
     lineHeight: 20,
-  },
-  heroDescriptionGradient: {
-    color: "#6B46C1",
   },
   heroArrow: {
     padding: 3,
@@ -1579,5 +1732,103 @@ const styles = StyleSheet.create({
     color: "#008b8b",
     fontSize: 15,
     fontWeight: "600",
+  },
+
+  // Terms-related styles
+  termsSection: {
+    marginTop: 16,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  termsAgreementText: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  termsLink: {
+    color: "#008b8b",
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  
+  // Terms Modal Styles
+  termsModalContainer: {
+    flex: 1,
+    backgroundColor: "white",
+  },
+  termsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+    backgroundColor: "white",
+  },
+  termsModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#2c3e50",
+  },
+  termsModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#f8f9fa",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  termsModalContent: {
+    flex: 1,
+  },
+  termsModalScrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  termsText: {
+    fontSize: 14,
+    color: "#2c3e50",
+    lineHeight: 22,
+    marginTop: 15,
+    marginBottom: 24,
+  },
+  privacyPolicyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f0f9f9",
+    borderWidth: 1,
+    borderColor: "#008b8b",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    gap: 8,
+  },
+  privacyPolicyButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#008b8b",
+  },
+  termsModalFooter: {
+    backgroundColor: "white",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e9ecef",
+  },
+  termsModalAcceptButton: {
+    backgroundColor: "#008b8b",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  termsModalAcceptButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

@@ -17,6 +17,7 @@ import {
   Image,
   TouchableWithoutFeedback,
   Keyboard,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +28,129 @@ import { doc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 
 const { width, height } = Dimensions.get("window");
+
+// Terms of Service Content
+const TERMS_OF_SERVICE = `📄 Kitchly Terms of Service
+
+Effective Date: July 27th, 2025
+App Name: Kitchly
+Company Name: Riso Development LLC
+Contact Email: risodevelopmentcontact@gmail.com
+
+1. Acceptance of Terms
+By creating an account or using the Kitchly app, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these terms, please do not use the app.
+
+2. Description of the Service
+Kitchly provides nutrition and meal planning tools, including barcode scanning, recipe recommendations, AI-generated meal plans, weight tracking, voice-based logging, and shopping list creation. Some features require a paid subscription.
+
+3. Account Registration
+You must be at least 13 years old to create an account. When registering, you agree to provide accurate information including your age, height, weight, and activity level. You are responsible for maintaining the confidentiality of your account credentials.
+
+4. Subscriptions and Payments
+Kitchly is free to download. Premium features are available through monthly and yearly subscriptions.
+• Prices and durations are shown within the app.
+• Payment is charged to your Apple ID account.
+• Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period.
+• You can manage or cancel your subscription in your Apple device settings: Manage Subscriptions
+
+Refunds: All purchases are final. Refunds are managed through Apple and subject to their policies.
+
+5. Health Data & Usage
+Kitchly collects and uses health-related data (e.g., weight, goals, dietary preferences) to deliver personalized recommendations. This data is handled according to our Privacy Policy and is never shared with third parties.
+
+6. User Content
+You may log food entries, weight progress, and health goals. You retain ownership of this content, but grant Kitchly the right to use this data internally to improve your experience.
+
+You may not log unrealistic, misleading, or inappropriate content. We reserve the right to restrict or terminate your access if we detect abuse or misuse of AI-generated features.
+
+7. Restrictions
+You agree not to:
+• Use the app for unlawful or harmful purposes.
+• Reverse engineer, tamper with, or interfere with the functionality.
+• Use the AI features in a misleading or abusive way.
+• Attempt to bypass account limitations or exploit bugs.
+
+Violation of these terms may result in account suspension without notice.
+
+8. Data Retention & Deletion
+At this time, Kitchly does not offer self-service account deletion. If you wish to request data deletion, contact us at: risodevelopmentcontact@gmail.com.
+
+9. Changes to the Terms
+We may update these Terms from time to time. Continued use of Kitchly after changes have been made constitutes acceptance of those changes.
+
+10. Contact & Support
+For support or legal inquiries, contact:
+📧 risodevelopmentcontact@gmail.com
+
+11. Governing Law
+These Terms are governed by the laws applicable to Riso Development LLC's operating jurisdiction.`;
+
+// Terms Modal Component
+const TermsModal = ({ visible, onClose }) => {
+  const handlePrivacyPolicyPress = () => {
+    const privacyPolicyUrl = "https://www.privacypolicies.com/live/6898ece2-326a-48e7-b950-555cf9ab1713";
+    
+    Linking.canOpenURL(privacyPolicyUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(privacyPolicyUrl);
+        } else {
+          Alert.alert(
+            "Unable to Open Link",
+            "Please visit our privacy policy at: " + privacyPolicyUrl,
+            [{ text: "OK" }]
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening privacy policy:", err);
+        Alert.alert(
+          "Privacy Policy",
+          "Please visit our privacy policy at: " + privacyPolicyUrl,
+          [{ text: "OK" }]
+        );
+      });
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide">
+      <SafeAreaView style={styles.termsModalContainer}>
+        <View style={styles.termsModalHeader}>
+          
+
+        </View>
+        
+        <ScrollView
+          style={styles.termsModalContent}
+          showsVerticalScrollIndicator={true}
+          contentContainerStyle={styles.termsModalScrollContent}
+        >
+          <Text style={styles.termsText}>{TERMS_OF_SERVICE}</Text>
+          
+          <TouchableOpacity
+            style={styles.privacyPolicyButton}
+            onPress={handlePrivacyPolicyPress}
+          >
+            <Ionicons name="shield-checkmark" size={20} color="#008b8b" />
+            <Text style={styles.privacyPolicyButtonText}>
+              View Privacy Policy
+            </Text>
+            <Ionicons name="open-outline" size={16} color="#008b8b" />
+          </TouchableOpacity>
+        </ScrollView>
+        
+        <View style={styles.termsModalFooter}>
+          <TouchableOpacity
+            style={styles.termsModalAcceptButton}
+            onPress={onClose}
+          >
+            <Text style={styles.termsModalAcceptButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+};
 
 // Dropdown data
 const heightOptions = [
@@ -63,7 +187,7 @@ const ageOptions = Array.from({ length: 83 }, (_, i) => {
   return { label: `${age} years`, value: age.toString() };
 });
 
-// Enhanced Account Modal Component with better keyboard handling
+// Enhanced Account Modal Component with terms and conditions
 const AccountModal = ({
   visible,
   onClose,
@@ -80,6 +204,7 @@ const AccountModal = ({
   onSkip
 }) => {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const scrollViewRef = useRef(null);
 
   useEffect(() => {
@@ -96,6 +221,35 @@ const AccountModal = ({
       keyboardDidHideListener.remove();
     };
   }, []);
+
+  const handleTermsPress = () => {
+    setShowTermsModal(true);
+  };
+
+  const handlePrivacyPolicyPress = () => {
+    const privacyPolicyUrl = "https://www.privacypolicies.com/live/6898ece2-326a-48e7-b950-555cf9ab1713";
+    
+    Linking.canOpenURL(privacyPolicyUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(privacyPolicyUrl);
+        } else {
+          Alert.alert(
+            "Unable to Open Link",
+            "Please visit our privacy policy at: " + privacyPolicyUrl,
+            [{ text: "OK" }]
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening privacy policy:", err);
+        Alert.alert(
+          "Privacy Policy",
+          "Please visit our privacy policy at: " + privacyPolicyUrl,
+          [{ text: "OK" }]
+        );
+      });
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
@@ -205,6 +359,28 @@ const AccountModal = ({
                     </TouchableOpacity>
                   </View>
                 </View>
+
+                {/* Terms and Conditions Section - Only for Sign Up */}
+                {!isLoginMode && (
+                  <View style={styles.termsSection}>
+                    <Text style={styles.termsAgreementText}>
+                      By creating an account, you agree to Kitchly's{" "}
+                      <Text
+                        style={styles.termsLink}
+                        onPress={handleTermsPress}
+                      >
+                        Terms and Conditions
+                      </Text>
+                      {" "}and{" "}
+                      <Text
+                        style={styles.termsLink}
+                        onPress={handlePrivacyPolicyPress}
+                      >
+                        Privacy Policy
+                      </Text>
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.modalActionSection}>
@@ -233,10 +409,17 @@ const AccountModal = ({
           </SafeAreaView>
         </View>
       </TouchableWithoutFeedback>
+
+      {/* Terms Modal */}
+      <TermsModal
+        visible={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+      />
     </Modal>
   );
 };
 
+// Premium Modal Component with individual purchase buttons
 // Premium Modal Component with individual purchase buttons
 const PremiumModal = ({
   visible,
@@ -283,7 +466,8 @@ const PremiumModal = ({
           "Ad-Free Experience",
           "Cancel Anytime",
         ],
-        isRecommended: false
+        isRecommended: false,
+        sortOrder: 1 // Add sort order for monthly
       };
     } else if (isAnnual) {
       return {
@@ -293,7 +477,7 @@ const PremiumModal = ({
         price: product.priceString,
         period: '/year',
         productId: product.identifier,
-        savings: 'Save 33%',
+        savings: 'Save 30%',
         popular: true,
         features: [
           "Smart Ingredient Search",
@@ -309,7 +493,8 @@ const PremiumModal = ({
           "Advanced Recipe Filters",
           "Cancel Anytime",
         ],
-        isRecommended: true
+        isRecommended: true,
+        sortOrder: 2 // Add sort order for annual
       };
     }
     
@@ -321,11 +506,16 @@ const PremiumModal = ({
       period: '',
       productId: product.identifier,
       features: ["All Premium Features", "Cancel Anytime"],
-      isRecommended: false
+      isRecommended: false,
+      sortOrder: 3 // Default sort order for other packages
     };
   };
 
-  const plans = packages.map(pkg => getPackageInfo(pkg)).filter(Boolean);
+  // Sort plans to ensure monthly appears first, then annual
+  const plans = packages
+    .map(pkg => getPackageInfo(pkg))
+    .filter(Boolean)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const handlePurchase = async (packageToPurchase) => {
     setPurchasingPackageId(packageToPurchase.identifier);
@@ -333,6 +523,7 @@ const PremiumModal = ({
     setPurchasingPackageId(null);
   };
 
+  // Rest of your PremiumModal component code remains the same...
   const PlanCard = ({ plan, packageData }) => {
     const isThisPackagePurchasing = purchasingPackageId === packageData.identifier;
     const isFallbackPackage = plan.productId?.includes('fallback');
@@ -414,7 +605,17 @@ const PremiumModal = ({
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={styles.premiumModalContainer}>
         <SafeAreaView style={styles.premiumModalSafeArea}>
-          {/* Removed the close button header */}
+          {/* New subtle top Continue with Free button */}
+          <View style={styles.premiumModalTopBar}>
+            <TouchableOpacity
+              style={styles.topContinueFreeButton}
+              onPress={onContinueFree}
+              activeOpacity={0.7}
+              disabled={purchasingPackageId !== null}
+            >
+              <Text style={styles.topContinueFreeButtonText}>Continue with Free</Text>
+            </TouchableOpacity>
+          </View>
           
           <ScrollView
             style={styles.premiumModalScroll}
@@ -454,13 +655,21 @@ const PremiumModal = ({
               <View style={styles.planSelectionSection}>
                 <Text style={styles.planSelectionTitle}>Choose Your Plan</Text>
                 
-                {plans.map((plan, index) => (
-                  <PlanCard
-                    key={plan.id || index}
-                    plan={plan}
-                    packageData={packages[index]}
-                  />
-                ))}
+                {plans.map((plan, index) => {
+                  // Find the corresponding package data based on the plan
+                  const packageData = packages.find(pkg => {
+                    const planInfo = getPackageInfo(pkg);
+                    return planInfo.id === plan.id;
+                  });
+                  
+                  return (
+                    <PlanCard
+                      key={plan.id || index}
+                      plan={plan}
+                      packageData={packageData}
+                    />
+                  );
+                })}
               </View>
             )}
 
@@ -631,7 +840,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         product: {
           identifier: 'monthly_premium_fallback',
           title: 'Monthly Premium',
-          priceString: '$4.99',
+          priceString: '$5.99',
           price: 4.99,
           currencyCode: 'USD'
         }
@@ -641,7 +850,7 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         product: {
           identifier: 'annual_premium_fallback',
           title: 'Annual Premium',
-          priceString: '$39.99',
+          priceString: '$49.99',
           price: 39.99,
           currencyCode: 'USD'
         }
@@ -1931,6 +2140,104 @@ const styles = StyleSheet.create({
     color: "#7f8c8d",
   },
 
+  // Terms-related styles
+  termsSection: {
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  termsAgreementText: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  termsLink: {
+    color: "#008b8b",
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  
+  // Terms Modal Styles
+  termsModalContainer: {
+    flex: 1,
+    backgroundColor: "white",
+  },
+  termsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+    backgroundColor: "white",
+  },
+  termsModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#2c3e50",
+  },
+  termsModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#f8f9fa",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  termsModalContent: {
+    flex: 1,
+  },
+  termsModalScrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  termsText: {
+    marginTop: 15,
+    fontSize: 14,
+    color: "#2c3e50",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  privacyPolicyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f0f9f9",
+    borderWidth: 1,
+    borderColor: "#008b8b",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    gap: 8,
+  },
+  privacyPolicyButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#008b8b",
+  },
+  termsModalFooter: {
+    backgroundColor: "white",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e9ecef",
+  },
+  termsModalAcceptButton: {
+    backgroundColor: "#008b8b",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  termsModalAcceptButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
   // Premium Modal Styles
   premiumModalContainer: {
     flex: 1,
@@ -1939,22 +2246,34 @@ const styles = StyleSheet.create({
   premiumModalSafeArea: {
     flex: 1,
   },
-  premiumModalHeader: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+  
+  // NEW: Top bar with subtle Continue with Free button
+    premiumModalTopBar: {
+     flexDirection: "row",
+     justifyContent: "flex-start",
+     marginTop: 14,
+     paddingHorizontal: 24,
+     paddingTop: 16,
+     paddingBottom: 4,
+     backgroundColor: "rgba(248, 249, 250, 0.95)",
+     borderBottomWidth: 1,
+     borderBottomColor: "rgba(233, 236, 239, 0.3)",
+    },
+    topContinueFreeButton: {
+     marginTop:28,
+     paddingHorizontal: 16,
+     paddingVertical: 14,
+     backgroundColor: "rgba(255, 255, 255, 0.6)",
+     borderRadius: 20,
+     borderWidth: 1,
+     borderColor: "rgba(0, 139, 139, 0.2)",
+    },
+  topContinueFreeButtonText: {
+    fontSize: 14,
+    color: "rgba(127, 140, 141, 0.8)",
+    fontWeight: "500",
   },
-  premiumModalCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f8f9fa",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  
   premiumModalScroll: {
     flex: 1,
   },
@@ -2040,10 +2359,6 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
-  },
-  planCardSelected: {
-    borderColor: "#008b8b",
-    backgroundColor: "#f0f9f9",
   },
   planCardPopular: {
     borderColor: "#008b8b",
@@ -2144,20 +2459,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#27ae60",
   },
-  planCardRadio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#e9ecef",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 16,
-  },
-  planCardRadioSelected: {
-    backgroundColor: "#008b8b",
-    borderColor: "#008b8b",
-  },
   planCardFeatures: {
     gap: 8,
     marginBottom: 20,
@@ -2172,7 +2473,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
   },
-  // Individual plan upgrade buttons - Enhanced styling
   planUpgradeButton: {
     backgroundColor: "#008b8b",
     borderRadius: 14,
@@ -2195,7 +2495,7 @@ const styles = StyleSheet.create({
     }),
   },
   recommendedUpgradeButton: {
-    backgroundColor: "#007a7a", // Slightly darker for recommended
+    backgroundColor: "#007a7a",
     ...Platform.select({
       ios: {
         shadowColor: "#007a7a",
@@ -2227,7 +2527,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#e9ecef",
   },
-  // Enhanced Free Button Styling
   premiumFreeButtonProminent: {
     backgroundColor: "white",
     borderRadius: 16,
@@ -2275,42 +2574,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     paddingHorizontal: 20,
   },
-  premiumModalActions: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    backgroundColor: "white",
-    gap: 12,
-  },
-  premiumUpgradeButton: {
-    backgroundColor: "#008b8b",
-    borderRadius: 12,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-    flexDirection: "row",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#008b8b",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  premiumUpgradeButtonDisabled: {
-    opacity: 0.7,
-  },
-  premiumUpgradeButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "700",
-    marginHorizontal: 8,
-  },
   purchasingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2319,19 +2582,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  premiumFreeButton: {
-    backgroundColor: "transparent",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e9ecef",
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  premiumFreeButtonText: {
-    color: "#7f8c8d",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

@@ -680,47 +680,58 @@ export default function WeightManagerScreen({ navigation }) {
     }
   }, [weightEntries, streak, currentGoal, userProfile]);
 
-  const initializeApp = async () => {
-    setIsLoading(true);
-    try {
-      const currentUser = authService.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        const profile = await authService.getUserProfile();
-        setUserProfile(profile);
-        
-        // Load tracking data
-        setStreak(profile?.streak || 0);
-        setLastLogDate(profile?.lastLogDate ? new Date(profile.lastLogDate) : null);
-        setActivityLevel(profile?.activityLevel || "moderately_active");
-        setGender(profile?.gender || "male");
-        
-        if (profile?.goalHistory) {
-          setGoalHistory(profile.goalHistory);
+    // FIXED: initializeApp function with proper streak loading
+    const initializeApp = async () => {
+      setIsLoading(true);
+      try {
+        const currentUser = authService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+          const profile = await authService.getUserProfile();
+          setUserProfile(profile);
+          
+          // FIXED: Load tracking data properly
+          if (profile) {
+            // Load streak from profile, default to 0 if not found
+            const savedStreak = profile.streak || 0;
+            setStreak(savedStreak);
+            console.log('📊 Loaded streak from profile:', savedStreak);
+            
+            // Load last log date
+            const savedLastLogDate = profile.lastLogDate ? new Date(profile.lastLogDate) : null;
+            setLastLogDate(savedLastLogDate);
+            console.log('📅 Loaded last log date:', savedLastLogDate);
+            
+            // Load other settings
+            setActivityLevel(profile.activityLevel || "moderately_active");
+            setGender(profile.gender || "male");
+            
+            if (profile.goalHistory) {
+              setGoalHistory(profile.goalHistory);
+            }
+            
+            if (profile.currentGoal) {
+              setCurrentGoal(profile.currentGoal);
+              await loadWeightEntries(profile);
+            }
+            
+            // Check if profile is incomplete
+            if (!profile.weight || !profile.height || !profile.age) {
+              setShowInitialSetup(true);
+            } else if (!profile.hasConfirmedWeight) {
+              const weightInLbs = Math.round(kgToLbs(profile.weight));
+              setConfirmWeight(weightInLbs.toString());
+              setShowWeightConfirmation(true);
+            }
+          }
         }
-        
-        if (profile?.currentGoal) {
-          setCurrentGoal(profile.currentGoal);
-          await loadWeightEntries(profile);
-        }
-        
-        // Check if profile is incomplete
-        if (!profile?.weight || !profile?.height || !profile?.age) {
-          setShowInitialSetup(true);
-        } else if (!profile?.hasConfirmedWeight) {
-          // Show weight confirmation if they haven't confirmed recently
-          const weightInLbs = Math.round(kgToLbs(profile.weight));
-          setConfirmWeight(weightInLbs.toString());
-          setShowWeightConfirmation(true);
-        }
+      } catch (error) {
+        console.error("Error initializing app:", error);
+        Alert.alert("Error", "Failed to load your data");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error initializing app:", error);
-      Alert.alert("Error", "Failed to load your data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
   const loadWeightEntries = async (profile = userProfile) => {
     try {
@@ -885,28 +896,58 @@ export default function WeightManagerScreen({ navigation }) {
     return Math.max(0, progress);
   };
 
-  const updateStreak = () => {
-    const today = new Date();
-    
-    if (!lastLogDate) {
-      setStreak(1);
-      setLastLogDate(today);
-      return;
-    }
-    
-    if (isToday(lastLogDate)) {
-      return;
-    }
-    
-    if (isYesterday(lastLogDate)) {
-      const newStreak = streak + 1;
+    // FIXED: updateStreak function with proper return value and persistence
+    const updateStreak = async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to start of day
+      
+      if (!lastLogDate) {
+        // First time logging - start streak at 1
+        const newStreak = 1;
+        setStreak(newStreak);
+        setLastLogDate(today);
+        
+        // Save to profile
+        await authService.updateUserProfile({
+          streak: newStreak,
+          lastLogDate: today.toISOString()
+        });
+        return newStreak; // Return the new streak value
+      }
+      
+      const lastLog = new Date(lastLogDate);
+      lastLog.setHours(0, 0, 0, 0); // Normalize to start of day
+      
+      // Check if already logged today
+      if (lastLog.getTime() === today.getTime()) {
+        // Already logged today - don't change streak
+        return streak; // Return current streak
+      }
+      
+      // Check if logged yesterday
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      let newStreak;
+      if (lastLog.getTime() === yesterday.getTime()) {
+        // Logged yesterday - continue streak
+        newStreak = streak + 1;
+      } else {
+        // Missed a day - reset streak to 1
+        newStreak = 1;
+      }
+      
       setStreak(newStreak);
       setLastLogDate(today);
-    } else {
-      setStreak(1);
-      setLastLogDate(today);
-    }
-  };
+      
+      // Save to profile
+      await authService.updateUserProfile({
+        streak: newStreak,
+        lastLogDate: today.toISOString()
+      });
+      
+      return newStreak; // Return the new streak value
+    };
 
   const completeInitialSetup = async () => {
     if (!initialWeight || (!heightFeet && !heightInches) || !initialAge) {
@@ -1066,74 +1107,79 @@ export default function WeightManagerScreen({ navigation }) {
     return { valid: true };
   };
 
-  const logWeight = async () => {
-    if (!currentWeight || currentWeight.trim() === "") {
-      Alert.alert("Missing Weight", "Please enter your current weight");
-      return;
-    }
-
-    const weightValue = parseFloat(currentWeight);
-    if (isNaN(weightValue) || weightValue <= 0 || weightValue > 1000) {
-      Alert.alert("Invalid Weight", "Please enter a valid weight between 1 and 1000 lbs");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      
-      const weightKg = lbsToKg(weightValue);
-      const currentDate = new Date();
-      
-      const newEntry = {
-        id: Date.now().toString(),
-        weight: weightKg,
-        weightLbs: weightValue,
-        date: currentDate.toISOString(),
-        bodyFat: bodyFat && !isNaN(parseFloat(bodyFat)) ? parseFloat(bodyFat) : null,
-        notes: ""
-      };
-      
-      const updatedEntries = [...weightEntries, {
-        ...newEntry,
-        date: currentDate
-      }];
-      setWeightEntries(updatedEntries);
-      
-      updateStreak();
-      
-      const updatedProfile = {
-        ...userProfile,
-        weight: weightKg,
-        weightEntries: updatedEntries.map(entry => ({
-          ...entry,
-          date: entry.date.toISOString()
-        })),
-        streak: streak,
-        lastLogDate: currentDate.toISOString()
-      };
-      
-      await authService.updateUserProfile(updatedProfile);
-      setUserProfile(updatedProfile);
-      
-      setCurrentWeight("");
-      setBodyFat("");
-      setShowLogWeight(false);
-      
-      if (currentGoal && !currentGoal.completed) {
-        setTimeout(() => {
-          checkGoalCompletion(updatedEntries);
-        }, 500);
+    // FIXED: logWeight function with proper streak handling
+    const logWeight = async () => {
+      if (!currentWeight || currentWeight.trim() === "") {
+        Alert.alert("Missing Weight", "Please enter your current weight");
+        return;
       }
-      
-      Alert.alert("Success! 📊", `Weight logged: ${weightValue} lbs`);
-      
-    } catch (error) {
-      console.error("Error logging weight:", error);
-      Alert.alert("Error", "Failed to log weight. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+      const weightValue = parseFloat(currentWeight);
+      if (isNaN(weightValue) || weightValue <= 0 || weightValue > 1000) {
+        Alert.alert("Invalid Weight", "Please enter a valid weight between 1 and 1000 lbs");
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        
+        const weightKg = lbsToKg(weightValue);
+        const currentDate = new Date();
+        
+        const newEntry = {
+          id: Date.now().toString(),
+          weight: weightKg,
+          weightLbs: weightValue,
+          date: currentDate.toISOString(),
+          bodyFat: bodyFat && !isNaN(parseFloat(bodyFat)) ? parseFloat(bodyFat) : null,
+          notes: ""
+        };
+        
+        const updatedEntries = [...weightEntries, {
+          ...newEntry,
+          date: currentDate
+        }];
+        setWeightEntries(updatedEntries);
+        
+        // FIXED: Update streak and get the new value
+        const newStreakValue = await updateStreak();
+        console.log('🔥 Updated streak value:', newStreakValue);
+        
+        // FIXED: Use the returned streak value directly
+        const updatedProfile = {
+          ...userProfile,
+          weight: weightKg,
+          streak: newStreakValue, // Use the value returned from updateStreak
+          lastLogDate: currentDate.toISOString(),
+          weightEntries: updatedEntries.map(entry => ({
+            ...entry,
+            date: entry.date.toISOString()
+          })),
+        };
+        
+        await authService.updateUserProfile(updatedProfile);
+        setUserProfile(updatedProfile);
+        
+        setCurrentWeight("");
+        setBodyFat("");
+        setShowLogWeight(false);
+        
+        if (currentGoal && !currentGoal.completed) {
+          setTimeout(() => {
+            checkGoalCompletion(updatedEntries);
+          }, 500);
+        }
+        
+        Alert.alert("Success! 📊", `Weight logged: ${weightValue} lbs\nStreak: ${newStreakValue} days`);
+        
+      } catch (error) {
+        console.error("Error logging weight:", error);
+        Alert.alert("Error", "Failed to log weight. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
 
   const completeGoal = async () => {
     if (!celebrationData) return;
