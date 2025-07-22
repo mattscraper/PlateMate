@@ -1,4 +1,4 @@
-// Enhanced authService.js with Fixed Grocery List Persistence
+// Enhanced authService.js with Fixed Grocery List Persistence and Account Deletion
 import * as SecureStore from "expo-secure-store";
 import axios from "axios";
 import {
@@ -7,8 +7,17 @@ import {
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
+  deleteUser, // Added for account deletion
 } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  deleteDoc, // Added for account deletion
+} from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import PremiumService from "./PremiumService";
 
@@ -279,6 +288,75 @@ export const authService = {
         throw error;
       }
     },
+
+  // Account deletion method
+  async deleteAccount() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("No user is currently logged in");
+      }
+
+      console.log('🗑️ Starting account deletion process for user:', user.uid);
+
+      // Step 1: Delete user document from Firestore
+      try {
+        console.log('📄 Deleting user document from Firestore...');
+        await deleteDoc(doc(db, "users", user.uid));
+        console.log('✅ User document deleted from Firestore');
+      } catch (firestoreError) {
+        console.error('❌ Failed to delete user document from Firestore:', firestoreError);
+        // Continue with auth deletion even if Firestore deletion fails
+      }
+
+      // Step 2: Clean up local storage
+      try {
+        console.log('🧹 Cleaning up local storage...');
+        await SecureStore.deleteItemAsync("auth_token");
+        delete axios.defaults.headers.common["Authorization"];
+        console.log('✅ Local storage cleaned up');
+      } catch (storageError) {
+        console.error('⚠️ Failed to clean up local storage:', storageError);
+        // Continue with auth deletion
+      }
+
+      // Step 3: Cleanup PremiumService
+      try {
+        console.log('💎 Cleaning up PremiumService...');
+        PremiumService.cleanup();
+        console.log('✅ PremiumService cleaned up');
+      } catch (premiumError) {
+        console.error('⚠️ Failed to clean up PremiumService:', premiumError);
+        // Continue with auth deletion
+      }
+
+      // Step 4: Delete the Firebase Auth user (this must be last)
+      try {
+        console.log('🔥 Deleting Firebase Auth user...');
+        await deleteUser(user);
+        console.log('✅ Firebase Auth user deleted successfully');
+      } catch (authError) {
+        console.error('❌ Failed to delete Firebase Auth user:', authError);
+        
+        // Handle specific auth errors
+        if (authError.code === "auth/requires-recent-login") {
+          throw new Error("For security reasons, please sign out and sign back in, then try deleting your account again.");
+        } else if (authError.code === "auth/network-request-failed") {
+          throw new Error("Network error. Please check your internet connection and try again.");
+        } else {
+          throw new Error("Failed to delete account. Please try again or contact support if the problem persists.");
+        }
+      }
+
+      console.log('🎉 Account deletion completed successfully');
+      return true;
+
+    } catch (error) {
+      console.error('❌ Account deletion failed:', error);
+      throw error;
+    }
+  },
+
   // Enhanced meal plan operations with grocery list persistence
   async saveMealPlanWithGroceryList(mealPlanData, groceryListData = null) {
     try {
@@ -1034,35 +1112,6 @@ export const authService = {
       }
     },
 
- 
-    // FIXED: getUserProfile method to ensure streak data is returned
-    async getUserProfile() {
-      try {
-        const user = auth.currentUser;
-        if (!user) throw new Error("User not logged in");
-
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          const profile = userData.profile || {};
-          
-          // FIXED: Ensure streak and lastLogDate are included in profile
-          profile.streak = userData.profile?.streak || 0;
-          profile.lastLogDate = userData.profile?.lastLogDate || null;
-          profile.weightEntries = userData.profile?.weightEntries || [];
-          profile.currentGoal = userData.profile?.currentGoal || null;
-          profile.goalHistory = userData.profile?.goalHistory || [];
-          
-          console.log('📊 getUserProfile - streak:', profile.streak, 'lastLogDate:', profile.lastLogDate);
-          return profile;
-        }
-        return null;
-      } catch (error) {
-        console.error('Get user profile error:', error);
-        throw error;
-      }
-    },
-
     // FIXED: updateUserProfile method to handle streak fields properly
     async updateUserProfile(profileData) {
       try {
@@ -1095,7 +1144,6 @@ export const authService = {
         throw error;
       }
     },
-
 
   calculateHealthMetrics(profile) {
     if (!profile || !profile.height || !profile.weight) {

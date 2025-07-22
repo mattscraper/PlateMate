@@ -22,13 +22,15 @@ import PremiumService from "../services/PremiumService";
 import { useFocusEffect } from "@react-navigation/native";
 import PersistentFooter from "../components/PersistentFooter";
 
-// Terms of Service Content
+// Updated Terms of Service Content with web link
 const TERMS_OF_SERVICE = `📄 Kitchly Terms of Service
 
 Effective Date: July 27th, 2025
 App Name: Kitchly
 Company Name: Riso Development LLC
 Contact Email: risodevelopmentcontact@gmail.com
+
+Full Terms Available Online: https://merry-griffin-b38c95.netlify.app
 
 1. Acceptance of Terms
 By creating an account or using the Kitchly app, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these terms, please do not use the app.
@@ -66,7 +68,7 @@ You agree not to:
 Violation of these terms may result in account suspension without notice.
 
 8. Data Retention & Deletion
-At this time, Kitchly does not offer self-service account deletion. If you wish to request data deletion, contact us at: risodevelopmentcontact@gmail.com.
+Users can delete their accounts and all associated data directly within the app. If you need assistance with data deletion, contact us at: risodevelopmentcontact@gmail.com.
 
 9. Changes to the Terms
 We may update these Terms from time to time. Continued use of Kitchly after changes have been made constitutes acceptance of those changes.
@@ -78,7 +80,7 @@ For support or legal inquiries, contact:
 11. Governing Law
 These Terms are governed by the laws applicable to Riso Development LLC's operating jurisdiction.`;
 
-// Terms Modal Component
+// Terms Modal Component with web link option
 const TermsModal = ({ visible, onClose }) => {
   const handlePrivacyPolicyPress = () => {
     const privacyPolicyUrl = "https://www.privacypolicies.com/live/6898ece2-326a-48e7-b950-555cf9ab1713";
@@ -105,6 +107,31 @@ const TermsModal = ({ visible, onClose }) => {
       });
   };
 
+  const handleViewFullTermsPress = () => {
+    const termsUrl = "https://merry-griffin-b38c95.netlify.app";
+    
+    Linking.canOpenURL(termsUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(termsUrl);
+        } else {
+          Alert.alert(
+            "Unable to Open Link",
+            "Please visit our terms of service at: " + termsUrl,
+            [{ text: "OK" }]
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening terms of service:", err);
+        Alert.alert(
+          "Terms of Service",
+          "Please visit our terms of service at: " + termsUrl,
+          [{ text: "OK" }]
+        );
+      });
+  };
+
   return (
     <Modal visible={visible} animationType="slide">
       <SafeAreaView style={styles.termsModalContainer}>
@@ -117,6 +144,17 @@ const TermsModal = ({ visible, onClose }) => {
           contentContainerStyle={styles.termsModalScrollContent}
         >
           <Text style={styles.termsText}>{TERMS_OF_SERVICE}</Text>
+          
+          <TouchableOpacity
+            style={styles.fullTermsButton}
+            onPress={handleViewFullTermsPress}
+          >
+            <Ionicons name="document-text" size={20} color="#008b8b" />
+            <Text style={styles.fullTermsButtonText}>
+              View Full Terms Online
+            </Text>
+            <Ionicons name="open-outline" size={16} color="#008b8b" />
+          </TouchableOpacity>
           
           <TouchableOpacity
             style={styles.privacyPolicyButton}
@@ -309,7 +347,23 @@ export default function LandingScreen({ navigation }) {
   }, []);
 
   const handleTermsPress = () => {
-    setShowTermsModal(true);
+    // Option 1: Open web link directly
+    const termsUrl = "https://merry-griffin-b38c95.netlify.app";
+    
+    Linking.canOpenURL(termsUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(termsUrl);
+        } else {
+          // Fallback to modal if link can't be opened
+          setShowTermsModal(true);
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening terms link:", err);
+        // Fallback to modal
+        setShowTermsModal(true);
+      });
   };
 
   const handlePrivacyPolicyPress = () => {
@@ -697,7 +751,47 @@ export default function LandingScreen({ navigation }) {
                 "Profile Options",
                 "What would you like to do?",
                 [
-                  
+                  {
+                    text: "Delete Account",
+                    onPress: () => {
+                      Alert.alert(
+                        "Delete Account",
+                        "Are you sure you want to permanently delete your account? This action cannot be undone and will remove all your data including:\n\n• Saved recipes\n• Meal plans\n• Grocery lists\n• Weight tracking data\n• All preferences",
+                        [
+                          {
+                            text: "Cancel",
+                            style: "cancel",
+                          },
+                          {
+                            text: "Yes, Delete Account",
+                            style: "destructive",
+                            onPress: async () => {
+                              setIsLoading(true);
+                              try {
+                                await authService.deleteAccount();
+                                showCustomToast("Account deleted successfully", "success");
+                                // User will be automatically logged out by the auth state change
+                              } catch (error) {
+                                console.error("Delete account error:", error);
+                                let errorMessage = "Failed to delete account. Please try again.";
+                                
+                                if (error.code === "auth/requires-recent-login") {
+                                  errorMessage = "For security reasons, please sign out and sign back in, then try deleting your account again.";
+                                } else if (error.message) {
+                                  errorMessage = error.message;
+                                }
+                                
+                                showCustomToast(errorMessage, "error");
+                              } finally {
+                                setIsLoading(false);
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    },
+                    style: "destructive",
+                  },
                   {
                     text: "Sign Out",
                     onPress: async () => {
@@ -1063,7 +1157,7 @@ export default function LandingScreen({ navigation }) {
                           style={styles.termsLink}
                           onPress={handleTermsPress}
                         >
-                          Terms and Conditions
+                          Terms of Use
                         </Text>
                         {" "}and{" "}
                         <Text
@@ -1793,6 +1887,24 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 15,
     marginBottom: 24,
+  },
+  fullTermsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e8f4f8",
+    borderWidth: 1,
+    borderColor: "#008b8b",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    gap: 8,
+  },
+  fullTermsButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#008b8b",
   },
   privacyPolicyButton: {
     flexDirection: "row",

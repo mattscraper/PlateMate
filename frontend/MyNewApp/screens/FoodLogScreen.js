@@ -499,6 +499,12 @@ export default function FoodLogScreen({ navigation }) {
     };
   };
 
+  // Check if profile form is valid
+  const isProfileFormValid = () => {
+    const hasHeight = heightUnit === 'cm' ? height.trim() : (heightFeet.trim() && heightInches.trim());
+    return hasHeight && weight.trim() && age.trim();
+  };
+
   const saveProfileAndGenerateGoals = async () => {
     // Validate required fields
     if (heightUnit === 'cm' && !height) {
@@ -1032,8 +1038,8 @@ export default function FoodLogScreen({ navigation }) {
         <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
           <TextInput
             style={[styles.goalInput, { color: colors.text }]}
-            placeholder="170"
-            placeholderTextColor={colors.textSecondary}
+            placeholder="Enter height in cm"
+            placeholderTextColor={colors.textMuted}
             value={height}
             onChangeText={setHeight}
             keyboardType="numeric"
@@ -1046,8 +1052,8 @@ export default function FoodLogScreen({ navigation }) {
           <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1, marginRight: 8 }]}>
             <TextInput
               style={[styles.goalInput, { color: colors.text }]}
-              placeholder="5"
-              placeholderTextColor={colors.textSecondary}
+              placeholder="Feet"
+              placeholderTextColor={colors.textMuted}
               value={heightFeet}
               onChangeText={setHeightFeet}
               keyboardType="numeric"
@@ -1058,8 +1064,8 @@ export default function FoodLogScreen({ navigation }) {
           <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
             <TextInput
               style={[styles.goalInput, { color: colors.text }]}
-              placeholder="9"
-              placeholderTextColor={colors.textSecondary}
+              placeholder="Inches"
+              placeholderTextColor={colors.textMuted}
               value={heightInches}
               onChangeText={setHeightInches}
               keyboardType="numeric"
@@ -1634,10 +1640,10 @@ export default function FoodLogScreen({ navigation }) {
               <Text style={[styles.modalTitle, { color: colors.text }]}>Complete Profile</Text>
               <TouchableOpacity
                 onPress={saveProfileAndGenerateGoals}
-                disabled={isLoading}
+                disabled={!isProfileFormValid() || isLoading}
                 style={[
                   styles.modalSaveButton,
-                  { backgroundColor: isLoading ? colors.muted : colors.primary }
+                  { backgroundColor: (isProfileFormValid() && !isLoading) ? colors.primary : colors.muted }
                 ]}
               >
                 {isLoading ? (
@@ -1645,7 +1651,7 @@ export default function FoodLogScreen({ navigation }) {
                 ) : (
                   <Text style={[
                     styles.modalSaveText,
-                    { color: isLoading ? colors.textSecondary : colors.surface }
+                    { color: (isProfileFormValid() && !isLoading) ? colors.surface : colors.textSecondary }
                   ]}>
                     Save
                   </Text>
@@ -1715,8 +1721,8 @@ export default function FoodLogScreen({ navigation }) {
                     <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
                       <TextInput
                         style={[styles.goalInput, { color: colors.text }]}
-                        placeholder={weightUnit === 'kg' ? "70" : "155"}
-                        placeholderTextColor={colors.textSecondary}
+                        placeholder={weightUnit === 'kg' ? "Enter weight in kg" : "Enter weight in lbs"}
+                        placeholderTextColor={colors.textMuted}
                         value={weight}
                         onChangeText={setWeight}
                         keyboardType="numeric"
@@ -1761,8 +1767,8 @@ export default function FoodLogScreen({ navigation }) {
                   <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <TextInput
                       style={[styles.goalInput, { color: colors.text }]}
-                      placeholder="25"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholder="Enter your age"
+                      placeholderTextColor={colors.textMuted}
                       value={age}
                       onChangeText={setAge}
                       keyboardType="numeric"
@@ -1912,10 +1918,10 @@ export default function FoodLogScreen({ navigation }) {
               <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Profile</Text>
               <TouchableOpacity
                 onPress={saveProfileAndGenerateGoals}
-                disabled={isLoading}
+                disabled={!isProfileFormValid() || isLoading}
                 style={[
                   styles.modalSaveButton,
-                  { backgroundColor: isLoading ? colors.muted : colors.primary }
+                  { backgroundColor: (isProfileFormValid() && !isLoading) ? colors.primary : colors.muted }
                 ]}
               >
                 {isLoading ? (
@@ -1923,7 +1929,7 @@ export default function FoodLogScreen({ navigation }) {
                 ) : (
                   <Text style={[
                     styles.modalSaveText,
-                    { color: isLoading ? colors.textSecondary : colors.surface }
+                    { color: (isProfileFormValid() && !isLoading) ? colors.surface : colors.textSecondary }
                   ]}>
                     Save
                   </Text>
@@ -1993,8 +1999,8 @@ export default function FoodLogScreen({ navigation }) {
                     <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
                       <TextInput
                         style={[styles.goalInput, { color: colors.text }]}
-                        placeholder={weightUnit === 'kg' ? "70" : "155"}
-                        placeholderTextColor={colors.textSecondary}
+                        placeholder={weightUnit === 'kg' ? "Enter weight in kg" : "Enter weight in lbs"}
+                        placeholderTextColor={colors.textMuted}
                         value={weight}
                         onChangeText={setWeight}
                         keyboardType="numeric"
@@ -2039,8 +2045,8 @@ export default function FoodLogScreen({ navigation }) {
                   <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <TextInput
                       style={[styles.goalInput, { color: colors.text }]}
-                      placeholder="25"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholder="Enter your age"
+                      placeholderTextColor={colors.textMuted}
                       value={age}
                       onChangeText={setAge}
                       keyboardType="numeric"
@@ -2215,8 +2221,8 @@ export default function FoodLogScreen({ navigation }) {
                   <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <TextInput
                       style={[styles.goalInput, { color: colors.text }]}
-                      placeholder="2000"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholder="Enter daily calorie goal"
+                      placeholderTextColor={colors.textMuted}
                       value={dailyCalories}
                       onChangeText={setDailyCalories}
                       keyboardType="numeric"
@@ -2231,8 +2237,8 @@ export default function FoodLogScreen({ navigation }) {
                   <View style={[styles.goalInputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <TextInput
                       style={[styles.goalInput, { color: colors.text }]}
-                      placeholder="150"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholder="Enter daily protein goal"
+                      placeholderTextColor={colors.textMuted}
                       value={dailyProtein}
                       onChangeText={setDailyProtein}
                       keyboardType="numeric"
@@ -2248,7 +2254,7 @@ export default function FoodLogScreen({ navigation }) {
                     <TextInput
                       style={[styles.goalInput, { color: colors.text }]}
                       placeholder="Auto-calculated if empty"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={colors.textMuted}
                       value={dailyCarbs}
                       onChangeText={setDailyCarbs}
                       keyboardType="numeric"
@@ -2269,7 +2275,7 @@ export default function FoodLogScreen({ navigation }) {
                     <TextInput
                       style={[styles.goalInput, { color: colors.text }]}
                       placeholder="Auto-calculated if empty"
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor={colors.textMuted}
                       value={dailyFat}
                       onChangeText={setDailyFat}
                       keyboardType="numeric"

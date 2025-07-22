@@ -118,20 +118,6 @@ const ProductSearchScreen = ({ navigation }) => {
     return colors[grade] || '#9CA3AF';
   };
 
-  const getHealthScoreColor = (score) => {
-    if (score >= 80) return '#10B981';
-    if (score >= 65) return '#10B981';
-    if (score >= 45) return '#F59E0B';
-    return '#EF4444';
-  };
-
-  const getHealthScoreLabel = (score) => {
-    if (score >= 80) return 'Excellent';
-    if (score >= 65) return 'Good';
-    if (score >= 45) return 'Fair';
-    return 'Poor';
-  };
-
   // Memoized render functions to prevent unnecessary re-renders
   const renderProduct = useCallback(({ item, index }) => (
     <Animated.View
@@ -182,25 +168,8 @@ const ProductSearchScreen = ({ navigation }) => {
             </Text>
           )}
 
-          {/* Health and Nutri Score Row */}
+          {/* Score Row - Only Nutri-Score, no Health Score */}
           <View style={styles.scoreRow}>
-            {/* Health Score */}
-            {item.quick_health_score !== undefined && (
-              <View style={styles.healthScoreContainer}>
-                <View style={[
-                  styles.healthScoreBadge,
-                  { backgroundColor: getHealthScoreColor(item.quick_health_score) }
-                ]}>
-                  <Text style={styles.healthScoreText}>
-                    {item.quick_health_score}
-                  </Text>
-                </View>
-                <Text style={styles.healthScoreLabel}>
-                  {getHealthScoreLabel(item.quick_health_score)}
-                </Text>
-              </View>
-            )}
-
             {/* Nutri-Score */}
             {item.nutriscore_grade && (
               <View style={styles.nutriScoreContainer}>
@@ -594,32 +563,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
     gap: 16,
-  },
-
-  healthScoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  healthScoreBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    minWidth: 32,
-    alignItems: 'center',
-  },
-
-  healthScoreText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'white',
-  },
-
-  healthScoreLabel: {
-    fontSize: 11,
-    color: '#7f8c8d',
-    fontWeight: '500',
   },
 
   nutriScoreContainer: {

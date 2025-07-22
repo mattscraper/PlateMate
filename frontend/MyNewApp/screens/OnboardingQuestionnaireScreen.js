@@ -29,13 +29,15 @@ import { auth, db } from "../firebaseConfig";
 
 const { width, height } = Dimensions.get("window");
 
-// Terms of Service Content
+// Updated Terms of Service Content with web link
 const TERMS_OF_SERVICE = `📄 Kitchly Terms of Service
 
 Effective Date: July 27th, 2025
 App Name: Kitchly
 Company Name: Riso Development LLC
 Contact Email: risodevelopmentcontact@gmail.com
+
+Full Terms Available Online: https://merry-griffin-b38c95.netlify.app
 
 1. Acceptance of Terms
 By creating an account or using the Kitchly app, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these terms, please do not use the app.
@@ -73,7 +75,7 @@ You agree not to:
 Violation of these terms may result in account suspension without notice.
 
 8. Data Retention & Deletion
-At this time, Kitchly does not offer self-service account deletion. If you wish to request data deletion, contact us at: risodevelopmentcontact@gmail.com.
+Users can delete their accounts and all associated data directly within the app. If you need assistance with data deletion, contact us at: risodevelopmentcontact@gmail.com.
 
 9. Changes to the Terms
 We may update these Terms from time to time. Continued use of Kitchly after changes have been made constitutes acceptance of those changes.
@@ -85,7 +87,7 @@ For support or legal inquiries, contact:
 11. Governing Law
 These Terms are governed by the laws applicable to Riso Development LLC's operating jurisdiction.`;
 
-// Terms Modal Component
+// Updated Terms Modal Component with web link option
 const TermsModal = ({ visible, onClose }) => {
   const handlePrivacyPolicyPress = () => {
     const privacyPolicyUrl = "https://www.privacypolicies.com/live/6898ece2-326a-48e7-b950-555cf9ab1713";
@@ -112,12 +114,35 @@ const TermsModal = ({ visible, onClose }) => {
       });
   };
 
+  const handleViewFullTermsPress = () => {
+    const termsUrl = "https://merry-griffin-b38c95.netlify.app";
+    
+    Linking.canOpenURL(termsUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(termsUrl);
+        } else {
+          Alert.alert(
+            "Unable to Open Link",
+            "Please visit our terms of service at: " + termsUrl,
+            [{ text: "OK" }]
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening terms of service:", err);
+        Alert.alert(
+          "Terms of Service",
+          "Please visit our terms of service at: " + termsUrl,
+          [{ text: "OK" }]
+        );
+      });
+  };
+
   return (
     <Modal visible={visible} animationType="slide">
       <SafeAreaView style={styles.termsModalContainer}>
         <View style={styles.termsModalHeader}>
-          
-
         </View>
         
         <ScrollView
@@ -126,6 +151,17 @@ const TermsModal = ({ visible, onClose }) => {
           contentContainerStyle={styles.termsModalScrollContent}
         >
           <Text style={styles.termsText}>{TERMS_OF_SERVICE}</Text>
+          
+          <TouchableOpacity
+            style={styles.fullTermsButton}
+            onPress={handleViewFullTermsPress}
+          >
+            <Ionicons name="document-text" size={20} color="#008b8b" />
+            <Text style={styles.fullTermsButtonText}>
+              View Full Terms Online
+            </Text>
+            <Ionicons name="open-outline" size={16} color="#008b8b" />
+          </TouchableOpacity>
           
           <TouchableOpacity
             style={styles.privacyPolicyButton}
@@ -187,7 +223,7 @@ const ageOptions = Array.from({ length: 83 }, (_, i) => {
   return { label: `${age} years`, value: age.toString() };
 });
 
-// Enhanced Account Modal Component with terms and conditions
+// Enhanced Account Modal Component with updated terms handling
 const AccountModal = ({
   visible,
   onClose,
@@ -223,7 +259,23 @@ const AccountModal = ({
   }, []);
 
   const handleTermsPress = () => {
-    setShowTermsModal(true);
+    // Option 1: Try to open web link directly
+    const termsUrl = "https://merry-griffin-b38c95.netlify.app";
+    
+    Linking.canOpenURL(termsUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(termsUrl);
+        } else {
+          // Fallback to modal if link can't be opened
+          setShowTermsModal(true);
+        }
+      })
+      .catch((err) => {
+        console.error("Error opening terms link:", err);
+        // Fallback to modal
+        setShowTermsModal(true);
+      });
   };
 
   const handlePrivacyPolicyPress = () => {
@@ -369,7 +421,7 @@ const AccountModal = ({
                         style={styles.termsLink}
                         onPress={handleTermsPress}
                       >
-                        Terms and Conditions
+                        Terms of Use
                       </Text>
                       {" "}and{" "}
                       <Text
@@ -420,7 +472,6 @@ const AccountModal = ({
 };
 
 // Premium Modal Component with individual purchase buttons
-// Premium Modal Component with individual purchase buttons
 const PremiumModal = ({
   visible,
   onClose,
@@ -467,7 +518,7 @@ const PremiumModal = ({
           "Cancel Anytime",
         ],
         isRecommended: false,
-        sortOrder: 1 // Add sort order for monthly
+        sortOrder: 1
       };
     } else if (isAnnual) {
       return {
@@ -494,7 +545,7 @@ const PremiumModal = ({
           "Cancel Anytime",
         ],
         isRecommended: true,
-        sortOrder: 2 // Add sort order for annual
+        sortOrder: 2
       };
     }
     
@@ -507,11 +558,10 @@ const PremiumModal = ({
       productId: product.identifier,
       features: ["All Premium Features", "Cancel Anytime"],
       isRecommended: false,
-      sortOrder: 3 // Default sort order for other packages
+      sortOrder: 3
     };
   };
 
-  // Sort plans to ensure monthly appears first, then annual
   const plans = packages
     .map(pkg => getPackageInfo(pkg))
     .filter(Boolean)
@@ -523,7 +573,6 @@ const PremiumModal = ({
     setPurchasingPackageId(null);
   };
 
-  // Rest of your PremiumModal component code remains the same...
   const PlanCard = ({ plan, packageData }) => {
     const isThisPackagePurchasing = purchasingPackageId === packageData.identifier;
     const isFallbackPackage = plan.productId?.includes('fallback');
@@ -605,7 +654,6 @@ const PremiumModal = ({
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={styles.premiumModalContainer}>
         <SafeAreaView style={styles.premiumModalSafeArea}>
-          {/* New subtle top Continue with Free button */}
           <View style={styles.premiumModalTopBar}>
             <TouchableOpacity
               style={styles.topContinueFreeButton}
@@ -656,7 +704,6 @@ const PremiumModal = ({
                 <Text style={styles.planSelectionTitle}>Choose Your Plan</Text>
                 
                 {plans.map((plan, index) => {
-                  // Find the corresponding package data based on the plan
                   const packageData = packages.find(pkg => {
                     const planInfo = getPackageInfo(pkg);
                     return planInfo.id === plan.id;
@@ -696,7 +743,7 @@ const PremiumModal = ({
   );
 };
 
-// Main Component
+// Main Component - rest of the file remains the same as the original...
 export default function OnboardingQuestionnaireScreen({ navigation, onComplete }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -1201,12 +1248,11 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
     setShowPremiumModal(false);
   };
 
-  // FIXED: Enhanced Dropdown Component with proper height calculations
+  // Enhanced Dropdown Component with proper height calculations
   const SimpleDropdown = ({ field, value, onSelect }) => {
     const isOpen = showDropdown === field.id;
     
-    // Calculate proper dropdown height based on screen space
-    const maxDropdownHeight = Math.min(height * 0.4, 280); // 40% of screen or 280px max
+    const maxDropdownHeight = Math.min(height * 0.4, 280);
     const itemHeight = 48;
     const maxVisibleItems = Math.floor(maxDropdownHeight / itemHeight);
 
@@ -1403,7 +1449,6 @@ export default function OnboardingQuestionnaireScreen({ navigation, onComplete }
         {currentQuestion.fields.map((field, index) => (
           <View key={field.id} style={[
             styles.inputContainer,
-            // Add extra margin to last field to prevent footer blocking
             index === currentQuestion.fields.length - 1 && styles.lastInputContainer
           ]}>
             <Text style={styles.inputLabel}>{field.label}</Text>
@@ -1838,13 +1883,13 @@ const styles = StyleSheet.create({
   // Form Step
   formContainer: {
     gap: 20,
-    paddingBottom: 120, // Add padding to prevent footer blocking
+    paddingBottom: 120,
   },
   inputContainer: {
     marginBottom: 6,
   },
   lastInputContainer: {
-    marginBottom: 100, // Extra space for last input to prevent dropdown blocking
+    marginBottom: 100,
   },
   inputLabel: {
     fontSize: 16,
@@ -1853,7 +1898,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
-  // FIXED: Enhanced Dropdown Styles with proper height handling
+  // Enhanced Dropdown Styles
   dropdownContainer: {
     position: "relative",
   },
@@ -2173,19 +2218,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e9ecef",
     backgroundColor: "white",
   },
-  termsModalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2c3e50",
-  },
-  termsModalCloseButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#f8f9fa",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   termsModalContent: {
     flex: 1,
   },
@@ -2199,6 +2231,24 @@ const styles = StyleSheet.create({
     color: "#2c3e50",
     lineHeight: 22,
     marginBottom: 24,
+  },
+  fullTermsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e8f4f8",
+    borderWidth: 1,
+    borderColor: "#008b8b",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    gap: 8,
+  },
+  fullTermsButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#008b8b",
   },
   privacyPolicyButton: {
     flexDirection: "row",
@@ -2246,34 +2296,31 @@ const styles = StyleSheet.create({
   premiumModalSafeArea: {
     flex: 1,
   },
-  
-  // NEW: Top bar with subtle Continue with Free button
-    premiumModalTopBar: {
-     flexDirection: "row",
-     justifyContent: "flex-start",
-     marginTop: 14,
-     paddingHorizontal: 24,
-     paddingTop: 16,
-     paddingBottom: 4,
-     backgroundColor: "rgba(248, 249, 250, 0.95)",
-     borderBottomWidth: 1,
-     borderBottomColor: "rgba(233, 236, 239, 0.3)",
-    },
-    topContinueFreeButton: {
-     marginTop:28,
-     paddingHorizontal: 16,
-     paddingVertical: 14,
-     backgroundColor: "rgba(255, 255, 255, 0.6)",
-     borderRadius: 20,
-     borderWidth: 1,
-     borderColor: "rgba(0, 139, 139, 0.2)",
-    },
+  premiumModalTopBar: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    marginTop: 14,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 4,
+    backgroundColor: "rgba(248, 249, 250, 0.95)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(233, 236, 239, 0.3)",
+  },
+  topContinueFreeButton: {
+    marginTop: 28,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(0, 139, 139, 0.2)",
+  },
   topContinueFreeButtonText: {
     fontSize: 14,
     color: "rgba(127, 140, 141, 0.8)",
     fontWeight: "500",
   },
-  
   premiumModalScroll: {
     flex: 1,
   },
